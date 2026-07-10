@@ -19,13 +19,13 @@
         "description": "Add safe mode, independent enablement, debug directories/CDP, origin-gated deterministic injection, and separate WebView2 profile.",
         "details": "Reject remote/absolute/traversal paths, duplicates, unsupported schemas, missing/oversized files; isolate extension failures.",
         "testStrategy": "Rust unit tests plus enabled/disabled startup smoke.",
-        "status": "in-progress",
+        "status": "done",
         "dependencies": [
           "1"
         ],
         "priority": "high",
         "subtasks": [],
-        "updatedAt": "2026-07-10T05:53:37.274Z"
+        "updatedAt": "2026-07-10T08:47:13.524Z"
       },
       {
         "id": "3",
@@ -33,12 +33,13 @@
         "description": "Create generic versioned JSON storage with validation, serialized access, atomic Windows replacement, backup, and corruption preservation.",
         "details": "Use fixed %LOCALAPPDATA%\\JStremio\\data paths, capped reads, same-directory UUID temps, flush/sync, known-good .bak.",
         "testStrategy": "Rust first-write/replacement/corruption/concurrency/temp tests.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           "1"
         ],
         "priority": "high",
-        "subtasks": []
+        "subtasks": [],
+        "updatedAt": "2026-07-10T08:47:13.527Z"
       },
       {
         "id": "4",
@@ -46,12 +47,13 @@
         "description": "Add strict schemas, validation, timestamps/revisions, stable review keys, UUID note IDs, duration snapshots, and CRUD stores.",
         "details": "Reviews: rating 1-5 and 5000-char text. Notes: required text, ms bounds, multiple notes per timestamp, out-of-range support.",
         "testStrategy": "Rust boundary, CRUD, persistence, duplicate, and restart tests.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           "3"
         ],
         "priority": "high",
-        "subtasks": []
+        "subtasks": [],
+        "updatedAt": "2026-07-10T08:47:13.530Z"
       },
       {
         "id": "5",
@@ -59,13 +61,14 @@
         "description": "Connect approved WebView origins to Reviews and Timestamp Notes operations with correlation, caps, and safe errors.",
         "details": "No arbitrary paths, commands, network, or generic MPV. Add fixed openDataFolder actions.",
         "testStrategy": "Rust request/source/payload/operation/response contract tests.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           "2",
           "4"
         ],
         "priority": "high",
-        "subtasks": []
+        "subtasks": [],
+        "updatedAt": "2026-07-10T08:47:13.533Z"
       },
       {
         "id": "6",
@@ -73,13 +76,14 @@
         "description": "Add frozen idempotent window.JStremio, bridge, media targets, playback snapshots, restricted seek/pause, lifecycle, DOM adapter, overlay/dialog hosts, and diagnostics.",
         "details": "Parse MPV events without wrapping onCoreEvent; centralize upstream DOM heuristics and one reconciler.",
         "testStrategy": "Vitest runtime, media, message, validation, lifecycle, and fixture tests.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           "2",
           "5"
         ],
         "priority": "high",
-        "subtasks": []
+        "subtasks": [],
+        "updatedAt": "2026-07-10T08:47:13.537Z"
       },
       {
         "id": "7",
@@ -87,12 +91,13 @@
         "description": "Add one navigation item, management overlay, current-player button, accessible editor, canonical navigation, CRUD refresh, and error states.",
         "details": "Shadow DOM UI; Reviews must never alter playback.",
         "testStrategy": "TypeScript and Playwright CRUD/remount/accessibility/no-playback-change tests.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           "6"
         ],
         "priority": "high",
-        "subtasks": []
+        "subtasks": [],
+        "updatedAt": "2026-07-10T08:47:13.540Z"
       },
       {
         "id": "8",
@@ -100,12 +105,13 @@
         "description": "Add navigation/search/grouped overlay, capture-before-pause workflow, -5/+5/reset, conditional resume, editor, CRUD, and out-of-range warnings.",
         "details": "Disable for live, missing time/duration, external playback, or unstable video ID with an explanation.",
         "testStrategy": "Unit and Playwright capture/resume/filter/accessibility tests.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           "6"
         ],
         "priority": "high",
-        "subtasks": []
+        "subtasks": [],
+        "updatedAt": "2026-07-10T08:47:13.542Z"
       },
       {
         "id": "9",
@@ -113,12 +119,13 @@
         "description": "Mount a pointer-transparent marker layer on the current seek slider with resize/fullscreen/remount handling, tooltips, popovers, direct seek, edit/delete, and 10px clustering.",
         "details": "Absolute timestamps remain authoritative; hide out-of-range markers and never cross media targets.",
         "testStrategy": "Marker math, clustering, click seek, remount, keyboard, and normal seek tests.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           "8"
         ],
         "priority": "high",
-        "subtasks": []
+        "subtasks": [],
+        "updatedAt": "2026-07-10T08:47:13.545Z"
       },
       {
         "id": "10",
@@ -126,13 +133,14 @@
         "description": "Exercise missing core/channel/time, live playback, DOM churn, bundle exceptions, IPC timeout, corrupt stores, and out-of-range timestamps.",
         "details": "Each failure disables only its feature; private text never enters logs or network.",
         "testStrategy": "Failure-injection, network inspection, and safe-mode tests.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           "7",
           "9"
         ],
         "priority": "high",
-        "subtasks": []
+        "subtasks": [],
+        "updatedAt": "2026-07-10T08:47:13.547Z"
       },
       {
         "id": "11",
@@ -140,12 +148,13 @@
         "description": "Provide check/run-dev/test-e2e scripts, deterministic legal media fixtures, WebView2/CDP opt-in checks, and enabled/disabled regression records.",
         "details": "Verify same official endpoint/server handoff/player path and unchanged volume/mute/audio/subtitle/stream behavior.",
         "testStrategy": "Cargo/TypeScript/Playwright/release build plus manual audible-output checklist.",
-        "status": "pending",
+        "status": "review",
         "dependencies": [
           "10"
         ],
         "priority": "high",
-        "subtasks": []
+        "subtasks": [],
+        "updatedAt": "2026-07-10T08:47:13.582Z"
       },
       {
         "id": "12",
@@ -153,19 +162,20 @@
         "description": "Produce separate portable JStremio output and optional unsigned installer metadata with separate identity/profile/data/updater behavior.",
         "details": "Document first login, backup/import, safe mode, rollback, update, SmartScreen, GPL, clean-profile validation, and hashes.",
         "testStrategy": "Portable clean-profile smoke, restart persistence, safe mode, and official-install coexistence checks.",
-        "status": "pending",
+        "status": "review",
         "dependencies": [
           "11"
         ],
         "priority": "high",
-        "subtasks": []
+        "subtasks": [],
+        "updatedAt": "2026-07-10T08:47:13.613Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-07-10T05:53:37.275Z",
+      "lastModified": "2026-07-10T08:47:13.613Z",
       "taskCount": 12,
-      "completedCount": 1,
+      "completedCount": 10,
       "tags": [
         "master"
       ]

@@ -1,4 +1,5 @@
 pub const APP_NAME: &str = "JStremio";
+pub const SHELL_COMPAT_VERSION: &str = "5.0.23";
 pub const IPC_PATH: &str = "//./pipe/com.jstremio.";
 pub const DEV_ENDPOINT: &str = "http://127.0.0.1:11470";
 pub const WEB_ENDPOINT: &str = "https://web.stremio.com/";

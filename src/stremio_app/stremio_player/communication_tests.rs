@@ -22,7 +22,7 @@ fn propr_change_tokens() {
     ];
 
     fn tokens_by_type(tokens: &[Token; 6], name: &'static str, val: PropertyData, token: Token) {
-        let mut typed_tokens = tokens.clone();
+        let mut typed_tokens = *tokens;
         typed_tokens[2] = Token::Str(name);
         typed_tokens[4] = token;
         assert_tokens(

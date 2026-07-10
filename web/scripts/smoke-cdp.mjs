@@ -22,12 +22,26 @@ const contexts = browser.contexts();
 const pages = contexts.flatMap((context) => context.pages());
 const page = pages.find((candidate) => candidate.url().includes("web.stremio.com")) ?? pages[0];
 if (!page) throw new Error("WebView2 exposed no page");
+if (!page.url().includes("web.stremio.com")) {
+  await page.waitForURL((url) => url.origin === "https://web.stremio.com", {
+    timeout: 30_000,
+  });
+}
 await page.waitForLoadState("domcontentloaded", { timeout: 30_000 });
 await page.waitForFunction(
   (expected) => Boolean(window.JStremio) === expected,
   expectRuntime,
   { timeout: 15_000 },
 );
+if (expectRuntime) {
+  await page.waitForFunction(
+    () =>
+      document.querySelectorAll('[data-jstremio-testid="reviews-navigation"]').length === 1 &&
+      document.querySelectorAll('[data-jstremio-testid="timestamp-notes-navigation"]').length === 1,
+    undefined,
+    { timeout: 15_000 },
+  );
+}
 const result = await page.evaluate(() => ({
   url: location.href,
   runtime: Boolean(window.JStremio),

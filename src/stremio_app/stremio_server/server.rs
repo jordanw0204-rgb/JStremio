@@ -165,7 +165,7 @@ impl StremioServer {
                 Err(err) => {
                     nwg::error_message(
                         "Stremio server",
-                        format!("Cannot execute stremio-runtime: {}", &err).as_str(),
+                        format!("Cannot execute stremio-runtime: {}", err).as_str(),
                     );
                 }
             };
@@ -179,7 +179,13 @@ impl StremioServer {
         });
 
         // Wait for the server to start and keep the exact endpoint printed by server.js.
-        let server_url = rx.recv().unwrap();
+        let server_url = match rx.recv() {
+            Ok(server_url) => server_url,
+            Err(error) => {
+                eprintln!("Stremio server did not report an endpoint: {error}");
+                return None;
+            }
+        };
         if let Ok(mut stored_url) = self.server_url.lock() {
             *stored_url = Some(server_url.clone());
         }

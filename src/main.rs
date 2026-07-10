@@ -157,7 +157,10 @@ fn main() {
         None => None,
     };
     let disabled_ids = opt.disable_extension.into_iter().collect::<HashSet<_>>();
-    let origins = OriginPolicy::new(opt.staging, opt.development);
+    let origins = OriginPolicy::new(
+        opt.staging || has_same_origin(&webui_url, STA_ENDPOINT),
+        opt.development,
+    );
     let extension_host = if opt.disable_extensions {
         println!("JStremio extensions disabled (safe mode)");
         None
@@ -184,7 +187,9 @@ fn main() {
     )
     .expect("JStremio WebView2 configuration must be set once");
 
+    println!("Initializing JStremio native UI");
     nwg::init().expect("Failed to init Native Windows GUI");
+    println!("Building JStremio main window");
     let _app = MainWindow::build_ui(MainWindow {
         command,
         commands_path: Some(commands_path),
@@ -196,6 +201,7 @@ fn main() {
         ..Default::default()
     })
     .expect("Failed to build UI");
+    println!("JStremio main window initialized");
     nwg::dispatch_thread_events();
 }
 
@@ -206,4 +212,32 @@ fn packaged_extensions_directory() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
         .join("resources")
         .join("extensions")
+}
+
+fn has_same_origin(value: &str, expected: &str) -> bool {
+    match (url::Url::parse(value), url::Url::parse(expected)) {
+        (Ok(value), Ok(expected)) => value.origin() == expected.origin(),
+        _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::has_same_origin;
+
+    #[test]
+    fn recognizes_only_the_exact_configured_origin() {
+        assert!(has_same_origin(
+            "https://staging.strem.io/#/player",
+            "https://staging.strem.io/"
+        ));
+        assert!(!has_same_origin(
+            "https://staging.strem.io.evil.invalid/",
+            "https://staging.strem.io/"
+        ));
+        assert!(!has_same_origin(
+            "http://staging.strem.io/",
+            "https://staging.strem.io/"
+        ));
+    }
 }

@@ -1,18 +1,64 @@
-## Stremio shell: new gen
+# JStremio
 
-A Windows-only shell using WebView2 and MPV
+JStremio is a Windows desktop build based on the official `stremio-shell-ng`. It still loads `https://web.stremio.com/`, starts Stremio's bundled streaming server, and uses native MPV for playback. A small, origin-gated loader injects two trusted local extensions without rebuilding Stremio Web:
 
-Goals:
-* Performance
-* Reliability
-* Easy to ship
+- **Local Reviews** — private 1–5 ratings and optional review text.
+- **Timestamp Notes** — private notes captured at an on-demand playback position, with timeline markers, clustering, and click-to-seek.
 
-In all three, this architecture excels the [Qt-based shell](https://github.com/Stremio/stremio-shell): it is about 2-5x more efficient depending on the use case, as it allows MPV to render directly in the window through it's optimal video output rather than using libmpv to integrate with Qt.
+Both stores are human-readable JSON under `%LOCALAPPDATA%\JStremio\data`. Their content is not synchronized or sent to Stremio. JStremio has its own executable, WebView2 profile, IPC pipe, local data, portable package, installer AppId, and updater policy, so it can coexist with official Stremio.
 
-This is due to Qt having a complex rendering pipeline involving ANGLE and multiple levels of composing and drawing to textures, which inhibits full HW acceleration.
+## Build and run
 
-Meanwhile in this setup MPV uses whichever pipeline it considers to be optimal (like the mpv desktop app), which is normally d3d11, allowing full HW acceleration.
+Prerequisites are Windows 10/11, WebView2 Runtime, stable Rust with the `x86_64-pc-windows-msvc` target, Node.js 22 or newer, and Corepack.
 
-For web rendering, we use the native WebView2, which is Chromium based but shipped as a part of Windows 10: therefore we do not need to ship our own "distribution" of Chromium.
+```powershell
+.\scripts\check.ps1
+.\scripts\run-dev.ps1
+```
 
-Finally, this should be a lot more reliable as it uses a much simpler and more native overall architecture.
+The development command builds the trusted extension bundles, then launches a debug shell with the local extension directory. Production uses packaged resources beside `JStremio.exe` and does not accept a development directory.
+
+Create a portable directory and optional ZIP:
+
+```powershell
+.\scripts\package-portable.ps1 -Zip
+```
+
+The optional installer requires Inno Setup 6 and is intentionally unsigned:
+
+```powershell
+.\scripts\package-installer.ps1
+```
+
+## Safe mode and independent enablement
+
+```powershell
+.\JStremio.exe --disable-extensions
+.\JStremio.exe --disable-extension reviews
+.\JStremio.exe --disable-extension timestamp-notes
+```
+
+Safe mode does not load the runtime or extension code and leaves the official UI/shell behavior in place. Debug-only CDP and development extension flags are rejected by release builds.
+
+## Local data
+
+- Reviews: `%LOCALAPPDATA%\JStremio\data\reviews.json`
+- Timestamp notes: `%LOCALAPPDATA%\JStremio\data\timestamp-notes.json`
+- Backups: the matching `.bak` file after replacement
+- WebView2 profile: `%LOCALAPPDATA%\JStremio\webview2`
+
+Back up the JSON files while JStremio is closed. A malformed or unsupported file is preserved and reported rather than overwritten. To validate and import the earlier Web UI prototype's reviews:
+
+```powershell
+.\scripts\import-legacy-reviews.ps1 -Source D:\path\to\reviews.json
+```
+
+See [installation and rollback](docs/installation.md), [data and privacy](docs/data-and-privacy.md), [testing](docs/testing.md), and [architecture](docs/architecture.md).
+
+## Verification status
+
+Automated native, TypeScript, Playwright, real WebView2 injection, safe-mode, IPC, privacy-sentinel, and restart-persistence checks are documented in [testing](docs/testing.md). Final sign-off still requires a person to confirm account login, real native MPV video, and audible output on the target Windows audio device.
+
+## Upstream and license
+
+The pinned upstream release and exact commits are in `upstream.lock.json`. JStremio is GPL-2.0, matching the upstream shell. Distributed builds must include the license and make the corresponding modified source/build instructions available. Stremio and its upstream source remain owned by their respective copyright holders.

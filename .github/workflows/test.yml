@@ -2,30 +2,45 @@ name: Continuous integration
 
 on: [pull_request, push]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test:
+  check-and-package:
     runs-on: windows-latest
+    timeout-minutes: 45
     steps:
-    # The Windows runners have autocrlf enabled by default
-    # which causes failures for some of rustfmt's line-ending sensitive tests
-    - name: disable git eol translation
-      run: git config --global core.autocrlf false
-    - name: checkout
-      uses: actions/checkout@v6
-      with:
-        fetch-depth: 0
-    - name: Check version
-      run: node stremiover.js check
-    - name: Stable with rustfmt and clippy
-      uses: actions-rust-lang/setup-rust-toolchain@v1
-      with:
-        toolchain: stable
-        target: x86_64-pc-windows-msvc
-        components: rustfmt, clippy
-    - name: Lint code format
-      run: cargo fmt --all -- --check
-    - name: Lint code
-      run: cargo clippy --all -- -D warnings
-    - name: Test
-      run: cargo test --target x86_64-pc-windows-msvc
+      # The Windows runners enable autocrlf by default, which can make rustfmt
+      # report changes that are not present in the repository.
+      - name: Disable Git EOL translation
+        run: git config --global core.autocrlf false
+      - name: Check out source
+        uses: actions/checkout@v6
+      - name: Install stable Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          target: x86_64-pc-windows-msvc
+          components: rustfmt, clippy
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Run native, browser, and release checks
+        shell: powershell
+        run: .\scripts\check.ps1
+      - name: Build portable package
+        shell: powershell
+        run: .\scripts\package-portable.ps1 -Zip
+      - name: Retain portable package
+        uses: actions/upload-artifact@v4
+        with:
+          name: JStremio-windows-x64-portable
+          path: artifacts/*-portable.zip
+          if-no-files-found: error
+          retention-days: 7
 

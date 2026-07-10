@@ -234,7 +234,7 @@ mod tests {
         let thread = thread::spawn(move || {
             let mut stream = listener.accept().unwrap();
             let mut buf = [0; 5];
-            stream.read(&mut buf).unwrap();
+            stream.read_exact(&mut buf).unwrap();
             assert_eq!(&msg1[..], &buf[..]);
             stream.write_all(msg2).unwrap();
         });

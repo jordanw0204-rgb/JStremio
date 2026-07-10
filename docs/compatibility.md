@@ -1,0 +1,14 @@
+# Stremio Web compatibility
+
+Pinned shell: see `upstream.lock.json`. Official Web UI build observed on 2026-07-10: `b6298c68d27602564ed16edd0f44aa09cd8bacb4`.
+
+The runtime depends on two versioned inputs:
+
+- `window.core.getState("player")` for stable movie/episode identity.
+- Existing native `mpv-prop-change` events for `time-pos`, `duration`, `pause`, and `seeking`.
+
+DOM discovery is centralized in `web/src/runtime/compatibility.ts`. It uses semantic navigation/toolbar/slider roles and known Library/Calendar hrefs before structural neighbors. Complete CSS-module hashes are forbidden.
+
+If `window.core`, the shell channel, player time/duration, or a supported seek slider is absent, only the affected button/marker is disabled. Live and remote/cast playback do not offer timestamp capture. A bundle exception is caught per extension.
+
+For each new live Web UI build, run unit fixtures, Playwright remount tests, a debug-CDP live smoke, and the manual playback matrix before updating `lastCompatibilityTest` in `upstream.lock.json`.

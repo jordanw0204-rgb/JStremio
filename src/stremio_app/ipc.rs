@@ -2,9 +2,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{self, json};
 use std::cell::RefCell;
 
+use crate::stremio_app::constants::SHELL_COMPAT_VERSION;
 use crate::stremio_app::gpu_video_processing;
-
-const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub type Channel = RefCell<Option<(flume::Sender<String>, flume::Receiver<String>)>>;
 pub type WebChannel = RefCell<Option<(flume::Sender<String>, flume::Receiver<WebMessage>)>>;
@@ -86,7 +85,7 @@ impl RPCResponse {
                             "".to_string(),
                             "shellVersion".to_string(),
                             "".to_string(),
-                            VERSION.to_string(),
+                            SHELL_COMPAT_VERSION.to_string(),
                         ],
                         vec![
                             "".to_string(),
@@ -135,5 +134,26 @@ impl RPCResponse {
     }
     pub fn media_key(action: &str) -> String {
         Self::response_message(Some(json!(["media-key", action])))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::RPCResponse;
+    use crate::stremio_app::constants::SHELL_COMPAT_VERSION;
+
+    #[test]
+    fn handshake_reports_the_pinned_shell_compatibility_version() {
+        let handshake: RPCResponse = serde_json::from_str(&RPCResponse::get_handshake()).unwrap();
+        let properties = &handshake.data.unwrap().transport.properties;
+        let shell_version = properties
+            .iter()
+            .find(|property| property.get(1).map(String::as_str) == Some("shellVersion"))
+            .unwrap();
+
+        assert_eq!(
+            shell_version.get(3).map(String::as_str),
+            Some(SHELL_COMPAT_VERSION)
+        );
     }
 }
