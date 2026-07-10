@@ -6,7 +6,7 @@ use std::{
     io::Read,
     ops::Deref,
     os::windows::process::CommandExt,
-    path,
+    path::{self, PathBuf},
     process::{Command, Stdio},
     sync::{Arc, Mutex},
     thread,
@@ -23,6 +23,7 @@ use winapi::um::{
 
 #[derive(Default)]
 pub struct StremioServer {
+    app_path: PathBuf,
     development: bool,
     parent: nwg::ControlHandle,
     crash_notice: nwg::Notice,
@@ -31,6 +32,13 @@ pub struct StremioServer {
 }
 
 impl StremioServer {
+    pub fn with_app_path(app_path: PathBuf) -> Self {
+        Self {
+            app_path,
+            ..Default::default()
+        }
+    }
+
     pub fn server_url(&self) -> Option<String> {
         self.server_url.lock().ok().and_then(|url| url.clone())
     }
@@ -42,6 +50,7 @@ impl StremioServer {
         let (tx, rx) = flume::unbounded();
         let logs = self.logs.clone();
         let sender = self.crash_notice.sender();
+        let app_path = self.app_path.clone();
 
         thread::spawn(move || {
             // Use Win32JobObject to kill the child process when the parent process is killed
@@ -75,12 +84,16 @@ impl StremioServer {
             let lines = Arc::new(Mutex::new(String::new()));
             let runtime_path = path.clone().join(path::Path::new("stremio-runtime"));
             let server_path = path.clone().join(path::Path::new("server.js"));
-            let child = Command::new(runtime_path)
+            let mut command = Command::new(runtime_path);
+            command
                 .arg(server_path)
                 .creation_flags(CREATE_NO_WINDOW)
                 .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .spawn();
+                .stderr(Stdio::piped());
+            if !app_path.as_os_str().is_empty() {
+                command.env("APP_PATH", &app_path);
+            }
+            let child = command.spawn();
             match child {
                 Ok(mut child) => {
                     let mut stdout = child.stdout.take().unwrap();

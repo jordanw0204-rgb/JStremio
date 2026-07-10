@@ -17,3 +17,5 @@ Malformed, oversized, duplicate-ID, or unsupported-schema primary files are not 
 Text is sent only through the local WebView2 host channel and written to the fixed JStremio data directory. It is not placed in URLs, logs, Stremio APIs, add-on calls, analytics, or crash reports. Native errors use content-free codes/messages. Automated fixture and real-shell probes use sentinel text to verify network and log absence.
 
 The WebView2 profile contains ordinary Stremio login/session data and should be protected like a browser profile. It is separate from official Stremio and is never included in portable packages.
+
+The bundled streaming server stores its cache and settings under `%LOCALAPPDATA%\JStremio\server`, separate from official Stremio's server state. Neither that directory nor the WebView2 profile is included in portable packages.

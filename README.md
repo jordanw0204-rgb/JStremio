@@ -45,6 +45,7 @@ Safe mode does not load the runtime or extension code and leaves the official UI
 - Reviews: `%LOCALAPPDATA%\JStremio\data\reviews.json`
 - Timestamp notes: `%LOCALAPPDATA%\JStremio\data\timestamp-notes.json`
 - Backups: the matching `.bak` file after replacement
+- Bundled server cache/settings: `%LOCALAPPDATA%\JStremio\server`
 - WebView2 profile: `%LOCALAPPDATA%\JStremio\webview2`
 
 Back up the JSON files while JStremio is closed. A malformed or unsupported file is preserved and reported rather than overwritten. To validate and import the earlier Web UI prototype's reviews:

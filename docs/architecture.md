@@ -21,7 +21,7 @@ JStremio WebView2 shell ---- bundled Stremio server
 
 Web messages retain Stremio's existing `{id,args}` envelope. Custom messages are handled only when the sender and current top-level document have the same approved HTTP(S) origin. Fixed namespaces expose only Reviews and Timestamp Notes operations. No generic path, command, network, key/value, or MPV bridge exists.
 
-The native updater trigger was removed. The app name, pipe, window settings directory, WebView2 profile, executable, installer AppId, and local data directory are JStremio-specific.
+The native updater trigger was removed. The app name, pipe, window settings directory, bundled-server cache/settings path, WebView2 profile, executable, installer AppId, and local data directory are JStremio-specific.
 
 ## Browser boundary
 

@@ -4,7 +4,7 @@
 
 Extract the portable ZIP to a user-writable directory and run `JStremio.exe`. The first launch uses a new WebView2 profile, so sign into the same Stremio account once. Account, library, and add-on synchronization still use official Stremio services.
 
-The portable directory does not contain reviews, timestamp notes, login state, or the WebView2 profile. Those stay under `%LOCALAPPDATA%\JStremio`.
+The portable directory does not contain reviews, timestamp notes, bundled-server cache/settings, login state, or the WebView2 profile. Those stay under `%LOCALAPPDATA%\JStremio`.
 
 ## Unsigned installer
 

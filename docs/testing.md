@@ -18,6 +18,7 @@
 - Playwright: Reviews CRUD/privacy, both-extension dedup/remount, timestamp capture, owned pause/resume, clustering, marker seeking, and pointer-transparent layer passed.
 - Real WebView2 enabled: official URL plus dynamic server URL, frozen runtime, one Reviews item, and one Timestamp Notes item.
 - Real WebView2 safe mode: the exact same official/dynamic URL with no runtime or extension nodes.
+- Bundled server isolation: `APP_PATH` resolved under the isolated `%LOCALAPPDATA%\JStremio\server` tree while official Stremio remained active on its own ports.
 - Real native IPC: one Review and one Timestamp Note were created, found again after a full restart, and stored under the isolated JStremio data directory.
 - Privacy sentinel: absent from real-shell logs and observed browser network requests.
 

@@ -6,6 +6,7 @@ pub const PRODUCT_DIRECTORY: &str = "JStremio";
 pub struct AppPaths {
     pub root: PathBuf,
     pub data: PathBuf,
+    pub server: PathBuf,
     pub webview2: PathBuf,
 }
 
@@ -23,6 +24,7 @@ impl AppPaths {
         let root = local_app_data.join(PRODUCT_DIRECTORY);
         Self {
             data: root.join("data"),
+            server: root.join("server"),
             webview2: root.join("webview2"),
             root,
         }
@@ -39,6 +41,7 @@ mod tests {
         let paths = AppPaths::from_local_app_data(PathBuf::from(r"C:\Users\test\AppData\Local"));
         assert!(paths.root.ends_with("JStremio"));
         assert!(paths.data.ends_with(r"JStremio\data"));
+        assert!(paths.server.ends_with(r"JStremio\server"));
         assert!(paths.webview2.ends_with(r"JStremio\webview2"));
     }
 }

@@ -24,6 +24,7 @@ use crate::stremio_app::{
     constants::{
         DEV_ENDPOINT, IPC_PATH, SERVER_IPC_KEY, STA_ENDPOINT, STREMIO_SERVER_DEV_MODE, WEB_ENDPOINT,
     },
+    stremio_server::StremioServer,
     MainWindow, PipeClient,
 };
 use app_paths::AppPaths;
@@ -180,6 +181,7 @@ fn main() {
             }
         }
     };
+    let server = StremioServer::with_app_path(paths.server.clone());
     stremio_app::stremio_wevbiew::configure(
         paths.webview2,
         remote_debugging_port,
@@ -198,6 +200,7 @@ fn main() {
         dev_tools: opt.development || opt.dev_tools,
         start_hidden: opt.start_hidden,
         extension_host,
+        server,
         ..Default::default()
     })
     .expect("Failed to build UI");
