@@ -32,6 +32,7 @@ test.beforeEach(async ({ page }) => {
     const reviews: Array<Record<string, unknown>> = [];
     const notes: Array<Record<string, unknown>> = [];
     const commands: Array<unknown[]> = [];
+    const shortcutKeys: string[] = [];
     let revision = 0;
     const state = {
       selected: { streamRequest: { path: { id: "tt123" } } },
@@ -129,9 +130,12 @@ test.beforeEach(async ({ page }) => {
         reviews,
         notes,
         commands,
+        shortcutKeys,
         emitMpv: (name: string, data: unknown) => emit({ args: ["mpv-prop-change", { name, data }] }),
+        emitShell: (name: string, data: unknown) => emit(JSON.stringify({ id: 0, type: 1, args: [name, data] })),
       },
     });
+    document.addEventListener("keydown", (event) => shortcutKeys.push(event.key));
   });
   await page.addScriptTag({ path: resolve(built, "runtime.js") });
   await page.addScriptTag({ path: resolve(built, "reviews", "index.js") });
@@ -204,7 +208,10 @@ test("creates and manages a private review without network leakage", async ({ pa
   page.on("request", (request) => requests.push(`${request.url()} ${request.postData() ?? ""}`));
   await page.locator('[data-jstremio-testid="reviews-player-button"]').click();
   await page.getByRole("radio", { name: "5 stars" }).check();
-  await page.getByLabel("Private review").fill("local-only-review-sentinel");
+  await page.getByLabel("Private review").click();
+  await page.keyboard.type("local-only-review-sentinel");
+  await expect(page.getByLabel("Private review")).toHaveValue("local-only-review-sentinel");
+  await expect.poll(() => page.evaluate(() => (window as any).__fixture.shortcutKeys)).toEqual([]);
   await page.getByRole("button", { name: "Save" }).click();
   await expect.poll(() => page.evaluate(() => (window as any).__fixture.reviews.length)).toBe(1);
 
@@ -219,7 +226,10 @@ test("captures, pauses conditionally, clusters markers, and seeks without blocki
   await expect(addButton).toBeEnabled();
   await addButton.click();
   await expect(page.getByText("00:12", { exact: true })).toBeVisible();
-  await page.getByLabel("Note (required)").fill("first marker note");
+  await page.getByLabel("Note (required)").click();
+  await page.keyboard.type("first marker note");
+  await expect(page.getByLabel("Note (required)")).toHaveValue("first marker note");
+  await expect.poll(() => page.evaluate(() => (window as any).__fixture.shortcutKeys)).toEqual([]);
   await page.getByLabel("Marker color").fill("#ff3366");
   await page.getByLabel("Rating (optional)").selectOption("5");
   await page.getByRole("button", { name: "Save" }).click();
@@ -242,6 +252,21 @@ test("captures, pauses conditionally, clusters markers, and seeks without blocki
   await expect(layer).toHaveCSS("pointer-events", "none");
   await expect(layer.locator("..")).toHaveJSProperty("tagName", "BODY");
   await expect.poll(() => layer.evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThan(0);
+
+  // Native shell fullscreen can move a paused control bar without changing the
+  // seek element's own size. Its visibility signal must realign the body-owned
+  // layer without waiting for another MPV time-pos event.
+  await emitPlayback(page, 12.7, 100, true);
+  await page.evaluate(() => {
+    const seek = document.querySelector<HTMLElement>(".slider-container_fixture")!;
+    seek.style.transform = "translateY(-72px)";
+    (window as any).__fixture.emitShell("win-visibility-changed", { fullscreen: true, visible: true });
+  });
+  await expect.poll(async () => {
+    const markerBounds = await layer.boundingBox();
+    const seekBounds = await page.locator(".slider-container_fixture").boundingBox();
+    return markerBounds && seekBounds ? Math.abs(markerBounds.y - seekBounds.y) : 999;
+  }).toBeLessThan(0.5);
 
   await marker.click();
   const firstItem = page.locator(".marker-note").filter({ hasText: "first marker note" });

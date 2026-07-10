@@ -214,13 +214,27 @@
         "priority": "high",
         "subtasks": [],
         "updatedAt": "2026-07-10T21:56:56.780Z"
+      },
+      {
+        "id": "16",
+        "title": "Isolate dialog typing and resync paused fullscreen markers",
+        "description": "Prevent extension dialog keyboard input from reaching Stremio global shortcuts and refresh timestamp-marker viewport bounds during paused fullscreen/native window resize transitions.",
+        "details": "Stop composed keyboard events at the extension Shadow DOM boundary after target handling. Observe window, Fullscreen API, and VisualViewport resize signals and schedule marker-bound synchronization across layout frames. Add Playwright regressions for both Reviews and Timestamp Notes typing plus a paused position-only timeline move.",
+        "testStrategy": "TypeScript tests, Playwright keyboard propagation and paused-resize marker alignment, full repository gate, real WebView2/MPV smoke, portable integrity audit.",
+        "status": "done",
+        "dependencies": [
+          "15"
+        ],
+        "priority": "high",
+        "subtasks": [],
+        "updatedAt": "2026-07-10T22:13:44.367Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-07-10T21:56:56.780Z",
-      "taskCount": 15,
-      "completedCount": 13,
+      "lastModified": "2026-07-10T22:13:44.367Z",
+      "taskCount": 16,
+      "completedCount": 14,
       "tags": [
         "master"
       ]

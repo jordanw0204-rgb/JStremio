@@ -5,6 +5,7 @@ import {
   isPlayerRoute,
   PLAYER_OVERLAY_HIDDEN_SELECTOR,
 } from "../../runtime/compatibility";
+import { unwrapNativeEvent } from "../../runtime/nativeEvents";
 import { isLikelyLiveState } from "../../runtime/stremioAdapter";
 import type { JStremioRuntime, MediaTarget, PlaybackSnapshot } from "../../runtime/types";
 import {
@@ -378,6 +379,7 @@ function createTimeline(
   document.body.append(layer);
   let currentDuration: number | null = null;
   let lastRenderSignature = "";
+  let viewportSyncFrame: number | null = null;
   const syncBounds = () => {
     const rect = container.getBoundingClientRect();
     layer.hidden = rect.width <= 0 || rect.height <= 0;
@@ -388,12 +390,33 @@ function createTimeline(
     layer.style.width = `${rect.width}px`;
     layer.style.height = `${rect.height}px`;
   };
+  const syncBoundsAcrossLayoutFrames = () => {
+    syncBounds();
+    if (viewportSyncFrame !== null) cancelAnimationFrame(viewportSyncFrame);
+    let remainingFrames = 6;
+    const followLayout = () => {
+      syncBounds();
+      remainingFrames -= 1;
+      viewportSyncFrame = remainingFrames > 0 ? requestAnimationFrame(followLayout) : null;
+    };
+    viewportSyncFrame = requestAnimationFrame(followLayout);
+  };
   const resize = new ResizeObserver(() => {
     lastRenderSignature = "";
-    syncBounds();
+    syncBoundsAcrossLayoutFrames();
     render(getNotes(), currentDuration);
   });
   resize.observe(container);
+  window.addEventListener("resize", syncBoundsAcrossLayoutFrames);
+  document.addEventListener("fullscreenchange", syncBoundsAcrossLayoutFrames);
+  window.visualViewport?.addEventListener("resize", syncBoundsAcrossLayoutFrames);
+  const shellChannel = window.chrome?.webview;
+  const onShellMessage = (event: MessageEvent) => {
+    if (unwrapNativeEvent(event.data)?.[0] === "win-visibility-changed") {
+      syncBoundsAcrossLayoutFrames();
+    }
+  };
+  shellChannel?.addEventListener("message", onShellMessage);
 
   const render = (notes: Note[], durationMs: number | null) => {
     syncBounds();
@@ -439,6 +462,11 @@ function createTimeline(
     render,
     destroy() {
       resize.disconnect();
+      window.removeEventListener("resize", syncBoundsAcrossLayoutFrames);
+      document.removeEventListener("fullscreenchange", syncBoundsAcrossLayoutFrames);
+      window.visualViewport?.removeEventListener("resize", syncBoundsAcrossLayoutFrames);
+      shellChannel?.removeEventListener("message", onShellMessage);
+      if (viewportSyncFrame !== null) cancelAnimationFrame(viewportSyncFrame);
       closeMarkerPopover(layer);
       layer.remove();
     },

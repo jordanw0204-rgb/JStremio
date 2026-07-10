@@ -13,7 +13,9 @@ The current official player renders its reusable `Button` as a focusable `div` a
 
 Discovered upstream nodes are measurement/templates only. Custom player buttons and markers are mounted under `document.body` and visually positioned with fixed overlays; they are never inserted into React-owned control or slider child lists.
 
-The player dock remains a pointer-active but fully transparent hover target while Stremio is immersed and returns to full opacity on hover or keyboard focus. Marker layers follow Stremio's `overlayHidden` compatibility signal: ticks and popovers disappear with the official controls, and an open popover is dismissed on the next playback update so it cannot reappear unexpectedly.
+The player dock remains a pointer-active but fully transparent hover target while Stremio is immersed and returns to full opacity on hover or keyboard focus. Marker layers follow Stremio's `overlayHidden` compatibility signal: ticks and popovers disappear with the official controls, and an open popover is dismissed on the next playback update so it cannot reappear unexpectedly. Body-owned marker bounds resynchronize on window, Fullscreen API, Visual Viewport, and shell `win-visibility-changed` signals, including while MPV is paused.
+
+Extension Shadow DOM surfaces stop composed keyboard events after their controls receive them. This keeps text entry and native control behavior intact while preventing Stremio's document-level playback shortcuts from receiving review or timestamp-note typing.
 
 Navigation integrations copy the current official container, icon, and label classes from Library or Calendar. This preserves Stremio's foreground-gray icon color and dimensions, transparent idle background, and hover-only label without depending on complete CSS-module hashes.
 

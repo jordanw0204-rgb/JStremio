@@ -81,7 +81,15 @@ await page.waitForFunction(
   { timeout: 15_000 },
 );
 await noteButton.click();
-await page.getByLabel("Note (required)").fill("real-player customization smoke");
+await page.waitForFunction(() => window.JStremio.player.getSnapshot()?.paused === true, undefined, { timeout: 5_000 });
+const noteField = page.getByLabel("Note (required)");
+await noteField.click();
+await page.keyboard.type("real-player customization smoke");
+const dialogTypingKeptPaused = await page.evaluate(() =>
+  window.JStremio.player.getSnapshot()?.paused === true &&
+  document.querySelector('[data-jstremio-testid="overlay-host"]')?.shadowRoot?.querySelector("textarea")?.value ===
+    "real-player customization smoke",
+);
 await page.getByLabel("Marker color").fill("#ff3366");
 await page.getByLabel("Rating (optional)").selectOption("4");
 await page.getByRole("button", { name: "Save" }).click();
@@ -98,6 +106,48 @@ const customizationPersisted = await page.evaluate(async () => {
 });
 const markerColorApplied = await marker.evaluate(
   (element) => element.style.getPropertyValue("--marker-color") === "#FF3366",
+);
+
+const viewportBeforeFullscreen = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
+await page.evaluate(async () => {
+  await window.JStremio.player.setPaused(true);
+  window.chrome.webview.postMessage(JSON.stringify({
+    id: 0,
+    type: 6,
+    args: ["win-set-visibility", { fullscreen: true }],
+  }));
+});
+await page.waitForFunction(
+  ({ width, height }) => innerWidth !== width || innerHeight !== height,
+  viewportBeforeFullscreen,
+  { timeout: 10_000 },
+);
+await page.waitForFunction(() => {
+  const layer = document.querySelector('[data-jstremio-testid="timestamp-note-markers"]');
+  const mask = document.querySelector('[style*="--mask-width"]');
+  const slider = mask?.parentElement?.parentElement ?? null;
+  const layerRect = layer?.getBoundingClientRect();
+  const sliderRect = slider?.getBoundingClientRect();
+  return Boolean(
+    window.JStremio.player.getSnapshot()?.paused === true &&
+    layerRect && sliderRect &&
+    Math.abs(layerRect.left - sliderRect.left) < 1 &&
+    Math.abs(layerRect.top - sliderRect.top) < 1 &&
+    Math.abs(layerRect.width - sliderRect.width) < 1
+  );
+}, undefined, { timeout: 10_000 });
+const pausedFullscreenMarkerAligned = true;
+await page.evaluate(() => {
+  window.chrome.webview.postMessage(JSON.stringify({
+    id: 0,
+    type: 6,
+    args: ["win-set-visibility", { fullscreen: false }],
+  }));
+});
+await page.waitForFunction(
+  ({ width, height }) => Math.abs(innerWidth - width) < 4 && Math.abs(innerHeight - height) < 4,
+  viewportBeforeFullscreen,
+  { timeout: 10_000 },
 );
 
 await marker.click();
@@ -210,6 +260,8 @@ const result = await page.evaluate((verification) => {
       Boolean(layerRect && sliderRect) && Math.abs(layerRect.top - sliderRect.top) < 1,
     customizationPersisted: verification.customizationPersisted,
     markerColorApplied: verification.markerColorApplied,
+    dialogTypingKeptPaused: verification.dialogTypingKeptPaused,
+    pausedFullscreenMarkerAligned: verification.pausedFullscreenMarkerAligned,
     outsideDismissed: verification.outsideDismissed,
     closeButtonDismissed: verification.closeButtonDismissed,
     markerHiddenWhenImmersed: verification.immersedState.markerVisibility === "hidden",
@@ -222,6 +274,8 @@ const result = await page.evaluate((verification) => {
 }, {
   customizationPersisted,
   markerColorApplied,
+  dialogTypingKeptPaused,
+  pausedFullscreenMarkerAligned,
   outsideDismissed,
   closeButtonDismissed,
   immersedState,
@@ -304,6 +358,8 @@ const failures = [
   [result.markerLayerVisible, "visible marker layer"],
   [result.markerWidthMatchesSlider && result.markerLeftMatchesSlider && result.markerTopMatchesSlider, "marker geometry aligned to the official slider"],
   [result.customizationPersisted && result.markerColorApplied, "persisted marker color and rating"],
+  [result.dialogTypingKeptPaused, "dialog typing isolated from Stremio shortcuts"],
+  [result.pausedFullscreenMarkerAligned, "paused fullscreen marker alignment"],
   [result.outsideDismissed && result.closeButtonDismissed, "popover outside and close-button dismissal"],
   [result.markerHiddenWhenImmersed && result.popoverClosedWhenImmersed, "immersed marker and popover hiding"],
   [result.dockRemainsInteractiveWhenImmersed && result.dockHoverReveal, "immersed dock hover reveal"],

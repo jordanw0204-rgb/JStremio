@@ -16,6 +16,8 @@ button, input, textarea { font: inherit; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 `;
 
+const stopKeyboardPropagation = (event: Event) => event.stopPropagation();
+
 export function createOverlayHost() {
   let rootHost: HTMLElement | null = null;
   let shadow: ShadowRoot | null = null;
@@ -28,6 +30,12 @@ export function createOverlayHost() {
     rootHost.dataset.jstremioExtension = "runtime";
     rootHost.dataset.jstremioTestid = "overlay-host";
     shadow = rootHost.attachShadow({ mode: "open" });
+    // Keyboard events are composed across a Shadow DOM boundary by default. Let
+    // controls receive them, then stop them here before Stremio's document-level
+    // playback shortcuts see text-entry keystrokes.
+    shadow.addEventListener("keydown", stopKeyboardPropagation);
+    shadow.addEventListener("keypress", stopKeyboardPropagation);
+    shadow.addEventListener("keyup", stopKeyboardPropagation);
     const style = document.createElement("style");
     style.textContent = BASE_STYLE;
     shadow.append(style);
