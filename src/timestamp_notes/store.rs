@@ -52,6 +52,8 @@ impl TimestampNoteStore {
                 timestamp_ms: input.timestamp_ms,
                 duration_ms_at_creation: input.duration_ms_at_creation,
                 text: input.text.trim().to_string(),
+                color: input.color.map(|value| value.to_ascii_uppercase()),
+                rating: input.rating,
                 created_at: now.clone(),
                 updated_at: now,
             };
@@ -81,6 +83,8 @@ impl TimestampNoteStore {
             }
             note.timestamp_ms = input.timestamp_ms;
             note.text = input.text.trim().to_string();
+            note.color = input.color.map(|value| value.to_ascii_uppercase());
+            note.rating = input.rating;
             note.updated_at = now();
             note.validate()?;
             let result = note.clone();
@@ -130,6 +134,8 @@ mod tests {
             timestamp_ms,
             duration_ms_at_creation: Some(60_000),
             text: " note ".into(),
+            color: Some("#56e0cf".into()),
+            rating: Some(4),
         }
     }
 
@@ -147,9 +153,13 @@ mod tests {
                 id: first.id.clone(),
                 timestamp_ms: 12_000,
                 text: "updated".into(),
+                color: Some("#ff3366".into()),
+                rating: Some(5),
             })
             .unwrap();
         assert_eq!(updated.created_at, first.created_at);
+        assert_eq!(updated.color.as_deref(), Some("#FF3366"));
+        assert_eq!(updated.rating, Some(5));
         assert!(store.delete(&second.id).unwrap());
 
         let restarted = TimestampNoteStore::new(directory.path());
@@ -164,5 +174,11 @@ mod tests {
         missing.text = "  ".into();
         assert!(store.create(missing).is_err());
         assert!(store.create(input(62_000)).is_err());
+        let mut bad_color = input(10_000);
+        bad_color.color = Some("red".into());
+        assert!(store.create(bad_color).is_err());
+        let mut bad_rating = input(10_000);
+        bad_rating.rating = Some(6);
+        assert!(store.create(bad_rating).is_err());
     }
 }

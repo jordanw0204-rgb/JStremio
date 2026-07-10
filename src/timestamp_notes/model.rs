@@ -21,6 +21,10 @@ pub struct TimestampNote {
     pub timestamp_ms: u64,
     pub duration_ms_at_creation: Option<u64>,
     pub text: String,
+    #[serde(default)]
+    pub color: Option<String>,
+    #[serde(default)]
+    pub rating: Option<u8>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -38,6 +42,7 @@ impl TimestampNote {
             ));
         }
         validate_note_values(self.timestamp_ms, self.duration_ms_at_creation, &self.text)?;
+        validate_customization(self.color.as_deref(), self.rating)?;
         validate_timestamp("createdAt", &self.created_at)?;
         validate_timestamp("updatedAt", &self.updated_at)?;
         Ok(())
@@ -52,12 +57,17 @@ pub struct CreateNoteInput {
     pub timestamp_ms: u64,
     pub duration_ms_at_creation: Option<u64>,
     pub text: String,
+    #[serde(default)]
+    pub color: Option<String>,
+    #[serde(default)]
+    pub rating: Option<u8>,
 }
 
 impl CreateNoteInput {
     pub fn validate(&self) -> Result<(), StorageError> {
         self.media.validate()?;
-        validate_note_values(self.timestamp_ms, self.duration_ms_at_creation, &self.text)
+        validate_note_values(self.timestamp_ms, self.duration_ms_at_creation, &self.text)?;
+        validate_customization(self.color.as_deref(), self.rating)
     }
 }
 
@@ -67,6 +77,10 @@ pub struct UpdateNoteInput {
     pub id: String,
     pub timestamp_ms: u64,
     pub text: String,
+    #[serde(default)]
+    pub color: Option<String>,
+    #[serde(default)]
+    pub rating: Option<u8>,
 }
 
 impl UpdateNoteInput {
@@ -81,7 +95,7 @@ impl UpdateNoteInput {
                 "is unreasonably large",
             ));
         }
-        Ok(())
+        validate_customization(self.color.as_deref(), self.rating)
     }
 }
 
@@ -157,8 +171,61 @@ fn validate_note_values(
     Ok(())
 }
 
+fn validate_customization(color: Option<&str>, rating: Option<u8>) -> Result<(), StorageError> {
+    if let Some(color) = color {
+        let valid = color.len() == 7
+            && color.starts_with('#')
+            && color[1..].bytes().all(|byte| byte.is_ascii_hexdigit());
+        if !valid {
+            return Err(StorageError::invalid("color", "must be a #RRGGBB color"));
+        }
+    }
+    if rating.is_some_and(|value| !(1..=5).contains(&value)) {
+        return Err(StorageError::invalid("rating", "must be between 1 and 5"));
+    }
+    Ok(())
+}
+
 fn validate_timestamp(field: &'static str, value: &str) -> Result<(), StorageError> {
     DateTime::parse_from_rfc3339(value)
         .map(|_| ())
         .map_err(|_| StorageError::invalid(field, "must be an RFC 3339 timestamp"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::TimestampNote;
+    use crate::media::{MediaMetadata, MediaType};
+
+    #[test]
+    fn legacy_notes_without_customization_remain_valid() {
+        let note = TimestampNote {
+            id: "32fcbd63-98fb-4e77-9989-0e4a318c330d".into(),
+            media_key: "series:tt123:1:2".into(),
+            media: MediaMetadata {
+                video_id: "tt123:1:2".into(),
+                meta_id: "tt123".into(),
+                media_type: MediaType::Series,
+                name: Some("Series".into()),
+                title: Some("Episode".into()),
+                season: Some(1),
+                episode: Some(2),
+                poster: None,
+            },
+            timestamp_ms: 10_000,
+            duration_ms_at_creation: Some(60_000),
+            text: "Legacy note".into(),
+            color: None,
+            rating: None,
+            created_at: "2026-07-10T00:00:00.000Z".into(),
+            updated_at: "2026-07-10T00:00:00.000Z".into(),
+        };
+        let mut value = serde_json::to_value(note).unwrap();
+        value.as_object_mut().unwrap().remove("color");
+        value.as_object_mut().unwrap().remove("rating");
+        let decoded: TimestampNote = serde_json::from_value(value).unwrap();
+        assert_eq!(decoded.color, None);
+        assert_eq!(decoded.rating, None);
+        decoded.validate().unwrap();
+    }
 }

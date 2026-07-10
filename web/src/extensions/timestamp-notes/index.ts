@@ -1,5 +1,10 @@
 import styles from "./styles.css";
-import { findSeekContainer, isPlayerRoute } from "../../runtime/compatibility";
+import {
+  findSeekContainer,
+  isPlayerOverlayHidden,
+  isPlayerRoute,
+  PLAYER_OVERLAY_HIDDEN_SELECTOR,
+} from "../../runtime/compatibility";
 import { isLikelyLiveState } from "../../runtime/stremioAdapter";
 import type { JStremioRuntime, MediaTarget, PlaybackSnapshot } from "../../runtime/types";
 import {
@@ -22,6 +27,8 @@ type Note = ReturnType<typeof targetPayload> & {
   timestampMs: number;
   durationMsAtCreation: number | null;
   text: string;
+  color: string | null;
+  rating: number | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -36,6 +43,9 @@ const manifest = {
   enabledByDefault: true,
   loadOrder: 110,
 } as const;
+
+const DEFAULT_MARKER_COLOR = "#56E0CF";
+const POPOVER_CLOSE_EVENT = "jstremio-close-marker-popover";
 
 requireRuntime().registerExtension(manifest, (runtime) => activate(runtime));
 
@@ -271,14 +281,21 @@ function openNoteDialog(
     form.innerHTML = `
       <h2 id="jstremio-note-title">${existing ? "Update timestamp note" : "Add timestamp note"}</h2><p class="subtitle"></p>
       <div class="captured"><button type="button" class="button" data-adjust="-5000" aria-label="Move timestamp back 5 seconds">−5s</button><strong></strong><button type="button" class="button" data-adjust="5000" aria-label="Move timestamp forward 5 seconds">+5s</button><button type="button" class="button" data-action="reset">Reset</button></div>
-      <label class="field">Note (required)<textarea required maxlength="5000"></textarea><span class="count">0 / 5000</span></label><div class="alert" role="alert" aria-live="polite"></div>
+      <label class="field">Note (required)<textarea required maxlength="5000"></textarea><span class="count">0 / 5000</span></label>
+      <div class="note-options"><label class="option-field">Marker color<input class="color-input" type="color" value="${DEFAULT_MARKER_COLOR}"></label><label class="option-field">Rating (optional)<select class="rating-select"><option value="">Not rated</option><option value="1">★☆☆☆☆ — 1</option><option value="2">★★☆☆☆ — 2</option><option value="3">★★★☆☆ — 3</option><option value="4">★★★★☆ — 4</option><option value="5">★★★★★ — 5</option></select></label></div>
+      <div class="alert" role="alert" aria-live="polite"></div>
       <div class="dialog-actions">${existing ? '<button type="button" class="button danger" data-action="delete">Delete</button>' : ""}<button type="button" class="button" data-action="cancel">Cancel</button><button type="submit" class="button primary">${existing ? "Update" : "Save"}</button></div>`;
     form.querySelector<HTMLElement>(".subtitle")!.textContent = mediaLabel(target);
     const time = form.querySelector<HTMLElement>(".captured strong")!;
     const textarea = form.querySelector<HTMLTextAreaElement>("textarea")!;
     const count = form.querySelector<HTMLElement>(".count")!;
+    const color = form.querySelector<HTMLInputElement>(".color-input")!;
+    const rating = form.querySelector<HTMLSelectElement>(".rating-select")!;
     const alert = form.querySelector<HTMLElement>(".alert")!;
     textarea.value = existing?.text ?? "";
+    color.value = noteColor(existing);
+    const existingRating = noteRating(existing?.rating);
+    rating.value = existingRating === null ? "" : String(existingRating);
     const render = () => {
       time.textContent = formatTimestamp(timestampMs);
       count.textContent = `${Array.from(textarea.value).length} / 5000`;
@@ -310,13 +327,18 @@ function openNoteDialog(
         return;
       }
       const operation = existing ? "update" : "create";
+      const customization = {
+        color: normalizeNoteColor(color.value),
+        rating: rating.value ? Number(rating.value) : null,
+      };
       const payload = existing
-        ? { id: existing.id, timestampMs: Math.round(timestampMs), text: textarea.value }
+        ? { id: existing.id, timestampMs: Math.round(timestampMs), text: textarea.value, ...customization }
         : {
             ...targetPayload(target),
             timestampMs: Math.round(timestampMs),
             durationMsAtCreation: durationMs === null ? null : Math.round(durationMs),
             text: textarea.value,
+            ...customization,
           };
       void runtime.bridge.request("timestamp-notes", operation, payload).then(() => {
         changed();
@@ -347,7 +369,10 @@ function createTimeline(
   layer.dataset.jstremioControl = "timeline-markers";
   layer.dataset.jstremioTestid = "timestamp-note-markers";
   const style = document.createElement("style");
-  style.textContent = styles;
+  style.textContent = `${styles}
+    body:has(${PLAYER_OVERLAY_HIDDEN_SELECTOR}) [data-jstremio-testid="timestamp-note-markers"]{
+      opacity:0;visibility:hidden;pointer-events:none
+    }`;
   layer.append(style);
   document.body.append(layer);
   let currentDuration: number | null = null;
@@ -371,15 +396,17 @@ function createTimeline(
 
   const render = (notes: Note[], durationMs: number | null) => {
     syncBounds();
+    if (isPlayerOverlayHidden()) closeMarkerPopover(layer);
     currentDuration = durationMs;
     const width = container.getBoundingClientRect().width;
     const ratio = devicePixelRatio || 1;
     const signature = `${durationMs ?? "none"}|${Math.round(width * 10) / 10}|${ratio}|${notes
-      .map((note) => `${note.id}:${note.timestampMs}`)
+      .map((note) => `${note.id}:${note.timestampMs}:${noteColor(note)}:${noteRating(note.rating) ?? "none"}`)
       .join(",")}`;
     if (signature === lastRenderSignature) return;
     lastRenderSignature = signature;
-    layer.querySelectorAll(".jstremio-marker,.marker-popover").forEach((element) => element.remove());
+    closeMarkerPopover(layer);
+    layer.querySelectorAll(".jstremio-marker").forEach((element) => element.remove());
     if (!durationMs || durationMs <= 0) return;
     const clusters = clusterMarkers(notes, durationMs, width, ratio);
     for (const cluster of clusters) {
@@ -387,9 +414,12 @@ function createTimeline(
       marker.type = "button";
       marker.className = `jstremio-marker${cluster.notes.length > 1 ? " cluster" : ""}`;
       marker.style.left = `${cluster.leftPercent}%`;
+      const colors = Array.from(new Set(cluster.notes.map(noteColor)));
+      marker.style.setProperty("--marker-color", colors[0] ?? DEFAULT_MARKER_COLOR);
+      if (colors.length > 1) marker.style.setProperty("--marker-fill", `conic-gradient(${colors.join(",")})`);
       marker.title = cluster.notes.length > 1
         ? `${cluster.notes.length} notes near ${formatTimestamp(cluster.notes[0]!.timestampMs)}`
-        : `${formatTimestamp(cluster.notes[0]!.timestampMs)} — ${preview(cluster.notes[0]!.text)}`;
+        : markerDescription(cluster.notes[0]!);
       marker.setAttribute("aria-label", marker.title);
       if (cluster.notes.length > 1) marker.innerHTML = `<span aria-hidden="true">${cluster.notes.length}</span>`;
       marker.addEventListener("click", () => {
@@ -408,45 +438,112 @@ function createTimeline(
     render,
     destroy() {
       resize.disconnect();
+      closeMarkerPopover(layer);
       layer.remove();
     },
   };
 }
 
 function showMarkerPopover(runtime: JStremioRuntime, layer: HTMLElement, notes: Note[], changed: () => void) {
-  layer.querySelector(".marker-popover")?.remove();
+  closeMarkerPopover(layer);
+  const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   const popover = document.createElement("div");
   popover.className = "marker-popover";
   popover.setAttribute("role", "dialog");
   popover.setAttribute("aria-label", "Timestamp notes");
+  const controller = new AbortController();
+  const close = (restoreFocus = false) => {
+    controller.abort();
+    popover.remove();
+    if (restoreFocus && opener?.isConnected) opener.focus();
+  };
+  popover.addEventListener(POPOVER_CLOSE_EVENT, () => close(), { once: true });
+  const header = document.createElement("div");
+  header.className = "marker-popover-header";
+  const heading = document.createElement("strong");
+  heading.textContent = notes.length === 1 ? "Timestamp note" : `${notes.length} timestamp notes`;
+  const closeButton = document.createElement("button");
+  closeButton.type = "button";
+  closeButton.className = "marker-popover-close";
+  closeButton.setAttribute("aria-label", "Close timestamp notes");
+  closeButton.textContent = "×";
+  closeButton.addEventListener("click", () => close(true));
+  header.append(heading, closeButton);
+  popover.append(header);
   for (const note of notes) {
     const item = document.createElement("div");
     item.className = "marker-note";
+    item.style.setProperty("--note-color", noteColor(note));
     const seek = document.createElement("button");
     seek.type = "button";
     seek.className = "seek";
     seek.innerHTML = `<strong>${formatTimestamp(note.timestampMs)}</strong>`;
     seek.append(document.createTextNode(preview(note.text)));
     seek.addEventListener("click", () => {
-      void runtime.player.seekTo(note.timestampMs).catch((error) => runtime.diagnostics.report("timestamp-notes", error));
+      void runtime.player.seekTo(note.timestampMs)
+        .then(() => close())
+        .catch((error) => runtime.diagnostics.report("timestamp-notes", error));
     });
+    const metadata = document.createElement("div");
+    metadata.className = "marker-note-meta";
+    const swatch = document.createElement("span");
+    swatch.className = "note-color";
+    swatch.setAttribute("aria-hidden", "true");
+    metadata.append(swatch);
+    const currentRating = noteRating(note.rating);
+    if (currentRating !== null) {
+      const stars = document.createElement("span");
+      stars.className = "note-rating";
+      stars.setAttribute("aria-label", `${currentRating} out of 5 stars`);
+      stars.textContent = ratingStars(currentRating);
+      metadata.append(stars);
+    }
     const actions = document.createElement("div");
     actions.className = "marker-actions";
     actions.append(
-      smallAction("Edit", () => openNoteDialog(runtime, noteTarget(note), note, note.timestampMs, note.durationMsAtCreation, changed)),
+      smallAction("Edit", () => {
+        close();
+        openNoteDialog(runtime, noteTarget(note), note, note.timestampMs, note.durationMsAtCreation, changed);
+      }),
       smallAction("Delete", () => {
         if (!confirm("Delete this timestamp note?")) return;
         void runtime.bridge.request("timestamp-notes", "delete", { id: note.id }).then(() => {
-          popover.remove();
+          close();
           changed();
         });
       }),
     );
-    item.append(seek, actions);
+    item.append(seek, metadata, actions);
     popover.append(item);
   }
   layer.append(popover);
-  popover.querySelector<HTMLElement>("button")?.focus();
+  document.addEventListener(
+    "pointerdown",
+    (event) => {
+      const clicked = event.target;
+      if (!(clicked instanceof Element) || popover.contains(clicked) || clicked.closest(".jstremio-marker")) return;
+      close();
+    },
+    { capture: true, signal: controller.signal },
+  );
+  document.addEventListener(
+    "keydown",
+    (event) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      close(true);
+    },
+    { capture: true, signal: controller.signal },
+  );
+  closeButton.focus();
+}
+
+function closeMarkerPopover(layer: HTMLElement) {
+  const popover = layer.querySelector<HTMLElement>(".marker-popover");
+  if (!popover) return;
+  popover.dispatchEvent(new Event(POPOVER_CLOSE_EVENT));
+  popover.remove();
 }
 
 function renderGroups(
@@ -493,12 +590,26 @@ function renderGroups(
       row.className = "note-row";
       const time = document.createElement("div");
       time.className = "time";
-      time.textContent = formatTimestamp(note.timestampMs);
+      time.style.setProperty("--note-color", noteColor(note));
+      const swatch = document.createElement("span");
+      swatch.className = "note-color";
+      swatch.setAttribute("aria-hidden", "true");
+      const timestamp = document.createElement("span");
+      timestamp.textContent = formatTimestamp(note.timestampMs);
+      time.append(swatch, timestamp);
       const body = document.createElement("div");
       const text = document.createElement("div");
       text.className = "preview";
       text.textContent = note.text;
       body.append(text);
+      const currentRating = noteRating(note.rating);
+      if (currentRating !== null) {
+        const stars = document.createElement("div");
+        stars.className = "note-rating";
+        stars.setAttribute("aria-label", `${currentRating} out of 5 stars`);
+        stars.textContent = ratingStars(currentRating);
+        body.append(stars);
+      }
       if (
         activeTarget?.key === note.mediaKey &&
         snapshot?.durationMs !== null &&
@@ -577,12 +688,44 @@ function smallAction(label: string, action: () => void) {
 
 function asNotes(value: unknown): Note[] {
   return Array.isArray(value)
-    ? value.filter((item): item is Note => {
-        if (!item || typeof item !== "object") return false;
-        const note = item as Partial<Note>;
-        return typeof note.id === "string" && typeof note.mediaKey === "string" && typeof note.timestampMs === "number";
-      })
+    ? value
+        .filter((item): item is Note => {
+          if (!item || typeof item !== "object") return false;
+          const note = item as Partial<Note>;
+          return typeof note.id === "string" && typeof note.mediaKey === "string" && typeof note.timestampMs === "number";
+        })
+        .map((note) => ({
+          ...note,
+          color: validNoteColor(note.color) ? note.color.toUpperCase() : null,
+          rating: noteRating(note.rating),
+        }))
     : [];
+}
+
+function validNoteColor(value: unknown): value is string {
+  return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value);
+}
+
+function normalizeNoteColor(value: unknown): string {
+  return validNoteColor(value) ? value.toUpperCase() : DEFAULT_MARKER_COLOR;
+}
+
+function noteColor(note: Pick<Note, "color"> | null | undefined): string {
+  return normalizeNoteColor(note?.color);
+}
+
+function noteRating(value: unknown): number | null {
+  return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 5 ? value : null;
+}
+
+function ratingStars(rating: number): string {
+  return `${"★".repeat(rating)}${"☆".repeat(5 - rating)}`;
+}
+
+function markerDescription(note: Note): string {
+  const rating = noteRating(note.rating);
+  const ratingLabel = rating === null ? "" : `, ${rating} out of 5 stars`;
+  return `${formatTimestamp(note.timestampMs)}${ratingLabel} — ${preview(note.text)}`;
 }
 
 function preview(value: string): string {

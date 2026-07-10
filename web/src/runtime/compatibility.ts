@@ -1,9 +1,14 @@
 const OWNED = "[data-jstremio-extension]";
 const INTERACTIVE = 'button, [role="button"], [tabindex], a[href]';
 const STRUCTURAL_SLIDER_SIGNAL = '[style*="--mask-width"], [style*="margin-left"]';
+export const PLAYER_OVERLAY_HIDDEN_SELECTOR = '[class*="overlayHidden"]';
 
 export function isPlayerRoute(): boolean {
   return /(?:#|\/)\/player(?:\/|$)/i.test(location.href);
+}
+
+export function isPlayerOverlayHidden(): boolean {
+  return document.querySelector(PLAYER_OVERLAY_HIDDEN_SELECTOR) !== null;
 }
 
 export function findPrimaryNavigation(): HTMLElement | null {

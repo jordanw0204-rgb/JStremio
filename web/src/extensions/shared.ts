@@ -3,6 +3,7 @@ import {
   findPlayerControls,
   findPrimaryNavigation,
   navigationTemplate,
+  PLAYER_OVERLAY_HIDDEN_SELECTOR,
   playerControlTemplate,
 } from "../runtime/compatibility";
 import { canonicalDetailHash } from "../runtime/stremioAdapter";
@@ -91,9 +92,15 @@ function ensurePlayerDock(): HTMLElement {
   dock.dataset.jstremioControl = "player-dock";
   dock.dataset.jstremioTestid = "player-extension-dock";
   dock.setAttribute("aria-label", "JStremio player extensions");
-  dock.style.cssText = "position:fixed;left:50%;bottom:10px;z-index:2147483000;transform:translateX(-50%);display:flex;align-items:center;gap:7px;padding:3px;pointer-events:auto;transition:opacity 160ms ease;";
+  dock.setAttribute("role", "group");
+  dock.style.cssText = "position:fixed;left:50%;bottom:0;z-index:2147483000;transform:translateX(-50%);display:flex;align-items:center;gap:7px;min-height:64px;padding:10px 18px;box-sizing:border-box;pointer-events:auto;transition:opacity 160ms ease;";
   const style = document.createElement("style");
-  style.textContent = 'body:has([class*="overlayHidden"]) [data-jstremio-control="player-dock"]{opacity:0;pointer-events:none}';
+  style.textContent = `
+    body:has(${PLAYER_OVERLAY_HIDDEN_SELECTOR}) [data-jstremio-control="player-dock"]:not(:hover):not(:focus-within){opacity:.16}
+    body:has(${PLAYER_OVERLAY_HIDDEN_SELECTOR}) [data-jstremio-control="player-dock"]:hover,
+    body:has(${PLAYER_OVERLAY_HIDDEN_SELECTOR}) [data-jstremio-control="player-dock"]:focus-within{opacity:1}
+    @media (prefers-reduced-motion:reduce){[data-jstremio-control="player-dock"]{transition:none!important}}
+  `;
   dock.append(style);
   document.body.append(dock);
   return dock;

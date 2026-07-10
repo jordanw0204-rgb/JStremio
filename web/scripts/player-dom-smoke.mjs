@@ -71,6 +71,88 @@ await page.waitForSelector('[data-jstremio-testid="timestamp-note-markers"]', { 
 await page.mouse.move(1, 1);
 await page.mouse.move(400, 300);
 await page.waitForTimeout(500);
+const noteButton = page.locator('[data-jstremio-testid="timestamp-notes-player-button"]');
+await page.waitForFunction(
+  () => {
+    const button = document.querySelector('[data-jstremio-testid="timestamp-notes-player-button"]');
+    return button instanceof HTMLButtonElement && !button.disabled;
+  },
+  undefined,
+  { timeout: 15_000 },
+);
+await noteButton.click();
+await page.getByLabel("Note (required)").fill("real-player customization smoke");
+await page.getByLabel("Marker color").fill("#ff3366");
+await page.getByLabel("Rating (optional)").selectOption("4");
+await page.getByRole("button", { name: "Save" }).click();
+const marker = page.locator(".jstremio-marker").first();
+await marker.waitFor({ state: "visible", timeout: 10_000 });
+const customizationPersisted = await page.evaluate(async () => {
+  const notes = await window.JStremio.bridge.request("timestamp-notes", "listForMedia", {
+    mediaKey: "series:tt2741602:4:22",
+  });
+  const customized = Array.isArray(notes)
+    ? notes.find((note) => note && typeof note === "object" && note.color === "#FF3366" && note.rating === 4)
+    : null;
+  return Boolean(customized);
+});
+const markerColorApplied = await marker.evaluate(
+  (element) => element.style.getPropertyValue("--marker-color") === "#FF3366",
+);
+
+await marker.click();
+await page.waitForSelector(".marker-popover");
+await page.mouse.click(5, 5);
+await page.waitForSelector(".marker-popover", { state: "detached" });
+const outsideDismissed = true;
+
+await marker.click();
+await page.getByRole("button", { name: "Close timestamp notes" }).click();
+await page.waitForSelector(".marker-popover", { state: "detached" });
+const closeButtonDismissed = true;
+
+await marker.click();
+await page.waitForSelector(".marker-popover");
+await page.evaluate(async () => {
+  await window.JStremio.player.setPaused(false);
+  const player = document.querySelector('[class*="player-container"]');
+  if (!(player instanceof HTMLElement)) throw new Error("The official player root was not found");
+  player.classList.add("overlayHidden_jstremioSmoke");
+});
+await page.waitForSelector(".overlayHidden_jstremioSmoke", { timeout: 5_000 });
+await page.waitForSelector(".marker-popover", { state: "detached", timeout: 5_000 });
+const popoverClosedWhenImmersed = true;
+await page.waitForFunction(() => {
+  const dock = document.querySelector('[data-jstremio-control="player-dock"]');
+  const layer = document.querySelector('[data-jstremio-testid="timestamp-note-markers"]');
+  return Boolean(
+    dock &&
+    layer &&
+    Number.parseFloat(getComputedStyle(dock).opacity) <= 0.2 &&
+    getComputedStyle(layer).visibility === "hidden",
+  );
+});
+const immersedState = await page.evaluate(() => {
+  const dock = document.querySelector('[data-jstremio-control="player-dock"]');
+  const layer = document.querySelector('[data-jstremio-testid="timestamp-note-markers"]');
+  return {
+    dockOpacity: dock ? Number.parseFloat(getComputedStyle(dock).opacity) : 1,
+    dockPointerEvents: dock ? getComputedStyle(dock).pointerEvents : "none",
+    markerVisibility: layer ? getComputedStyle(layer).visibility : "visible",
+  };
+});
+const dock = page.locator('[data-jstremio-control="player-dock"]');
+await dock.hover();
+await page.waitForFunction(() => {
+  const element = document.querySelector('[data-jstremio-control="player-dock"]');
+  return element && Number.parseFloat(getComputedStyle(element).opacity) > 0.9;
+});
+const dockHoverReveal = true;
+await page.evaluate(() => {
+  document.querySelector(".overlayHidden_jstremioSmoke")?.classList.remove("overlayHidden_jstremioSmoke");
+});
+await page.mouse.move(400, 300);
+await page.waitForSelector(".overlayHidden_jstremioSmoke", { state: "detached", timeout: 5_000 });
 const diagnostics = await page.evaluate(() => ({
   url: location.href,
   runtime: Boolean(window.JStremio),
@@ -93,7 +175,7 @@ const diagnostics = await page.evaluate(() => ({
 }));
 console.log(JSON.stringify({ diagnostics, consoleMessages }));
 
-const result = await page.evaluate(() => {
+const result = await page.evaluate((verification) => {
   const dock = document.querySelector('[data-jstremio-control="player-dock"]');
   const buttons = Array.from(document.querySelectorAll('[data-jstremio-control="player-dock"] [data-jstremio-control="player"]'));
   const markerLayer = document.querySelector('[data-jstremio-testid="timestamp-note-markers"]');
@@ -126,7 +208,26 @@ const result = await page.evaluate(() => {
       Boolean(layerRect && sliderRect) && Math.abs(layerRect.left - sliderRect.left) < 1,
     markerTopMatchesSlider:
       Boolean(layerRect && sliderRect) && Math.abs(layerRect.top - sliderRect.top) < 1,
+    customizationPersisted: verification.customizationPersisted,
+    markerColorApplied: verification.markerColorApplied,
+    outsideDismissed: verification.outsideDismissed,
+    closeButtonDismissed: verification.closeButtonDismissed,
+    markerHiddenWhenImmersed: verification.immersedState.markerVisibility === "hidden",
+    popoverClosedWhenImmersed: verification.popoverClosedWhenImmersed,
+    dockRemainsInteractiveWhenImmersed:
+      verification.immersedState.dockOpacity > 0 &&
+      verification.immersedState.dockOpacity <= 0.2 &&
+      verification.immersedState.dockPointerEvents === "auto",
+    dockHoverReveal: verification.dockHoverReveal,
   };
+}, {
+  customizationPersisted,
+  markerColorApplied,
+  outsideDismissed,
+  closeButtonDismissed,
+  immersedState,
+  popoverClosedWhenImmersed,
+  dockHoverReveal,
 });
 
 console.log(JSON.stringify(result));
@@ -141,6 +242,10 @@ const failures = [
   [result.markerLayerInBody, "body-owned marker layer"],
   [result.markerLayerVisible, "visible marker layer"],
   [result.markerWidthMatchesSlider && result.markerLeftMatchesSlider && result.markerTopMatchesSlider, "marker geometry aligned to the official slider"],
+  [result.customizationPersisted && result.markerColorApplied, "persisted marker color and rating"],
+  [result.outsideDismissed && result.closeButtonDismissed, "popover outside and close-button dismissal"],
+  [result.markerHiddenWhenImmersed && result.popoverClosedWhenImmersed, "immersed marker and popover hiding"],
+  [result.dockRemainsInteractiveWhenImmersed && result.dockHoverReveal, "immersed dock hover reveal"],
 ].filter(([passed]) => !passed).map(([, label]) => label);
 if (failures.length) throw new Error(`Real-player DOM smoke failed: ${failures.join(", ")}`);
 await browser.close();

@@ -3,6 +3,7 @@ import {
   findPlayerControls,
   findPrimaryNavigation,
   findSeekContainer,
+  isPlayerOverlayHidden,
 } from "../src/runtime/compatibility";
 
 describe("central DOM compatibility adapter", () => {
@@ -45,5 +46,11 @@ describe("central DOM compatibility adapter", () => {
     document.body.innerHTML = '<div class="toolbar" role="toolbar"><button>One</button></div><div class="seek"><input type="range" aria-label="Seek position"></div>';
     expect(findPlayerControls()?.className).toBe("toolbar");
     expect(findSeekContainer()?.className).toBe("seek");
+  });
+
+  it("detects the current official immersed-player class without a complete hash", () => {
+    expect(isPlayerOverlayHidden()).toBe(false);
+    document.querySelector(".control-bar-container_hash-c")?.classList.add("overlayHidden_changedHash");
+    expect(isPlayerOverlayHidden()).toBe(true);
   });
 });

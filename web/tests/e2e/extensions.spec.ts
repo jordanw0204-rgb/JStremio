@@ -147,6 +147,16 @@ test("mounts each extension once and remounts after upstream replacement", async
   await expect(page.locator('[data-jstremio-testid="timestamp-notes-navigation"]')).toHaveCount(1);
   await expect(page.locator('[data-jstremio-testid="reviews-player-button"]')).toHaveCount(1);
 
+  const dock = page.locator('[data-jstremio-testid="player-extension-dock"]');
+  await page.evaluate(() => document.querySelector("main")?.classList.add("overlayHidden_fixture"));
+  await expect(dock).toHaveCSS("opacity", "0.16");
+  await expect(dock).toHaveCSS("pointer-events", "auto");
+  await dock.hover();
+  await expect(dock).toHaveCSS("opacity", "1");
+  await page.mouse.move(5, 5);
+  await expect(dock).toHaveCSS("opacity", "0.16");
+  await page.evaluate(() => document.querySelector("main")?.classList.remove("overlayHidden_fixture"));
+
   await page.evaluate(() => {
     location.hash = "#/library";
   });
@@ -181,8 +191,14 @@ test("captures, pauses conditionally, clusters markers, and seeks without blocki
   await addButton.click();
   await expect(page.getByText("00:12", { exact: true })).toBeVisible();
   await page.getByLabel("Note (required)").fill("first marker note");
+  await page.getByLabel("Marker color").fill("#ff3366");
+  await page.getByLabel("Rating (optional)").selectOption("5");
   await page.getByRole("button", { name: "Save" }).click();
   await expect.poll(() => page.evaluate(() => (window as any).__fixture.notes.length)).toBe(1);
+  await expect.poll(() => page.evaluate(() => ({
+    color: (window as any).__fixture.notes[0].color,
+    rating: (window as any).__fixture.notes[0].rating,
+  }))).toEqual({ color: "#FF3366", rating: 5 });
 
   await emitPlayback(page, 12.7, 100, false);
   await addButton.click();
@@ -197,8 +213,46 @@ test("captures, pauses conditionally, clusters markers, and seeks without blocki
   await expect(layer).toHaveCSS("pointer-events", "none");
   await expect(layer.locator("..")).toHaveJSProperty("tagName", "BODY");
   await expect.poll(() => layer.evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThan(0);
+
+  await marker.click();
+  const firstItem = page.locator(".marker-note").filter({ hasText: "first marker note" });
+  await expect(firstItem.getByLabel("5 out of 5 stars")).toBeVisible();
+  await firstItem.getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel("Marker color").fill("#22aa44");
+  await page.getByLabel("Rating (optional)").selectOption("3");
+  await page.getByRole("button", { name: "Update" }).click();
+  await expect.poll(() => page.evaluate(() => ({
+    color: (window as any).__fixture.notes[0].color,
+    rating: (window as any).__fixture.notes[0].rating,
+  }))).toEqual({ color: "#22AA44", rating: 3 });
+  await expect.poll(() => marker.evaluate((element) => element.style.getPropertyValue("--marker-fill"))).toContain("#22AA44");
+
+  await marker.click();
+  await expect(page.locator(".marker-popover")).toHaveCount(1);
+  await page.mouse.click(5, 5);
+  await expect(page.locator(".marker-popover")).toHaveCount(0);
+
+  await marker.click();
+  const closePopover = page.getByRole("button", { name: "Close timestamp notes" });
+  await expect(closePopover).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".marker-popover")).toHaveCount(0);
+
+  await marker.click();
+  await page.getByRole("button", { name: "Close timestamp notes" }).click();
+  await expect(page.locator(".marker-popover")).toHaveCount(0);
+
+  await marker.click();
+  await page.evaluate(() => document.querySelector("main")?.classList.add("overlayHidden_fixture"));
+  await emitPlayback(page, 13, 100, false);
+  await expect(layer).toHaveCSS("visibility", "hidden");
+  await expect(page.locator(".marker-popover")).toHaveCount(0);
+  await page.evaluate(() => document.querySelector("main")?.classList.remove("overlayHidden_fixture"));
+  await expect(layer).toHaveCSS("visibility", "visible");
+
   await marker.click();
   await page.getByRole("button", { name: /first marker note/ }).click();
+  await expect(page.locator(".marker-popover")).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => JSON.stringify((window as any).__fixture.commands))).toContain("time-pos");
 
   const pauseCommands = await page.evaluate(() =>

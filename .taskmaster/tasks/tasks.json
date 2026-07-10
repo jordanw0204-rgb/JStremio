@@ -186,13 +186,27 @@
         "priority": "high",
         "subtasks": [],
         "updatedAt": "2026-07-10T19:20:11.963Z"
+      },
+      {
+        "id": "14",
+        "title": "Polish player timestamp marker UX and metadata",
+        "description": "Make the body-owned player controls hover-reveal reliably, synchronize markers/popovers with Stremio control visibility, add outside/Escape/close dismissal, and persist optional marker color and rating.",
+        "details": "Keep the dock discoverable while controls are immersed without blocking the seek bar. Hide and close marker UI when the official overlay hides. Add an accessible close button and click-outside behavior. Extend timestamp-note schema-v1 records with validated optional color and 1-5 rating fields using backward-compatible serde defaults, and expose both in create/edit, markers, popovers, and management UI.",
+        "testStrategy": "Rust validation/backward-compatibility/CRUD tests; TypeScript and Playwright hover, hidden-overlay, outside click, close/Escape, color/rating persistence and rendering; real WebView2/MPV smoke; full package integrity audit.",
+        "status": "done",
+        "dependencies": [
+          "13"
+        ],
+        "priority": "high",
+        "subtasks": [],
+        "updatedAt": "2026-07-10T21:13:12.170Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-07-10T19:20:11.963Z",
-      "taskCount": 13,
-      "completedCount": 11,
+      "lastModified": "2026-07-10T21:13:12.170Z",
+      "taskCount": 14,
+      "completedCount": 12,
       "tags": [
         "master"
       ]
