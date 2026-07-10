@@ -1,0 +1,17 @@
+# JStremio shell extensions PRD
+
+Build a Windows-only JStremio executable from pinned `stremio-shell-ng` `v5.0.23`. Keep the official Web UI URL, dynamic streaming-server handoff, account/add-on behavior, WebView2 shell transport, and native MPV playback unchanged. Use a separate profile, product identity, data directory, IPC pipe, and updater policy so JStremio coexists with official Stremio.
+
+Add a trusted packaged extension platform with strict schema-v1 manifests, relative local entry/style paths, bundle caps, traversal and duplicate rejection, deterministic ordering, per-extension enablement, `--disable-extensions`, debug-only `--extensions-dir`, and debug-only loopback CDP. Inject only into approved top-level origins. One extension failure must not prevent Stremio startup.
+
+Expose one frozen, idempotent `window.JStremio` namespace with registration, fixed native requests, media-target lookup, playback snapshots, validated seek/pause, lifecycle reconciliation/route events, accessible Shadow DOM overlay/dialog hosts, and privacy-safe diagnostics. Listen to WebView2 MPV events without replacing `window.onCoreEvent`. Reset stale snapshots on media changes and throttle subscriber rendering.
+
+Implement a shared Rust JSON store for `%LOCALAPPDATA%\JStremio\data`. It must validate schemas and payloads, serialize operations, cap sizes, write and flush unique same-directory temp files, replace safely on Windows, keep one known-good `.bak`, ignore abandoned temps, and preserve malformed/unsupported primary files. Native IPC must be origin-gated and expose only fixed operations with correlated safe responses.
+
+Implement Local Reviews with schema-v1 persistent CRUD, stable `<mediaType>:<videoId>` IDs, 1–5 integer ratings, optional 5,000-character text, preserved creation time, and revision increments. Add one Reviews navigation item, a searchable/refreshable management overlay, canonical View in Stremio, edit/delete/open-folder actions, and one current-media player star dialog. Reviews never alter playback.
+
+Implement Timestamp Notes with native UUID IDs, stable media keys, required trimmed 5,000-character text, integer absolute timestamps, duration-at-creation, preserved creation time, and revision increments. Add one Timestamp Notes navigation item and searchable grouped management overlay. Add one current-player capture button only for stable on-demand local-MPV playback with current finite time and duration. Capture before pausing, support -5/+5/reset, and resume only when this extension paused, the same media remains, and the user did not manually change pause state.
+
+Overlay markers on the discovered current seek slider. Use one pointer-transparent layer, accessible marker buttons, timestamp/note tooltips, popovers with edit/delete, direct click-to-seek without changing pause state, and clustering within roughly 10 physical pixels. Reconcile after React replacement, resize, duration change, and fullscreen. Hide out-of-range markers without rescaling; retain an out-of-range warning in management. Never display notes for another video.
+
+Test Rust storage/model/IPC/manifest boundaries, TypeScript bootstrap/playback/media/CRUD/marker/clustering/accessibility behavior, Playwright remount and privacy flows, and real WebView2/MPV enabled-versus-disabled regression. Package a portable build first and document first login, data backup/import, safe mode, rollback, updates, unsigned SmartScreen warnings, and GPL source obligations.

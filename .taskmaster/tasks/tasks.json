@@ -1,0 +1,174 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": "1",
+        "title": "Preserve prototype and pin shell baseline",
+        "description": "Verify archive branch/tag/bundle, fetch-only remotes, pinned upstream lock, and baseline evidence.",
+        "details": "Validate archive refs and bundle SHA; verify v5.0.23 tests, release build, server/WebView startup, and record remaining manual playback checks.",
+        "testStrategy": "Repository refs, bundle verification, cargo test/build, isolated process/network smoke.",
+        "status": "done",
+        "dependencies": [],
+        "priority": "high",
+        "subtasks": [],
+        "updatedAt": "2026-07-10T05:53:37.241Z"
+      },
+      {
+        "id": "2",
+        "title": "Implement strict extension manifests and loader",
+        "description": "Add safe mode, independent enablement, debug directories/CDP, origin-gated deterministic injection, and separate WebView2 profile.",
+        "details": "Reject remote/absolute/traversal paths, duplicates, unsupported schemas, missing/oversized files; isolate extension failures.",
+        "testStrategy": "Rust unit tests plus enabled/disabled startup smoke.",
+        "status": "in-progress",
+        "dependencies": [
+          "1"
+        ],
+        "priority": "high",
+        "subtasks": [],
+        "updatedAt": "2026-07-10T05:53:37.274Z"
+      },
+      {
+        "id": "3",
+        "title": "Implement shared resilient native storage",
+        "description": "Create generic versioned JSON storage with validation, serialized access, atomic Windows replacement, backup, and corruption preservation.",
+        "details": "Use fixed %LOCALAPPDATA%\\JStremio\\data paths, capped reads, same-directory UUID temps, flush/sync, known-good .bak.",
+        "testStrategy": "Rust first-write/replacement/corruption/concurrency/temp tests.",
+        "status": "pending",
+        "dependencies": [
+          "1"
+        ],
+        "priority": "high",
+        "subtasks": []
+      },
+      {
+        "id": "4",
+        "title": "Implement Reviews and Timestamp Notes native models",
+        "description": "Add strict schemas, validation, timestamps/revisions, stable review keys, UUID note IDs, duration snapshots, and CRUD stores.",
+        "details": "Reviews: rating 1-5 and 5000-char text. Notes: required text, ms bounds, multiple notes per timestamp, out-of-range support.",
+        "testStrategy": "Rust boundary, CRUD, persistence, duplicate, and restart tests.",
+        "status": "pending",
+        "dependencies": [
+          "3"
+        ],
+        "priority": "high",
+        "subtasks": []
+      },
+      {
+        "id": "5",
+        "title": "Implement origin-gated fixed IPC",
+        "description": "Connect approved WebView origins to Reviews and Timestamp Notes operations with correlation, caps, and safe errors.",
+        "details": "No arbitrary paths, commands, network, or generic MPV. Add fixed openDataFolder actions.",
+        "testStrategy": "Rust request/source/payload/operation/response contract tests.",
+        "status": "pending",
+        "dependencies": [
+          "2",
+          "4"
+        ],
+        "priority": "high",
+        "subtasks": []
+      },
+      {
+        "id": "6",
+        "title": "Build the TypeScript runtime and compatibility adapter",
+        "description": "Add frozen idempotent window.JStremio, bridge, media targets, playback snapshots, restricted seek/pause, lifecycle, DOM adapter, overlay/dialog hosts, and diagnostics.",
+        "details": "Parse MPV events without wrapping onCoreEvent; centralize upstream DOM heuristics and one reconciler.",
+        "testStrategy": "Vitest runtime, media, message, validation, lifecycle, and fixture tests.",
+        "status": "pending",
+        "dependencies": [
+          "2",
+          "5"
+        ],
+        "priority": "high",
+        "subtasks": []
+      },
+      {
+        "id": "7",
+        "title": "Implement Local Reviews extension",
+        "description": "Add one navigation item, management overlay, current-player button, accessible editor, canonical navigation, CRUD refresh, and error states.",
+        "details": "Shadow DOM UI; Reviews must never alter playback.",
+        "testStrategy": "TypeScript and Playwright CRUD/remount/accessibility/no-playback-change tests.",
+        "status": "pending",
+        "dependencies": [
+          "6"
+        ],
+        "priority": "high",
+        "subtasks": []
+      },
+      {
+        "id": "8",
+        "title": "Implement Timestamp Notes capture and management",
+        "description": "Add navigation/search/grouped overlay, capture-before-pause workflow, -5/+5/reset, conditional resume, editor, CRUD, and out-of-range warnings.",
+        "details": "Disable for live, missing time/duration, external playback, or unstable video ID with an explanation.",
+        "testStrategy": "Unit and Playwright capture/resume/filter/accessibility tests.",
+        "status": "pending",
+        "dependencies": [
+          "6"
+        ],
+        "priority": "high",
+        "subtasks": []
+      },
+      {
+        "id": "9",
+        "title": "Implement timeline markers and clustering",
+        "description": "Mount a pointer-transparent marker layer on the current seek slider with resize/fullscreen/remount handling, tooltips, popovers, direct seek, edit/delete, and 10px clustering.",
+        "details": "Absolute timestamps remain authoritative; hide out-of-range markers and never cross media targets.",
+        "testStrategy": "Marker math, clustering, click seek, remount, keyboard, and normal seek tests.",
+        "status": "pending",
+        "dependencies": [
+          "8"
+        ],
+        "priority": "high",
+        "subtasks": []
+      },
+      {
+        "id": "10",
+        "title": "Harden privacy and failure isolation",
+        "description": "Exercise missing core/channel/time, live playback, DOM churn, bundle exceptions, IPC timeout, corrupt stores, and out-of-range timestamps.",
+        "details": "Each failure disables only its feature; private text never enters logs or network.",
+        "testStrategy": "Failure-injection, network inspection, and safe-mode tests.",
+        "status": "pending",
+        "dependencies": [
+          "7",
+          "9"
+        ],
+        "priority": "high",
+        "subtasks": []
+      },
+      {
+        "id": "11",
+        "title": "Add checks, fixtures, and real-shell regression workflow",
+        "description": "Provide check/run-dev/test-e2e scripts, deterministic legal media fixtures, WebView2/CDP opt-in checks, and enabled/disabled regression records.",
+        "details": "Verify same official endpoint/server handoff/player path and unchanged volume/mute/audio/subtitle/stream behavior.",
+        "testStrategy": "Cargo/TypeScript/Playwright/release build plus manual audible-output checklist.",
+        "status": "pending",
+        "dependencies": [
+          "10"
+        ],
+        "priority": "high",
+        "subtasks": []
+      },
+      {
+        "id": "12",
+        "title": "Package and document JStremio",
+        "description": "Produce separate portable JStremio output and optional unsigned installer metadata with separate identity/profile/data/updater behavior.",
+        "details": "Document first login, backup/import, safe mode, rollback, update, SmartScreen, GPL, clean-profile validation, and hashes.",
+        "testStrategy": "Portable clean-profile smoke, restart persistence, safe mode, and official-install coexistence checks.",
+        "status": "pending",
+        "dependencies": [
+          "11"
+        ],
+        "priority": "high",
+        "subtasks": []
+      }
+    ],
+    "metadata": {
+      "version": "1.0.0",
+      "lastModified": "2026-07-10T05:53:37.275Z",
+      "taskCount": 12,
+      "completedCount": 1,
+      "tags": [
+        "master"
+      ]
+    }
+  }
+}

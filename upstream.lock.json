@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "shell": {
+    "repository": "https://github.com/Stremio/stremio-shell-ng",
+    "release": "v5.0.23",
+    "version": "5.0.23",
+    "commit": "5b1f341dbd9e1959f824436c70aa7410c159f684"
+  },
+  "webUi": {
+    "url": "https://web.stremio.com/",
+    "observedBuild": "b6298c68d27602564ed16edd0f44aa09cd8bacb4",
+    "observedAt": "2026-07-10"
+  },
+  "prototypeArchive": {
+    "branch": "archive/web-prototype-2026-07-10",
+    "tag": "web-prototype-archive-2026-07-10",
+    "commit": "424cb93b3574a0bf6f57ae138b654eaace148a28",
+    "bundle": "D:\\Dev\\JStremio-web-prototype-archive-2026-07-10-final.bundle",
+    "bundleSha256": "2B0F7BBFA438456B985346D0D5BDC62118566A3DE5D8E06789358FA30E24D5F4"
+  },
+  "lastCompatibilityTest": "2026-07-10"
+}
