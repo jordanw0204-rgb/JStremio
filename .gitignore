@@ -3,6 +3,8 @@
 /libmpv-2.dll
 /web/node_modules
 /web/dist
+/web/test-results
+/web/playwright-report
 /resources/extensions
 /artifacts
 *.log

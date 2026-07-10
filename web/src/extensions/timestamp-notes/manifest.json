@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "id": "timestamp-notes",
+  "name": "Timestamp Notes",
+  "version": "1.0.0",
+  "entry": "index.js",
+  "styles": "styles.css",
+  "enabledByDefault": true,
+  "loadOrder": 110
+}

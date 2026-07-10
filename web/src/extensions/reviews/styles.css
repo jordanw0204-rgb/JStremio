@@ -1,0 +1,34 @@
+.reviews-shell { min-height: 100%; padding: clamp(20px, 4vw, 56px); background: radial-gradient(circle at 85% 0%, rgba(123,75,255,.22), transparent 34%), #100b19; color: #f7f3ff; }
+.reviews-header { display:flex; align-items:flex-start; justify-content:space-between; gap:24px; max-width:1200px; margin:0 auto 28px; }
+.reviews-header h1 { margin:0 0 8px; font-size:clamp(28px,4vw,48px); }
+.reviews-header p { margin:0; color:#bcb4ca; max-width:720px; }
+.toolbar { max-width:1200px; margin:0 auto 20px; display:flex; gap:10px; flex-wrap:wrap; }
+.button { border:1px solid rgba(255,255,255,.16); border-radius:10px; background:#292037; color:#fff; padding:10px 14px; cursor:pointer; }
+.button:hover,.button:focus-visible { border-color:#a881ff; outline:2px solid transparent; background:#382a4c; }
+.button.primary { background:#7c4dff; border-color:#9974ff; }
+.button.danger { color:#ffb5bd; }
+.icon-button { width:42px; height:42px; border-radius:50%; font-size:24px; padding:0; }
+.status { max-width:1200px; margin:32px auto; padding:24px; border:1px solid rgba(255,255,255,.12); border-radius:14px; background:rgba(255,255,255,.04); }
+.review-grid { max-width:1200px; margin:auto; display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:16px; }
+.review-card { display:grid; grid-template-columns:72px 1fr; gap:14px; border:1px solid rgba(255,255,255,.12); border-radius:14px; background:#1c1527; padding:14px; min-width:0; }
+.poster { width:72px; height:106px; border-radius:8px; object-fit:cover; background:#30273d; }
+.review-card h2 { margin:0 0 5px; font-size:17px; overflow-wrap:anywhere; }
+.meta { color:#bcb4ca; font-size:13px; }
+.rating { color:#ffd76a; letter-spacing:2px; margin:7px 0; }
+.review-text { white-space:pre-wrap; overflow-wrap:anywhere; color:#e7e0ef; margin:8px 0; max-height:9em; overflow:auto; }
+.card-actions { display:flex; flex-wrap:wrap; gap:7px; margin-top:12px; }
+.card-actions .button { font-size:12px; padding:7px 9px; }
+.dialog { width:min(620px,100%); max-height:min(88vh,760px); overflow:auto; border:1px solid rgba(255,255,255,.16); border-radius:18px; background:#181121; color:#fff; padding:24px; box-shadow:0 24px 80px rgba(0,0,0,.55); }
+.dialog h2 { margin:0 0 6px; }
+.dialog .subtitle { color:#bcb4ca; margin:0 0 20px; }
+.field { display:grid; gap:8px; margin:16px 0; }
+.stars { display:flex; gap:8px; flex-wrap:wrap; }
+.star-option { position:relative; }
+.star-option input { position:absolute; inset:0; width:100%; height:100%; margin:0; opacity:0; cursor:pointer; z-index:1; }
+.star-option span { display:grid; place-items:center; width:44px; height:44px; border:1px solid rgba(255,255,255,.18); border-radius:10px; font-size:24px; cursor:pointer; pointer-events:none; }
+.star-option input:checked + span,.star-option input:focus-visible + span { background:#5d3b9f; border-color:#c3a7ff; }
+textarea { width:100%; min-height:150px; resize:vertical; border:1px solid rgba(255,255,255,.18); border-radius:10px; background:#0f0b15; color:#fff; padding:12px; }
+.count { text-align:right; color:#aaa0b8; font-size:12px; }
+.dialog-actions { display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end; margin-top:18px; }
+.alert { color:#ffb5bd; min-height:1.4em; }
+@media (max-width:620px) { .reviews-shell{padding:18px}.review-card{grid-template-columns:56px 1fr}.poster{width:56px;height:84px}.dialog{padding:18px} }
