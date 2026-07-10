@@ -1,16 +1,18 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  copyNavigationPresentation,
   findPlayerControls,
   findPrimaryNavigation,
   findSeekContainer,
   isPlayerOverlayHidden,
+  navigationTemplate,
 } from "../src/runtime/compatibility";
 
 describe("central DOM compatibility adapter", () => {
   beforeEach(() => {
     location.hash = "#/player/movie/tt123";
     document.body.innerHTML = `
-      <nav class="hash-a"><a class="hash-b" href="#/library">Library</a><a href="#/calendar">Calendar</a></nav>
+      <nav class="hash-a"><a class="hash-b selected" href="#/library"><svg class="icon_hash"></svg><div class="label_hash">Library</div></a><a href="#/calendar">Calendar</a></nav>
       <div class="control-bar-container_hash-c">
         <div class="seek-bar-container_hash-d">
           <div>00:59</div>
@@ -33,6 +35,16 @@ describe("central DOM compatibility adapter", () => {
     expect(findPrimaryNavigation()?.tagName).toBe("NAV");
     expect(findPlayerControls()?.className).toBe("control-bar-buttons-container_hash-f");
     expect(findSeekContainer()?.className).toBe("slider-container_hash-e");
+  });
+
+  it("copies official navigation container, icon, and hover-label classes without selected state", () => {
+    const button = document.createElement("button");
+    button.innerHTML = '<svg data-jstremio-navigation-icon></svg><div data-jstremio-navigation-label>Reviews</div>';
+    copyNavigationPresentation(button, navigationTemplate());
+    expect(button.classList.contains("hash-b")).toBe(true);
+    expect(button.classList.contains("selected")).toBe(false);
+    expect(button.querySelector("svg")?.classList.contains("icon_hash")).toBe(true);
+    expect(button.querySelector("div")?.classList.contains("label_hash")).toBe(true);
   });
 
   it("discovers replacements after a React-style remount", () => {

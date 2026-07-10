@@ -22,6 +22,19 @@ export function navigationTemplate(): HTMLElement | null {
   return document.querySelector<HTMLElement>('a[href*="#/library"], a[href*="#/calendar"]');
 }
 
+export function copyNavigationPresentation(target: HTMLElement, template: HTMLElement | null) {
+  copyIntegrationClasses(target, template);
+  target.classList.remove("selected");
+  const sourceIcon = template?.querySelector("svg, [class*=\"icon\"]") ?? null;
+  const targetIcon = target.querySelector('[data-jstremio-navigation-icon]');
+  copyIntegrationClasses(targetIcon, sourceIcon);
+  const sourceLabel = template
+    ? Array.from(template.children).find((child) => child.getAttribute("class")?.includes("label")) ?? null
+    : null;
+  const targetLabel = target.querySelector('[data-jstremio-navigation-label]');
+  copyIntegrationClasses(targetLabel, sourceLabel);
+}
+
 export function findPlayerControls(): HTMLElement | null {
   if (!isPlayerRoute()) return null;
   const toolbar = document.querySelector<HTMLElement>('[role="toolbar"]');
@@ -66,8 +79,9 @@ export function playerControlTemplate(controls: HTMLElement): HTMLElement | null
   return interactiveElements(controls)[0] ?? null;
 }
 
-export function copyIntegrationClasses(target: HTMLElement, template: HTMLElement | null) {
-  if (template?.className && typeof template.className === "string") target.className = template.className;
+export function copyIntegrationClasses(target: Element | null, template: Element | null) {
+  const className = template?.getAttribute("class");
+  if (target && className) target.setAttribute("class", className);
 }
 
 export function accessibleName(element: Element): string {

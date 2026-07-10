@@ -1,5 +1,6 @@
 import {
   copyIntegrationClasses,
+  copyNavigationPresentation,
   findPlayerControls,
   findPrimaryNavigation,
   navigationTemplate,
@@ -43,6 +44,7 @@ export function mountNavigationButton(
   if (existing) return existing;
   const navigation = findPrimaryNavigation();
   if (!navigation) return null;
+  const template = navigationTemplate();
   const button = document.createElement("button");
   button.type = "button";
   button.dataset.jstremioExtension = extensionId;
@@ -50,9 +52,16 @@ export function mountNavigationButton(
   button.dataset.jstremioTestid = `${extensionId}-navigation`;
   button.setAttribute("aria-label", label);
   button.title = label;
-  copyIntegrationClasses(button, navigationTemplate());
-  button.style.cssText = "border:0;background:transparent;color:inherit;cursor:pointer;display:flex;align-items:center;gap:.65rem;padding:.65rem 1rem;width:100%;";
-  button.innerHTML = `<span aria-hidden="true" style="display:grid;place-items:center;width:1.25rem">${icon}</span><span>${escapeHtml(label)}</span>`;
+  button.style.cssText = "border:0;padding:0;font:inherit;appearance:none;cursor:pointer;";
+  button.innerHTML = `${icon}<div data-jstremio-navigation-label>${escapeHtml(label)}</div>`;
+  button.querySelector("svg")?.setAttribute("data-jstremio-navigation-icon", "");
+  copyNavigationPresentation(button, template);
+  if (!template) {
+    button.style.cssText += "display:flex;flex-direction:column;align-items:center;justify-content:center;width:3.5rem;height:3.5rem;border-radius:.75rem;background:transparent;color:#b8b6c5;";
+    button.querySelector<SVGElement>("svg")?.style.setProperty("width", "2.2rem");
+    button.querySelector<SVGElement>("svg")?.style.setProperty("height", "2.2rem");
+    button.querySelector<HTMLElement>("[data-jstremio-navigation-label]")!.hidden = true;
+  }
   button.addEventListener("click", onClick);
   navigation.append(button);
   return button;
@@ -96,7 +105,7 @@ function ensurePlayerDock(): HTMLElement {
   dock.style.cssText = "position:fixed;left:50%;bottom:0;z-index:2147483000;transform:translateX(-50%);display:flex;align-items:center;gap:7px;min-height:64px;padding:10px 18px;box-sizing:border-box;pointer-events:auto;transition:opacity 160ms ease;";
   const style = document.createElement("style");
   style.textContent = `
-    body:has(${PLAYER_OVERLAY_HIDDEN_SELECTOR}) [data-jstremio-control="player-dock"]:not(:hover):not(:focus-within){opacity:.16}
+    body:has(${PLAYER_OVERLAY_HIDDEN_SELECTOR}) [data-jstremio-control="player-dock"]:not(:hover):not(:focus-within){opacity:0}
     body:has(${PLAYER_OVERLAY_HIDDEN_SELECTOR}) [data-jstremio-control="player-dock"]:hover,
     body:has(${PLAYER_OVERLAY_HIDDEN_SELECTOR}) [data-jstremio-control="player-dock"]:focus-within{opacity:1}
     @media (prefers-reduced-motion:reduce){[data-jstremio-control="player-dock"]{transition:none!important}}

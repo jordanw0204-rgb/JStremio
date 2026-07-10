@@ -8,7 +8,7 @@
 .button:hover,.button:focus-visible { border-color:#62d7c9; background:#21434d; }
 .button.primary { background:#167d73; border-color:#39b4a7; }
 .button.danger { color:#ffb4bd; }
-.icon-button { width:42px; height:42px; border-radius:50%; padding:0; font-size:24px; }
+.icon-button { display:grid; place-items:center; width:42px; height:42px; border-radius:50%; padding:0; line-height:0; }
 .status { max-width:1200px; margin:30px auto; padding:22px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.12); border-radius:14px; }
 .groups { max-width:1200px; margin:auto; display:grid; gap:18px; }
 .group { border:1px solid rgba(255,255,255,.12); border-radius:15px; background:#101e24; overflow:hidden; }
@@ -45,7 +45,8 @@ textarea { width:100%; min-height:170px; resize:vertical; border:1px solid rgba(
 .jstremio-marker span { position:absolute; inset:0; display:grid; place-items:center; color:#062b27; font-size:10px; font-weight:800; }
 .marker-popover { position:absolute; left:50%; bottom:24px; width:min(360px,80vw); max-height:280px; overflow:auto; transform:translateX(-50%); pointer-events:auto; background:#0d1a1f; color:#fff; border:1px solid rgba(255,255,255,.18); border-radius:11px; padding:10px; box-shadow:0 12px 40px rgba(0,0,0,.6); }
 .marker-popover-header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:1px 2px 8px; border-bottom:1px solid rgba(255,255,255,.1); }
-.marker-popover-close { width:30px; height:30px; border:1px solid rgba(255,255,255,.17); border-radius:8px; background:#173039; color:#fff; cursor:pointer; font-size:20px; line-height:1; }
+.marker-popover-close { display:grid; place-items:center; width:30px; height:30px; padding:0; border:1px solid rgba(255,255,255,.17); border-radius:8px; background:#173039; color:#fff; cursor:pointer; line-height:0; }
+.icon-button svg,.marker-popover-close svg { display:block; margin:0; }
 .marker-popover-close:hover,.marker-popover-close:focus-visible { border-color:#62d7c9; background:#21434d; }
 .marker-note { display:grid; gap:5px; padding:8px; border-radius:8px; }
 .marker-note + .marker-note { border-top:1px solid rgba(255,255,255,.1); }

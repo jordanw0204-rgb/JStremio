@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "timestamp-notes",
   "name": "Timestamp Notes",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "entry": "index.js",
   "styles": "styles.css",
   "enabledByDefault": true,

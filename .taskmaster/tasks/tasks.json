@@ -200,13 +200,27 @@
         "priority": "high",
         "subtasks": [],
         "updatedAt": "2026-07-10T21:13:12.170Z"
+      },
+      {
+        "id": "15",
+        "title": "Match extension controls to official Stremio navigation styling",
+        "description": "Make the immersed player dock fully transparent until hovered, center timestamp-note close controls, and restyle Reviews/Timestamp Notes navigation buttons to match official icon color, dimensions, and hover-only labels.",
+        "details": "Preserve the body-owned hover hot zone with zero idle opacity and pointer interaction. Replace font-glyph close alignment with centered SVG/grid styling. Derive custom navigation button and icon classes/geometry from the official navigation template, remove always-visible labels and black button chrome, and retain accessible names/tooltips.",
+        "testStrategy": "Compatibility unit tests, Playwright idle/hover and navigation geometry/color/tooltip checks, current official WebView2 live-DOM smoke, full repository gate, and portable integrity audit.",
+        "status": "done",
+        "dependencies": [
+          "14"
+        ],
+        "priority": "high",
+        "subtasks": [],
+        "updatedAt": "2026-07-10T21:56:56.780Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-07-10T21:13:12.170Z",
-      "taskCount": 14,
-      "completedCount": 12,
+      "lastModified": "2026-07-10T21:56:56.780Z",
+      "taskCount": 15,
+      "completedCount": 13,
       "tags": [
         "master"
       ]

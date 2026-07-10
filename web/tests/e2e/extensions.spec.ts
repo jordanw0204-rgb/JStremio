@@ -5,7 +5,14 @@ const built = resolve(import.meta.dirname, "..", "..", "..", "resources", "exten
 
 test.beforeEach(async ({ page }) => {
   await page.setContent(`
-    <nav><a href="#/library">Library</a><a href="#/calendar">Calendar</a></nav>
+    <style>
+      .nav-tab-button_fixture { display:flex;flex-direction:column;align-items:center;justify-content:center;width:64px;height:64px;background-color:transparent;border-radius:12px; }
+      .nav-tab-button_fixture:hover { background-color:rgba(255,255,255,.08); }
+      .nav-tab-button_fixture .icon_fixture { flex:none;width:35px;height:35px;margin-bottom:8px;color:rgb(186,184,198);opacity:.35; }
+      .nav-tab-button_fixture .label_fixture { color:rgb(186,184,198);font-size:13px;opacity:0; }
+      .nav-tab-button_fixture:hover .label_fixture { opacity:.6; }
+    </style>
+    <nav><a class="nav-tab-button_fixture nav-tab-button-container_fixture" href="#/library" title="Library"><svg class="icon_fixture" viewBox="0 0 24 24"></svg><div class="label_fixture">Library</div></a><a class="nav-tab-button_fixture nav-tab-button-container_fixture" href="#/calendar" title="Calendar"><svg class="icon_fixture" viewBox="0 0 24 24"></svg><div class="label_fixture">Calendar</div></a></nav>
     <main style="position:fixed;left:0;right:0;bottom:0"><div class="control-bar-container_fixture">
       <div class="seek-bar-container_fixture"><div>00:00</div><div class="slider-container_fixture" style="height:40px;width:100%">
         <div><div></div></div><div><div style="width:20%"></div></div>
@@ -138,9 +145,31 @@ test("mounts each extension once and remounts after upstream replacement", async
   await expect(page.locator('[data-jstremio-testid="timestamp-notes-player-button"]')).toHaveCount(1);
   await expect(page.locator('[data-jstremio-testid="reviews-player-button"]')).toHaveClass(/control-bar-button_fixture/);
   await expect(page.locator('[data-jstremio-testid="reviews-player-button"]').locator("..")).toHaveAttribute("data-jstremio-control", "player-dock");
+  const officialNavigation = page.locator('a[href="#/library"]');
+  const reviewsNavigation = page.locator('[data-jstremio-testid="reviews-navigation"]');
+  const officialIcon = officialNavigation.locator("svg");
+  const reviewsIcon = reviewsNavigation.locator("svg");
+  const reviewsLabel = reviewsNavigation.locator('[data-jstremio-navigation-label]');
+  await expect(reviewsNavigation).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  await expect(reviewsIcon).toHaveCSS("color", "rgb(186, 184, 198)");
+  await expect(reviewsIcon).toHaveCSS("opacity", "0.35");
+  await expect(reviewsLabel).toHaveCSS("opacity", "0");
+  await expect.poll(async () => {
+    const official = await officialNavigation.boundingBox();
+    const custom = await reviewsNavigation.boundingBox();
+    if (!official || !custom) return 99;
+    return Math.max(Math.abs(official.width - custom.width), Math.abs(official.height - custom.height));
+  }).toBeLessThan(0.5);
+  await expect.poll(async () => {
+    const official = await officialIcon.boundingBox();
+    const custom = await reviewsIcon.boundingBox();
+    return { width: custom?.width, height: custom?.height, officialWidth: official?.width, officialHeight: official?.height };
+  }).toEqual({ width: 35, height: 35, officialWidth: 35, officialHeight: 35 });
+  await reviewsNavigation.hover();
+  await expect(reviewsLabel).toHaveCSS("opacity", "0.6");
 
   await page.evaluate(() => {
-    document.querySelector("nav")!.outerHTML = '<nav><a href="#/library">Library</a><a href="#/calendar">Calendar</a></nav>';
+    document.querySelector("nav")!.outerHTML = '<nav><a class="nav-tab-button_fixture nav-tab-button-container_fixture" href="#/library" title="Library"><svg class="icon_fixture" viewBox="0 0 24 24"></svg><div class="label_fixture">Library</div></a><a class="nav-tab-button_fixture nav-tab-button-container_fixture" href="#/calendar" title="Calendar"><svg class="icon_fixture" viewBox="0 0 24 24"></svg><div class="label_fixture">Calendar</div></a></nav>';
     document.querySelector(".control-bar-buttons-container_fixture")!.outerHTML = '<div class="control-bar-buttons-container_fixture"><div class="control-bar-button_fixture" title="Pause" tabindex="-1"></div><div class="control-bar-button_fixture" title="Next video" tabindex="-1"></div><div class="control-bar-button_fixture" title="Mute" tabindex="-1"></div></div>';
   });
   await expect(page.locator('[data-jstremio-testid="reviews-navigation"]')).toHaveCount(1);
@@ -149,12 +178,12 @@ test("mounts each extension once and remounts after upstream replacement", async
 
   const dock = page.locator('[data-jstremio-testid="player-extension-dock"]');
   await page.evaluate(() => document.querySelector("main")?.classList.add("overlayHidden_fixture"));
-  await expect(dock).toHaveCSS("opacity", "0.16");
+  await expect(dock).toHaveCSS("opacity", "0");
   await expect(dock).toHaveCSS("pointer-events", "auto");
   await dock.hover();
   await expect(dock).toHaveCSS("opacity", "1");
   await page.mouse.move(5, 5);
-  await expect(dock).toHaveCSS("opacity", "0.16");
+  await expect(dock).toHaveCSS("opacity", "0");
   await page.evaluate(() => document.querySelector("main")?.classList.remove("overlayHidden_fixture"));
 
   await page.evaluate(() => {
@@ -235,6 +264,14 @@ test("captures, pauses conditionally, clusters markers, and seeks without blocki
   await marker.click();
   const closePopover = page.getByRole("button", { name: "Close timestamp notes" });
   await expect(closePopover).toBeFocused();
+  await expect.poll(async () => {
+    const button = await closePopover.boundingBox();
+    const icon = await closePopover.locator("svg").boundingBox();
+    if (!button || !icon) return 99;
+    const x = Math.abs((button.x + button.width / 2) - (icon.x + icon.width / 2));
+    const y = Math.abs((button.y + button.height / 2) - (icon.y + icon.height / 2));
+    return Math.max(x, y);
+  }).toBeLessThan(0.6);
   await page.keyboard.press("Escape");
   await expect(page.locator(".marker-popover")).toHaveCount(0);
 
