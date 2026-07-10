@@ -3,6 +3,7 @@ import {
   findPlayerControls,
   findPrimaryNavigation,
   navigationTemplate,
+  playerControlTemplate,
 } from "../runtime/compatibility";
 import { canonicalDetailHash } from "../runtime/stremioAdapter";
 import type { JStremioRuntime, MediaTarget } from "../runtime/types";
@@ -67,7 +68,7 @@ export function mountPlayerButton(
   if (existing) return existing;
   const controls = findPlayerControls();
   if (!controls) return null;
-  const template = controls.querySelector<HTMLElement>("button");
+  const template = playerControlTemplate(controls);
   const button = document.createElement("button");
   button.type = "button";
   button.dataset.jstremioExtension = extensionId;

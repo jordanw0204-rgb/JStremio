@@ -14,7 +14,7 @@
 
 - Unmodified `v5.0.23`: 10 native tests and optimized x64 build passed.
 - JStremio native layer: 29 tests passed, including first write, Windows replacement/backup, malformed/unsupported preservation, concurrency, abandoned temps, validation, CRUD, UUIDs, manifests, origins, fixed IPC, and the pinned shell handshake.
-- TypeScript: strict typecheck and 11 unit tests passed.
+- TypeScript: strict typecheck and 12 unit tests passed, including the current official focusable-`div` controls and layered-slider fixture.
 - Playwright: Reviews CRUD/privacy, both-extension dedup/remount, timestamp capture, owned pause/resume, clustering, marker seeking, and pointer-transparent layer passed.
 - Real WebView2 enabled: official URL plus dynamic server URL, frozen runtime, one Reviews item, and one Timestamp Notes item.
 - Real WebView2 safe mode: the exact same official/dynamic URL with no runtime or extension nodes.

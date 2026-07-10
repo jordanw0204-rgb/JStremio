@@ -169,13 +169,30 @@
         "priority": "high",
         "subtasks": [],
         "updatedAt": "2026-07-10T08:47:13.613Z"
+      },
+      {
+        "id": "13",
+        "title": "Fix current Stremio player control discovery",
+        "description": "Adapt player-button and seek-slider discovery to the official Web UI's focusable div controls and layered non-semantic Slider DOM.",
+        "details": "Replace button-only and ARIA-slider-only assumptions in the centralized compatibility adapter; preserve semantic fallbacks, avoid complete CSS-module hashes, copy integration classes from focusable controls, and use realistic current-upstream fixtures.",
+        "testStrategy": "TypeScript compatibility tests, Playwright control/remount/marker/seek flows, full repository check, and portable manifest verification.",
+        "status": "done",
+        "dependencies": [
+          "6",
+          "7",
+          "8",
+          "9"
+        ],
+        "priority": "high",
+        "subtasks": [],
+        "updatedAt": "2026-07-10T09:18:34.349Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-07-10T08:47:13.613Z",
-      "taskCount": 12,
-      "completedCount": 10,
+      "lastModified": "2026-07-10T09:18:34.349Z",
+      "taskCount": 13,
+      "completedCount": 11,
       "tags": [
         "master"
       ]

@@ -6,7 +6,18 @@ const built = resolve(import.meta.dirname, "..", "..", "..", "resources", "exten
 test.beforeEach(async ({ page }) => {
   await page.setContent(`
     <nav><a href="#/library">Library</a><a href="#/calendar">Calendar</a></nav>
-    <main><div class="controls" role="toolbar"><button aria-label="Play">Play</button><button aria-label="Next video">Next</button><button aria-label="Fullscreen">Fullscreen</button></div><div class="seek"><div role="slider" aria-label="Seek position"></div></div></main>
+    <main style="position:fixed;left:0;right:0;bottom:0"><div class="control-bar-container_fixture">
+      <div class="seek-bar-container_fixture"><div>00:00</div><div class="slider-container_fixture" style="height:40px;width:100%">
+        <div><div></div></div><div><div style="width:20%"></div></div>
+        <div><div style="--mask-width:calc(0 * 100%)"></div></div>
+        <div><div style="margin-left:calc(100% * 0)"></div></div>
+      </div><div tabindex="-1"><div>01:40</div></div></div>
+      <div class="control-bar-buttons-container_fixture">
+        <div class="control-bar-button_fixture" title="Pause" tabindex="-1"></div>
+        <div class="control-bar-button_fixture" title="Next video" tabindex="-1"></div>
+        <div class="control-bar-button_fixture" title="Mute" tabindex="-1"></div>
+      </div>
+    </div></main>
   `);
   await page.evaluate(() => {
     location.hash = "#/player/movie/tt123";
@@ -125,10 +136,11 @@ test("mounts each extension once and remounts after upstream replacement", async
   await expect(page.locator('[data-jstremio-testid="timestamp-notes-navigation"]')).toHaveCount(1);
   await expect(page.locator('[data-jstremio-testid="reviews-player-button"]')).toHaveCount(1);
   await expect(page.locator('[data-jstremio-testid="timestamp-notes-player-button"]')).toHaveCount(1);
+  await expect(page.locator('[data-jstremio-testid="reviews-player-button"]')).toHaveClass(/control-bar-button_fixture/);
 
   await page.evaluate(() => {
     document.querySelector("nav")!.outerHTML = '<nav><a href="#/library">Library</a><a href="#/calendar">Calendar</a></nav>';
-    document.querySelector(".controls")!.outerHTML = '<div class="controls" role="toolbar"><button aria-label="Play">Play</button><button aria-label="Next video">Next</button><button aria-label="Fullscreen">Fullscreen</button></div>';
+    document.querySelector(".control-bar-buttons-container_fixture")!.outerHTML = '<div class="control-bar-buttons-container_fixture"><div class="control-bar-button_fixture" title="Pause" tabindex="-1"></div><div class="control-bar-button_fixture" title="Next video" tabindex="-1"></div><div class="control-bar-button_fixture" title="Mute" tabindex="-1"></div></div>';
   });
   await expect(page.locator('[data-jstremio-testid="reviews-navigation"]')).toHaveCount(1);
   await expect(page.locator('[data-jstremio-testid="timestamp-notes-navigation"]')).toHaveCount(1);
@@ -170,6 +182,7 @@ test("captures, pauses conditionally, clusters markers, and seeks without blocki
   await expect(marker).toHaveAccessibleName(/2 notes/);
   const layer = page.locator('[data-jstremio-testid="timestamp-note-markers"]');
   await expect(layer).toHaveCSS("pointer-events", "none");
+  await expect(layer.locator("..")).toHaveClass(/slider-container_fixture/);
   await marker.click();
   await page.getByRole("button", { name: /first marker note/ }).click();
   await expect.poll(() => page.evaluate(() => JSON.stringify((window as any).__fixture.commands))).toContain("time-pos");
