@@ -1,12 +1,16 @@
-use crate::stremio_app::constants::SERVER_IPC_KEY;
-use crate::stremio_app::ipc;
+use crate::{
+    extensions::ExtensionHost,
+    stremio_app::{constants::SERVER_IPC_KEY, ipc},
+};
 use native_windows_gui::{self as nwg, PartialUi};
+use once_cell::sync::OnceCell as SyncOnceCell;
 use once_cell::unsync::OnceCell;
 use serde_json::json;
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::mem;
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -24,12 +28,35 @@ const APPCOMMAND_MEDIA_PAUSE: u32 = 47;
 
 use super::constants::{WARNING_URL, WHITELISTED_HOSTS};
 
+#[derive(Clone)]
+struct WebViewConfiguration {
+    extension_host: Option<Arc<ExtensionHost>>,
+    user_data_folder: PathBuf,
+    remote_debugging_port: Option<u16>,
+}
+
+static WEBVIEW_CONFIGURATION: SyncOnceCell<WebViewConfiguration> = SyncOnceCell::new();
+
+pub fn configure(
+    user_data_folder: PathBuf,
+    remote_debugging_port: Option<u16>,
+    extension_host: Option<Arc<ExtensionHost>>,
+) -> Result<(), &'static str> {
+    WEBVIEW_CONFIGURATION
+        .set(WebViewConfiguration {
+            extension_host,
+            user_data_folder,
+            remote_debugging_port,
+        })
+        .map_err(|_| "WebView2 was already configured")
+}
+
 #[derive(Default)]
 pub struct WebView {
     pub endpoint: Rc<OnceCell<String>>,
     pub dev_tools: Rc<OnceCell<bool>>,
     pub controller: Rc<OnceCell<Controller>>,
-    pub channel: ipc::Channel,
+    pub channel: ipc::WebChannel,
     notice: nwg::Notice,
     compute: RefCell<Option<thread::JoinHandle<()>>>,
     message_queue: Arc<Mutex<VecDeque<String>>>,
@@ -82,9 +109,21 @@ impl PartialUi for WebView {
         let controller_clone = data.controller.clone();
         let endpoint = data.endpoint.clone();
         let dev_tools = data.dev_tools.clone();
-        let webview_flags = "--autoplay-policy=no-user-gesture-required --disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection";
+        let configuration = WEBVIEW_CONFIGURATION
+            .get()
+            .cloned()
+            .expect("JStremio must configure WebView2 before building the UI");
+        let extension_host = configuration.extension_host;
+        let user_data_folder = configuration.user_data_folder;
+        let mut webview_flags = "--autoplay-policy=no-user-gesture-required --disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection".to_string();
+        if let Some(port) = configuration.remote_debugging_port {
+            webview_flags.push_str(&format!(
+                " --remote-debugging-port={port} --remote-debugging-address=127.0.0.1"
+            ));
+        }
         let result = webview2::EnvironmentBuilder::new()
-            .with_additional_browser_arguments(webview_flags)
+            .with_user_data_folder(&user_data_folder)
+            .with_additional_browser_arguments(&webview_flags)
             .build(move |env| {
                 env.expect("Cannot obtain webview environment")
                     .create_controller(hwnd, move |controller| {
@@ -138,12 +177,20 @@ impl PartialUi for WebView {
                     if let Some(endpoint) = endpoint.get() {
                         if webview
                             .navigate(endpoint.as_str()).is_err() {
-                                tx_web.clone().send(ipc::RPCResponse::response_message(Some(json!(["app-error", format!("Cannot load WEB UI at '{}'", &endpoint)])))).ok();
+                                tx_web.clone().send(ipc::WebMessage::internal(
+                                    ipc::RPCResponse::response_message(Some(json!(["app-error", format!("Cannot load WEB UI at '{}'", &endpoint)])))
+                                )).ok();
                         };
                     }
-                        webview.add_web_message_received(move |_w, msg| {
-                            let msg = msg.try_get_web_message_as_string()?;
-                            tx_web.send(msg).ok();
+                        webview.add_web_message_received(move |wv, msg| {
+                            let message = msg.try_get_web_message_as_string()?;
+                            let source = msg.get_source().unwrap_or_default();
+                            let top_level_source = wv.get_source().unwrap_or_default();
+                            tx_web.send(ipc::WebMessage {
+                                message,
+                                source,
+                                top_level_source,
+                            }).ok();
                             Ok(())
                         }).expect("Cannot add web message received");
                         webview.add_new_window_requested(move |_w, msg| {
@@ -155,11 +202,14 @@ impl PartialUi for WebView {
                         }).expect("Cannot add D&D handler");
                         webview.add_contains_full_screen_element_changed(move |wv| {
                             if let Ok(visibility) = wv.get_contains_full_screen_element() {
-                                tx_fs.send(ipc::RPCResponse::response_message(Some(json!(["win-set-visibility" , {"fullscreen": visibility}])))).ok();
+                                tx_fs.send(ipc::WebMessage::internal(
+                                    ipc::RPCResponse::response_message(Some(json!(["win-set-visibility" , {"fullscreen": visibility}])))
+                                )).ok();
                             }
                             Ok(())
                         }).expect("Cannot add full screen element changed");
 
+                        let extension_host_for_loading = extension_host.clone();
                         webview.add_content_loading(move |wv, _| {
                             wv.execute_script(format!(
                                     "window.stremio_server_ipc_key='{}'",
@@ -185,6 +235,17 @@ impl PartialUi for WebView {
                             window.addEventListener("load", function() {if(initShellComm) try { initShellComm() } catch(e) {}}, false)
                             
                             "##, |_| Ok(())).expect("Cannot add script to webview");
+
+                            if let (Some(host), Ok(source)) = (
+                                extension_host_for_loading.as_ref(),
+                                wv.get_source(),
+                            ) {
+                                if let Some(script) = host.injection_script_for(&source) {
+                                    if let Err(error) = wv.execute_script(script, |_| Ok(())) {
+                                        eprintln!("JStremio extension injection failed: {error}");
+                                    }
+                                }
+                            }
                             Ok(())
                         }).expect("Cannot add content loading");
 

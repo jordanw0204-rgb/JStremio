@@ -7,6 +7,24 @@ use crate::stremio_app::gpu_video_processing;
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub type Channel = RefCell<Option<(flume::Sender<String>, flume::Receiver<String>)>>;
+pub type WebChannel = RefCell<Option<(flume::Sender<String>, flume::Receiver<WebMessage>)>>;
+
+#[derive(Debug, Clone)]
+pub struct WebMessage {
+    pub message: String,
+    pub source: String,
+    pub top_level_source: String,
+}
+
+impl WebMessage {
+    pub fn internal(message: String) -> Self {
+        Self {
+            message,
+            source: String::new(),
+            top_level_source: String::new(),
+        }
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RPCRequest {
@@ -109,9 +127,6 @@ impl RPCResponse {
     }
     pub fn open_media(url: String) -> String {
         Self::response_message(Some(json!(["open-media", url])))
-    }
-    pub fn update_available() -> String {
-        Self::response_message(Some(json!(["autoupdater-show-notif"])))
     }
     pub fn discord_status(connected: bool) -> String {
         Self::response_message(Some(json!(["discord-status", {

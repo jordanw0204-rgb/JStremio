@@ -226,6 +226,7 @@ dependencies = [
  "iana-time-zone",
  "js-sys",
  "num-traits",
+ "serde",
  "wasm-bindgen",
  "windows-targets 0.52.4",
 ]
@@ -853,6 +854,43 @@ checksum = "1cfaf33c695fc6e08064efbc1f72ec937429614f25eef83af942d0e227c3a28f"
 dependencies = [
  "once_cell",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "jstremio"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "bitflags 2.4.2",
+ "chrono",
+ "clap",
+ "discord-rich-presence",
+ "flume",
+ "libmpv2",
+ "libmpv2-sys",
+ "native-windows-derive",
+ "native-windows-gui",
+ "once_cell",
+ "open",
+ "parse-display",
+ "rand",
+ "reqwest",
+ "semver",
+ "serde",
+ "serde_json",
+ "serde_test",
+ "sha2",
+ "tempfile",
+ "thiserror",
+ "url",
+ "urlencoding",
+ "uuid 1.20.0",
+ "webview2",
+ "webview2-sys",
+ "whoami",
+ "winapi",
+ "winres",
+ "zip-extract",
 ]
 
 [[package]]
@@ -1620,41 +1658,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
 dependencies = [
  "lock_api",
-]
-
-[[package]]
-name = "stremio-shell-ng"
-version = "5.0.23"
-dependencies = [
- "anyhow",
- "bitflags 2.4.2",
- "chrono",
- "clap",
- "discord-rich-presence",
- "flume",
- "libmpv2",
- "libmpv2-sys",
- "native-windows-derive",
- "native-windows-gui",
- "once_cell",
- "open",
- "parse-display",
- "rand",
- "reqwest",
- "semver",
- "serde",
- "serde_json",
- "serde_test",
- "sha2",
- "url",
- "urlencoding",
- "uuid 1.20.0",
- "webview2",
- "webview2-sys",
- "whoami",
- "winapi",
- "winres",
- "zip-extract",
 ]
 
 [[package]]

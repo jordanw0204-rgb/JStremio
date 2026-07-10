@@ -1,34 +1,35 @@
 use native_windows_derive::NwgUi;
 use native_windows_gui as nwg;
-use rand::Rng;
 use serde_json;
 use std::{
     cell::RefCell,
     io::Read,
     os::windows::process::CommandExt,
-    path::{Path, PathBuf},
-    process::{self, Command},
+    path::Path,
+    process::Command,
     str,
     sync::{Arc, Mutex},
-    thread, time,
+    thread,
 };
-use url::Url;
 use winapi::um::{winbase::CREATE_BREAKAWAY_FROM_JOB, winuser::WS_EX_TOPMOST};
 
-use crate::stremio_app::{
-    constants::{
-        web_endpoint_with_streaming_server, APP_NAME, UPDATE_ENDPOINT, UPDATE_INTERVAL,
-        WEB_ENDPOINT, WINDOW_MIN_HEIGHT, WINDOW_MIN_WIDTH,
+use crate::{
+    bridge::NativeBridge,
+    extensions::ExtensionHost,
+    stremio_app::{
+        constants::{
+            web_endpoint_with_streaming_server, APP_NAME, WEB_ENDPOINT, WINDOW_MIN_HEIGHT,
+            WINDOW_MIN_WIDTH,
+        },
+        ipc::{RPCRequest, RPCResponse},
+        splash::SplashImage,
+        stremio_player::Player,
+        stremio_wevbiew::WebView,
+        systray::SystemTray,
+        window_helper::WindowStyle,
+        window_settings::WindowSettings,
+        PipeServer,
     },
-    ipc::{RPCRequest, RPCResponse},
-    splash::SplashImage,
-    stremio_player::Player,
-    stremio_wevbiew::WebView,
-    systray::SystemTray,
-    updater,
-    window_helper::WindowStyle,
-    window_settings::WindowSettings,
-    PipeServer,
 };
 
 use super::discord::DiscordRpc;
@@ -42,10 +43,7 @@ pub struct MainWindow {
     pub no_splash: bool,
     pub dev_tools: bool,
     pub start_hidden: bool,
-    pub autoupdater_endpoint: Option<Url>,
-    pub force_update: bool,
-    pub release_candidate: bool,
-    pub autoupdater_setup_file: Arc<Mutex<Option<PathBuf>>>,
+    pub extension_host: Option<Arc<ExtensionHost>>,
     pub requested_fullscreen: Arc<Mutex<Option<bool>>>,
     pub saved_window_style: RefCell<WindowStyle>,
     #[nwg_resource]
@@ -176,11 +174,7 @@ impl MainWindow {
         let web_tx_player = web_tx.clone();
         let web_tx_web = web_tx.clone();
         let web_tx_arg = web_tx.clone();
-        let web_tx_upd = web_tx.clone();
         let web_rx = web_rx.clone();
-
-        let (updater_tx, updater_rx) = flume::unbounded::<String>();
-        let updater_tx_web = updater_tx.clone();
 
         let command_clone = self.command.clone();
 
@@ -190,55 +184,6 @@ impl MainWindow {
                 .as_ref()
                 .expect("Cannot initialie the single application IPC"),
         );
-
-        let autoupdater_endpoint = self.autoupdater_endpoint.clone();
-        let force_update = self.force_update;
-        let release_candidate = self.release_candidate;
-        let autoupdater_setup_file = self.autoupdater_setup_file.clone();
-
-        thread::spawn(move || {
-            loop {
-                if let Ok(msg) = updater_rx.recv() {
-                    if msg == "check_for_update" {
-                        break;
-                    }
-                }
-            }
-
-            loop {
-                let current_version = env!("CARGO_PKG_VERSION")
-                    .parse()
-                    .expect("Should always be valid");
-
-                let updater_endpoint = if let Some(ref endpoint) = autoupdater_endpoint {
-                    endpoint.clone()
-                } else {
-                    let mut rng = rand::thread_rng();
-                    let index = rng.gen_range(0..UPDATE_ENDPOINT.len());
-                    let mut url = Url::parse(UPDATE_ENDPOINT[index]).unwrap();
-                    url.query_pairs_mut().append_pair("arch", env!("ARCH"));
-                    if release_candidate {
-                        url.query_pairs_mut().append_pair("rc", "true");
-                    }
-                    url
-                };
-
-                let updater =
-                    updater::Updater::new(current_version, &updater_endpoint, force_update);
-                match updater.autoupdate() {
-                    Ok(Some(update)) => {
-                        println!("New version ready to install v{}", update.version);
-                        let mut autoupdater_setup_file = autoupdater_setup_file.lock().unwrap();
-                        *autoupdater_setup_file = Some(update.file.clone());
-                        web_tx_upd.send(RPCResponse::update_available()).ok();
-                    }
-                    Ok(None) => println!("No new updates found"),
-                    Err(e) => eprintln!("Failed to fetch updates: {e}"),
-                }
-
-                thread::sleep(time::Duration::from_secs(UPDATE_INTERVAL));
-            }
-        }); // thread
 
         if let Ok(mut listener) = PipeServer::bind(socket_path) {
             let focus_sender = self.focus_notice.sender();
@@ -268,17 +213,35 @@ impl MainWindow {
         let quit_sender = self.quit_notice.sender();
         let hide_splash_sender = self.hide_splash_notice.sender();
         let focus_sender = self.focus_notice.sender();
-        let autoupdater_setup_mutex = self.autoupdater_setup_file.clone();
-
         let discord_rpc = DiscordRpc::new(web_tx.clone());
         let requested_fullscreen = self.requested_fullscreen.clone();
+        let extension_host = self.extension_host.clone();
 
         thread::spawn(move || loop {
-            if let Some(msg) = web_rx
-                .recv()
-                .ok()
-                .and_then(|s| serde_json::from_str::<RPCRequest>(&s).ok())
-            {
+            if let Ok(web_message) = web_rx.recv() {
+                let Some(msg) = serde_json::from_str::<RPCRequest>(&web_message.message).ok()
+                else {
+                    continue;
+                };
+                if let Some(method) = msg.get_method() {
+                    if NativeBridge::supports(method) {
+                        if let Some(response) = extension_host.as_ref().and_then(|host| {
+                            host.handle_bridge_message(
+                                method,
+                                msg.id,
+                                msg.get_params(),
+                                web_message.message.len(),
+                                &web_message.source,
+                                &web_message.top_level_source,
+                            )
+                        }) {
+                            web_tx_web
+                                .send(RPCResponse::response_message(Some(response.into_event())))
+                                .ok();
+                        }
+                        continue;
+                    }
+                }
                 match msg.get_method() {
                     // The handshake. Here we send some useful data to the WEB UI
                     None if msg.is_handshake() => {
@@ -300,10 +263,6 @@ impl MainWindow {
                         web_tx_web
                             .send(RPCResponse::visibility_change(true, 1, false))
                             .ok();
-                        updater_tx_web
-                            .send("check_for_update".to_owned())
-                            .expect("Failed to send value to updater channel");
-
                         let command_ref = command_clone.clone();
                         if !command_ref.is_empty() {
                             web_tx_web.send(RPCResponse::open_media(command_ref)).ok();
@@ -383,39 +342,7 @@ impl MainWindow {
                         focus_sender.notice();
                     }
                     Some("autoupdater-notif-clicked") => {
-                        // We've shown the "Update Available" notification
-                        // and the user clicked on "Restart And Update"
-                        let autoupdater_setup_file =
-                            autoupdater_setup_mutex.lock().unwrap().clone();
-                        match autoupdater_setup_file {
-                            Some(file_path) => {
-                                println!("Running the setup at {file_path:?}");
-
-                                let command = Command::new(file_path)
-                                    .args([
-                                        "/SILENT",
-                                        "/NOCANCEL",
-                                        "/FORCECLOSEAPPLICATIONS",
-                                        "/TASKS=runapp",
-                                    ])
-                                    .creation_flags(CREATE_BREAKAWAY_FROM_JOB)
-                                    .stdin(process::Stdio::null())
-                                    .stdout(process::Stdio::null())
-                                    .stderr(process::Stdio::null())
-                                    .spawn();
-
-                                match command {
-                                    Ok(process) => {
-                                        println!("Updater started. (PID {:?})", process.id());
-                                        quit_sender.notice();
-                                    }
-                                    Err(err) => eprintln!("Updater couldn't be started: {err}"),
-                                };
-                            }
-                            _ => {
-                                println!("Cannot obtain the setup file path");
-                            }
-                        }
+                        eprintln!("The official Stremio updater is disabled in JStremio");
                     }
                     Some("discord-connect") => {
                         if let Err(e) = discord_rpc.connect() {

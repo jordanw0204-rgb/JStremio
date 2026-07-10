@@ -1,19 +1,33 @@
 #![cfg_attr(all(not(test), not(debug_assertions)), windows_subsystem = "windows")]
 #[macro_use]
 extern crate bitflags;
-use std::{io::Write, path::Path, process::exit};
-use url::Url;
+use std::{
+    collections::HashSet,
+    io::Write,
+    path::{Path, PathBuf},
+    process::exit,
+    sync::Arc,
+};
 use whoami::username;
 
 use clap::Parser;
 use native_windows_gui::{self as nwg, NativeUi};
+mod app_paths;
+mod bridge;
+mod extensions;
+mod media;
+mod reviews;
+mod storage;
 mod stremio_app;
+mod timestamp_notes;
 use crate::stremio_app::{
     constants::{
         DEV_ENDPOINT, IPC_PATH, SERVER_IPC_KEY, STA_ENDPOINT, STREMIO_SERVER_DEV_MODE, WEB_ENDPOINT,
     },
     MainWindow, PipeClient,
 };
+use app_paths::AppPaths;
+use extensions::{ExtensionHost, OriginPolicy};
 
 #[derive(Parser, Debug)]
 #[clap(version)]
@@ -34,12 +48,22 @@ struct Opt {
     staging: bool,
     #[clap(long, default_value = WEB_ENDPOINT, help = "Override the WebUI URL")]
     webui_url: String,
-    #[clap(long, help = "Ovveride autoupdater endpoint")]
-    autoupdater_endpoint: Option<Url>,
-    #[clap(long, help = "Forces reinstalling current version")]
-    force_update: bool,
-    #[clap(long, help = "Check for RC updates")]
-    release_candidate: bool,
+    #[clap(long, help = "Disable all JStremio extensions")]
+    disable_extensions: bool,
+    #[clap(long, value_name = "ID", help = "Disable one packaged extension")]
+    disable_extension: Vec<String>,
+    #[clap(
+        long,
+        value_name = "PATH",
+        help = "Use a development extension directory"
+    )]
+    extensions_dir: Option<PathBuf>,
+    #[clap(
+        long,
+        value_name = "PORT",
+        help = "Enable loopback WebView2 CDP in debug builds only"
+    )]
+    remote_debugging_port: Option<u16>,
     #[clap(
         long,
         default_value = "",
@@ -113,6 +137,53 @@ fn main() {
         opt.webui_url
     };
 
+    let paths = AppPaths::discover().expect("JStremio requires LOCALAPPDATA");
+    let extensions_dir = if let Some(path) = opt.extensions_dir {
+        if cfg!(debug_assertions) {
+            path
+        } else {
+            eprintln!("--extensions-dir is ignored outside debug builds");
+            packaged_extensions_directory()
+        }
+    } else {
+        packaged_extensions_directory()
+    };
+    let remote_debugging_port = match opt.remote_debugging_port {
+        Some(port) if cfg!(debug_assertions) && port >= 1024 => Some(port),
+        Some(_) => {
+            eprintln!("--remote-debugging-port is ignored outside debug builds or below 1024");
+            None
+        }
+        None => None,
+    };
+    let disabled_ids = opt.disable_extension.into_iter().collect::<HashSet<_>>();
+    let origins = OriginPolicy::new(opt.staging, opt.development);
+    let extension_host = if opt.disable_extensions {
+        println!("JStremio extensions disabled (safe mode)");
+        None
+    } else {
+        match ExtensionHost::load(&extensions_dir, &paths.data, &disabled_ids, origins) {
+            Ok(host) => {
+                println!(
+                    "JStremio {} loaded extensions: {}",
+                    env!("CARGO_PKG_VERSION"),
+                    host.loaded_ids().join(", ")
+                );
+                Some(Arc::new(host))
+            }
+            Err(error) => {
+                eprintln!("JStremio extensions unavailable; continuing in safe mode: {error}");
+                None
+            }
+        }
+    };
+    stremio_app::stremio_wevbiew::configure(
+        paths.webview2,
+        remote_debugging_port,
+        extension_host.clone(),
+    )
+    .expect("JStremio WebView2 configuration must be set once");
+
     nwg::init().expect("Failed to init Native Windows GUI");
     let _app = MainWindow::build_ui(MainWindow {
         command,
@@ -121,11 +192,18 @@ fn main() {
         no_splash: opt.no_splash,
         dev_tools: opt.development || opt.dev_tools,
         start_hidden: opt.start_hidden,
-        autoupdater_endpoint: opt.autoupdater_endpoint,
-        force_update: opt.force_update,
-        release_candidate: opt.release_candidate,
+        extension_host,
         ..Default::default()
     })
     .expect("Failed to build UI");
     nwg::dispatch_thread_events();
+}
+
+fn packaged_extensions_directory() -> PathBuf {
+    std::env::current_exe()
+        .ok()
+        .and_then(|path| path.parent().map(Path::to_path_buf))
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("resources")
+        .join("extensions")
 }
