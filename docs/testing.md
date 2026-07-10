@@ -15,8 +15,9 @@
 - Unmodified `v5.0.23`: 10 native tests and optimized x64 build passed.
 - JStremio native layer: 29 tests passed, including first write, Windows replacement/backup, malformed/unsupported preservation, concurrency, abandoned temps, validation, CRUD, UUIDs, manifests, origins, fixed IPC, and the pinned shell handshake.
 - TypeScript: strict typecheck and 12 unit tests passed, including the current official focusable-`div` controls and layered-slider fixture.
-- Playwright: Reviews CRUD/privacy, both-extension dedup/remount, timestamp capture, owned pause/resume, clustering, marker seeking, and pointer-transparent layer passed.
+- Playwright: Reviews CRUD/privacy, both-extension dedup/remount, body-level control ownership, timestamp capture, owned pause/resume, clustering, marker positioning/seeking, and pointer-transparent layer passed.
 - Real WebView2 enabled: official URL plus dynamic server URL, frozen runtime, one Reviews item, and one Timestamp Notes item.
+- Real official-player CDP smoke: generated H.264/AAC playback plus valid episode metadata produced both visible player buttons in the body-owned dock; the body-owned marker layer matched the live seek slider's left, top, and width with no extension console failures.
 - Real WebView2 safe mode: the exact same official/dynamic URL with no runtime or extension nodes.
 - Bundled server isolation: `APP_PATH` resolved under the isolated `%LOCALAPPDATA%\JStremio\server` tree while official Stremio remained active on its own ports.
 - Real native IPC: one Review and one Timestamp Note were created, found again after a full restart, and stored under the isolated JStremio data directory.

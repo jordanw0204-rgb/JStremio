@@ -67,8 +67,8 @@ export function mountPlayerButton(
   const existing = document.querySelector<HTMLButtonElement>(selector);
   if (existing) return existing;
   const controls = findPlayerControls();
-  if (!controls) return null;
-  const template = playerControlTemplate(controls);
+  const template = controls ? playerControlTemplate(controls) : null;
+  const dock = ensurePlayerDock();
   const button = document.createElement("button");
   button.type = "button";
   button.dataset.jstremioExtension = extensionId;
@@ -77,11 +77,26 @@ export function mountPlayerButton(
   button.setAttribute("aria-label", label);
   button.title = label;
   copyIntegrationClasses(button, template);
-  button.style.cssText = "border:0;background:transparent;color:inherit;cursor:pointer;display:grid;place-items:center;min-width:40px;min-height:40px;";
+  button.style.cssText = "border:1px solid rgba(255,255,255,.22);border-radius:10px;background:rgba(19,14,45,.9);color:#fff;cursor:pointer;display:grid;place-items:center;width:44px;height:44px;min-width:44px;min-height:44px;padding:0;box-shadow:0 6px 20px rgba(0,0,0,.35);";
   button.innerHTML = icon;
   button.addEventListener("click", onClick);
-  controls.append(button);
+  dock.append(button);
   return button;
+}
+
+function ensurePlayerDock(): HTMLElement {
+  const existing = document.querySelector<HTMLElement>('[data-jstremio-control="player-dock"]');
+  if (existing) return existing;
+  const dock = document.createElement("div");
+  dock.dataset.jstremioControl = "player-dock";
+  dock.dataset.jstremioTestid = "player-extension-dock";
+  dock.setAttribute("aria-label", "JStremio player extensions");
+  dock.style.cssText = "position:fixed;left:50%;bottom:10px;z-index:2147483000;transform:translateX(-50%);display:flex;align-items:center;gap:7px;padding:3px;pointer-events:auto;transition:opacity 160ms ease;";
+  const style = document.createElement("style");
+  style.textContent = 'body:has([class*="overlayHidden"]) [data-jstremio-control="player-dock"]{opacity:0;pointer-events:none}';
+  dock.append(style);
+  document.body.append(dock);
+  return dock;
 }
 
 export function addStyles(container: HTMLElement, styles: string) {

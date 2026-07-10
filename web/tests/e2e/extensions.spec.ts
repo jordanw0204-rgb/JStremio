@@ -137,6 +137,7 @@ test("mounts each extension once and remounts after upstream replacement", async
   await expect(page.locator('[data-jstremio-testid="reviews-player-button"]')).toHaveCount(1);
   await expect(page.locator('[data-jstremio-testid="timestamp-notes-player-button"]')).toHaveCount(1);
   await expect(page.locator('[data-jstremio-testid="reviews-player-button"]')).toHaveClass(/control-bar-button_fixture/);
+  await expect(page.locator('[data-jstremio-testid="reviews-player-button"]').locator("..")).toHaveAttribute("data-jstremio-control", "player-dock");
 
   await page.evaluate(() => {
     document.querySelector("nav")!.outerHTML = '<nav><a href="#/library">Library</a><a href="#/calendar">Calendar</a></nav>';
@@ -145,6 +146,18 @@ test("mounts each extension once and remounts after upstream replacement", async
   await expect(page.locator('[data-jstremio-testid="reviews-navigation"]')).toHaveCount(1);
   await expect(page.locator('[data-jstremio-testid="timestamp-notes-navigation"]')).toHaveCount(1);
   await expect(page.locator('[data-jstremio-testid="reviews-player-button"]')).toHaveCount(1);
+
+  await page.evaluate(() => {
+    location.hash = "#/library";
+  });
+  await expect(page.locator('[data-jstremio-testid="reviews-player-button"]')).toHaveCount(0);
+  await expect(page.locator('[data-jstremio-testid="timestamp-notes-player-button"]')).toHaveCount(0);
+
+  await page.evaluate(() => {
+    location.hash = "#/player/movie/tt123";
+  });
+  await expect(page.locator('[data-jstremio-testid="reviews-player-button"]')).toHaveCount(1);
+  await expect(page.locator('[data-jstremio-testid="timestamp-notes-player-button"]')).toHaveCount(1);
 });
 
 test("creates and manages a private review without network leakage", async ({ page }) => {
@@ -182,7 +195,8 @@ test("captures, pauses conditionally, clusters markers, and seeks without blocki
   await expect(marker).toHaveAccessibleName(/2 notes/);
   const layer = page.locator('[data-jstremio-testid="timestamp-note-markers"]');
   await expect(layer).toHaveCSS("pointer-events", "none");
-  await expect(layer.locator("..")).toHaveClass(/slider-container_fixture/);
+  await expect(layer.locator("..")).toHaveJSProperty("tagName", "BODY");
+  await expect.poll(() => layer.evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThan(0);
   await marker.click();
   await page.getByRole("button", { name: /first marker note/ }).click();
   await expect.poll(() => page.evaluate(() => JSON.stringify((window as any).__fixture.commands))).toContain("time-pos");

@@ -25,7 +25,7 @@ The native updater trigger was removed. The app name, pipe, window settings dire
 
 ## Browser boundary
 
-`window.JStremio` is defined once per document and is frozen with frozen sub-APIs. One `MutationObserver` debounces reconciliation. Extension-owned surfaces use a Shadow DOM host; small navigation/player/timeline integration nodes are marked with `data-jstremio-*` attributes and remount idempotently.
+`window.JStremio` is defined once per document and is frozen with frozen sub-APIs. One `MutationObserver` debounces reconciliation. Extension-owned surfaces use a Shadow DOM host; small navigation/player/timeline integration nodes are marked with `data-jstremio-*` attributes and remount idempotently. Player buttons and timeline markers live in body-level overlays positioned against the discovered controls, so React cannot delete them while reconciling its own child lists.
 
 The compatibility adapter owns upstream assumptions. It prefers roles/accessible names, known Library/Calendar hrefs, neighboring controls, and slider structure. Feature code does not contain CSS-module hashes.
 

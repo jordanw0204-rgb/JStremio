@@ -1,4 +1,5 @@
 import styles from "./styles.css";
+import { isPlayerRoute } from "../../runtime/compatibility";
 import type { JStremioRuntime, MediaTarget } from "../../runtime/types";
 import {
   addStyles,
@@ -79,11 +80,15 @@ function activate(runtime: JStremioRuntime) {
   const reconcile = () => {
     mountNavigationButton("reviews", "Reviews", STAR_ICON, openOverlay);
     const generation = ++targetGeneration;
+    const existing = document.querySelector<HTMLButtonElement>(
+      '[data-jstremio-extension="reviews"][data-jstremio-control="player"]',
+    );
+    if (!isPlayerRoute()) {
+      existing?.remove();
+      return;
+    }
     void runtime.stremio.getCurrentMediaTarget().then((target) => {
       if (generation !== targetGeneration) return;
-      const existing = document.querySelector<HTMLButtonElement>(
-        '[data-jstremio-extension="reviews"][data-jstremio-control="player"]',
-      );
       if (!target) {
         existing?.remove();
         return;

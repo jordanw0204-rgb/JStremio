@@ -341,8 +341,6 @@ function createTimeline(
   getNotes: () => Note[],
   changed: () => void,
 ): Timeline {
-  const previousPosition = container.style.position;
-  if (getComputedStyle(container).position === "static") container.style.position = "relative";
   const layer = document.createElement("div");
   layer.className = "jstremio-marker-layer";
   layer.dataset.jstremioExtension = "timestamp-notes";
@@ -351,16 +349,28 @@ function createTimeline(
   const style = document.createElement("style");
   style.textContent = styles;
   layer.append(style);
-  container.append(layer);
+  document.body.append(layer);
   let currentDuration: number | null = null;
   let lastRenderSignature = "";
+  const syncBounds = () => {
+    const rect = container.getBoundingClientRect();
+    layer.hidden = rect.width <= 0 || rect.height <= 0;
+    layer.style.position = "fixed";
+    layer.style.inset = "auto";
+    layer.style.left = `${rect.left}px`;
+    layer.style.top = `${rect.top}px`;
+    layer.style.width = `${rect.width}px`;
+    layer.style.height = `${rect.height}px`;
+  };
   const resize = new ResizeObserver(() => {
     lastRenderSignature = "";
+    syncBounds();
     render(getNotes(), currentDuration);
   });
   resize.observe(container);
 
   const render = (notes: Note[], durationMs: number | null) => {
+    syncBounds();
     currentDuration = durationMs;
     const width = container.getBoundingClientRect().width;
     const ratio = devicePixelRatio || 1;
@@ -399,7 +409,6 @@ function createTimeline(
     destroy() {
       resize.disconnect();
       layer.remove();
-      container.style.position = previousPosition;
     },
   };
 }

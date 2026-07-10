@@ -11,6 +11,8 @@ DOM discovery is centralized in `web/src/runtime/compatibility.ts`. It uses sema
 
 The current official player renders its reusable `Button` as a focusable `div` and its `Slider` as layered `div` elements without ARIA slider semantics. The adapter therefore recognizes titled/focusable controls, relates the button row to the neighboring seek bar, and identifies the seek slider through its inline mask/thumb positioning. Partial class-name hints are last-resort fallbacks; complete generated hashes remain forbidden.
 
+Discovered upstream nodes are measurement/templates only. Custom player buttons and markers are mounted under `document.body` and visually positioned with fixed overlays; they are never inserted into React-owned control or slider child lists.
+
 If `window.core`, the shell channel, player time/duration, or a supported seek slider is absent, only the affected button/marker is disabled. Live and remote/cast playback do not offer timestamp capture. A bundle exception is caught per extension.
 
 For each new live Web UI build, run unit fixtures, Playwright remount tests, a debug-CDP live smoke, and the manual playback matrix before updating `lastCompatibilityTest` in `upstream.lock.json`.
