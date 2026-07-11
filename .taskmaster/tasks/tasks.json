@@ -268,13 +268,25 @@
         "priority": "high",
         "subtasks": [],
         "updatedAt": "2026-07-11T04:31:15.398Z"
+      },
+      {
+        "id": "20",
+        "title": "Fix timestamp deletion and improve thumbnail/review dialogs",
+        "description": "Repair timestamp deletion from marker and edit dialogs, allow capture/replace thumbnail during edit, enlarge thumbnails with a full image viewer, and center the Reviews overlay close icon.",
+        "details": "Trace shared delete failure in native bridge/store, preserve and replace thumbnail references safely, add accessible enlarged-image lightbox behavior, update CSS geometry, add native and Playwright regression tests, package and push.",
+        "testStrategy": "Rust native delete/thumbnail cleanup tests; TypeScript build/typecheck; Playwright delete paths, edit capture, thumbnail lightbox and close-icon centering; full check and portable packaging.",
+        "status": "done",
+        "dependencies": [],
+        "priority": "high",
+        "subtasks": [],
+        "updatedAt": "2026-07-11T07:13:19.063Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-07-11T04:31:15.398Z",
-      "taskCount": 19,
-      "completedCount": 17,
+      "lastModified": "2026-07-11T07:13:19.064Z",
+      "taskCount": 20,
+      "completedCount": 18,
       "tags": [
         "master"
       ]

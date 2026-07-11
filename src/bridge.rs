@@ -195,10 +195,24 @@ impl NativeBridge {
             }
             "update" => {
                 let input: UpdateNoteInput = parse_value(request.payload)?;
-                self.notes
-                    .update(input)
-                    .map(|note| json!(note))
-                    .map_err(storage_error)
+                self.validate_thumbnail_reference(
+                    input
+                        .thumbnail_id
+                        .as_ref()
+                        .and_then(|value| value.as_deref()),
+                )?;
+                let previous_thumbnail = self
+                    .notes
+                    .get(&input.id)
+                    .map_err(storage_error)?
+                    .and_then(|note| note.thumbnail_id);
+                let note = self.notes.update(input).map_err(storage_error)?;
+                if previous_thumbnail != note.thumbnail_id {
+                    if let Some(id) = previous_thumbnail {
+                        let _ = fs::remove_file(self.thumbnail_path(&id));
+                    }
+                }
+                Ok(json!(note))
             }
             "delete" => {
                 let payload: IdPayload = parse_value(request.payload)?;
@@ -442,5 +456,86 @@ mod tests {
             .as_str()
             .unwrap()
             .starts_with("data:image/jpeg;base64,"));
+    }
+
+    #[test]
+    fn replacing_and_deleting_note_thumbnails_cleans_local_files() {
+        let directory = tempdir().unwrap();
+        let bridge = NativeBridge::new(directory.path());
+        let prepare = |request_id| {
+            bridge
+                .handle(
+                    TIMESTAMP_NOTES_METHOD,
+                    request_id,
+                    Some(&json!({ "operation": "prepareFrameCapture", "payload": {} })),
+                )
+                .into_event()
+        };
+        let first = prepare(10);
+        let first_id = first[1]["result"]["thumbnailId"].as_str().unwrap();
+        let first_path = std::path::PathBuf::from(first[1]["result"]["path"].as_str().unwrap());
+        std::fs::write(&first_path, [0xFF, 0xD8, 0xFF, 0xD9]).unwrap();
+        let created = bridge
+            .handle(
+                TIMESTAMP_NOTES_METHOD,
+                11,
+                Some(&json!({
+                    "operation": "create",
+                    "payload": {
+                        "videoId": "tt123",
+                        "metaId": "tt123",
+                        "mediaType": "movie",
+                        "name": "Movie",
+                        "title": null,
+                        "season": null,
+                        "episode": null,
+                        "poster": null,
+                        "timestampMs": 1000,
+                        "durationMsAtCreation": 60000,
+                        "text": "Frame note",
+                        "color": "#56E0CF",
+                        "rating": null,
+                        "thumbnailId": first_id
+                    }
+                })),
+            )
+            .into_event();
+        assert_eq!(created[1]["ok"], true);
+        let note_id = created[1]["result"]["id"].as_str().unwrap();
+
+        let second = prepare(12);
+        let second_id = second[1]["result"]["thumbnailId"].as_str().unwrap();
+        let second_path = std::path::PathBuf::from(second[1]["result"]["path"].as_str().unwrap());
+        std::fs::write(&second_path, [0xFF, 0xD8, 0xFF, 0xD9]).unwrap();
+        let updated = bridge
+            .handle(
+                TIMESTAMP_NOTES_METHOD,
+                13,
+                Some(&json!({
+                    "operation": "update",
+                    "payload": {
+                        "id": note_id,
+                        "timestampMs": 1000,
+                        "text": "Updated frame note",
+                        "color": "#56E0CF",
+                        "rating": null,
+                        "thumbnailId": second_id
+                    }
+                })),
+            )
+            .into_event();
+        assert_eq!(updated[1]["ok"], true);
+        assert!(!first_path.exists());
+        assert!(second_path.exists());
+
+        let deleted = bridge
+            .handle(
+                TIMESTAMP_NOTES_METHOD,
+                14,
+                Some(&json!({ "operation": "delete", "payload": { "id": note_id } })),
+            )
+            .into_event();
+        assert_eq!(deleted[1]["result"]["deleted"], true);
+        assert!(!second_path.exists());
     }
 }

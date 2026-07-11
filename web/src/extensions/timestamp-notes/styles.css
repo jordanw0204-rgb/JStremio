@@ -55,7 +55,15 @@ textarea { width:100%; min-height:170px; resize:vertical; border:1px solid rgba(
 .marker-popover-close:hover,.marker-popover-close:focus-visible { border-color:#62d7c9; background:#21434d; }
 .marker-note { display:grid; gap:5px; padding:8px; border-radius:8px; }
 .marker-thumbnail { display:block; width:100%; max-height:150px; object-fit:cover; border-radius:7px; background:#071014; }
-.note-thumbnail { float:left; width:150px; max-width:38%; aspect-ratio:16/9; object-fit:cover; margin:0 12px 8px 0; border-radius:8px; background:#071014; border:1px solid rgba(255,255,255,.12); }
+.thumbnail-preview-button { float:left; width:220px; max-width:48%; margin:0 14px 10px 0; padding:0; border:1px solid rgba(255,255,255,.18); border-radius:9px; background:#071014; cursor:zoom-in; overflow:hidden; }
+.thumbnail-preview-button:hover,.thumbnail-preview-button:focus-visible { border-color:#62d7c9; outline:2px solid rgba(98,215,201,.28); }
+.note-thumbnail { display:block; width:100%; aspect-ratio:16/9; object-fit:cover; background:#071014; }
+.image-dialog { width:min(1100px,94vw); max-height:92vh; display:grid; gap:12px; padding:14px; border:1px solid rgba(255,255,255,.18); border-radius:14px; background:#0d1a1f; color:#fff; box-shadow:0 24px 90px rgba(0,0,0,.7); }
+.image-dialog header { display:flex; align-items:center; justify-content:space-between; gap:16px; padding-left:4px; }
+.image-dialog > img { display:block; width:100%; max-height:calc(92vh - 76px); object-fit:contain; border-radius:9px; background:#05090b; }
+.image-dialog-close { display:grid; place-items:center; flex:0 0 auto; width:34px; height:34px; padding:0; border:1px solid rgba(255,255,255,.17); border-radius:9px; background:#173039; color:#fff; cursor:pointer; line-height:0; }
+.image-dialog-close svg { display:block; margin:0; }
+.image-dialog-close:hover,.image-dialog-close:focus-visible { border-color:#62d7c9; background:#21434d; }
 .marker-note + .marker-note { border-top:1px solid rgba(255,255,255,.1); }
 .marker-note .seek { text-align:left; background:transparent; border:0; color:#fff; cursor:pointer; padding:0; }
 .marker-note .seek strong { color:var(--note-color,#63dfd0); margin-right:7px; }
@@ -64,4 +72,4 @@ textarea { width:100%; min-height:170px; resize:vertical; border:1px solid rgba(
 .marker-actions { display:flex; gap:7px; }
 .marker-actions button { font-size:11px; }
 @media (prefers-reduced-motion:reduce) { .jstremio-marker-layer,.jstremio-marker::before,.jstremio-marker span{transition:none} }
-@media (max-width:680px) { .notes-shell{padding:18px}.note-row{grid-template-columns:70px 1fr}.row-actions{grid-column:1/-1;justify-content:flex-start}.dialog{padding:18px}.note-options{grid-template-columns:1fr} }
+@media (max-width:680px) { .notes-shell{padding:18px}.note-row{grid-template-columns:70px 1fr}.row-actions{grid-column:1/-1;justify-content:flex-start}.dialog{padding:18px}.note-options{grid-template-columns:1fr}.thumbnail-preview-button{float:none;width:100%;max-width:none;margin:0 0 10px} }

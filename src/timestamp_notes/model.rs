@@ -87,6 +87,8 @@ pub struct UpdateNoteInput {
     pub color: Option<String>,
     #[serde(default)]
     pub rating: Option<u8>,
+    #[serde(default)]
+    pub thumbnail_id: Option<Option<String>>,
 }
 
 impl UpdateNoteInput {
@@ -101,7 +103,12 @@ impl UpdateNoteInput {
                 "is unreasonably large",
             ));
         }
-        validate_customization(self.color.as_deref(), self.rating)
+        validate_customization(self.color.as_deref(), self.rating)?;
+        validate_thumbnail_id(
+            self.thumbnail_id
+                .as_ref()
+                .and_then(|value| value.as_deref()),
+        )
     }
 }
 

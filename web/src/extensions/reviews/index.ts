@@ -31,6 +31,8 @@ const manifest = {
   loadOrder: 100,
 } as const;
 
+const CLOSE_ICON = '<svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>';
+
 requireRuntime().registerExtension(manifest, (runtime) => activate(runtime));
 
 function activate(runtime: JStremioRuntime) {
@@ -43,7 +45,7 @@ function activate(runtime: JStremioRuntime) {
       const shell = document.createElement("main");
       shell.className = "reviews-shell";
       shell.innerHTML = `
-        <header class="reviews-header"><div><h1>Local Reviews</h1><p>Private ratings and notes stored only on this computer.</p></div><button class="button icon-button" data-action="close" aria-label="Close Reviews">×</button></header>
+        <header class="reviews-header"><div><h1>Local Reviews</h1><p>Private ratings and notes stored only on this computer.</p></div><button class="button icon-button" data-action="close" aria-label="Close Reviews">${CLOSE_ICON}</button></header>
         <div class="toolbar"><button class="button" data-action="refresh">Refresh</button><button class="button" data-action="folder">Open data folder</button></div>
         <section class="status" role="status">Loading reviews…</section><section class="review-grid" hidden></section>`;
       container.append(shell);

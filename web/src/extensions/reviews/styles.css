@@ -7,7 +7,8 @@
 .button:hover,.button:focus-visible { border-color:#a881ff; outline:2px solid transparent; background:#382a4c; }
 .button.primary { background:#7c4dff; border-color:#9974ff; }
 .button.danger { color:#ffb5bd; }
-.icon-button { width:42px; height:42px; border-radius:50%; font-size:24px; padding:0; }
+.icon-button { display:grid; place-items:center; width:42px; height:42px; border-radius:50%; padding:0; line-height:0; }
+.icon-button svg { display:block; margin:0; }
 .status { max-width:1200px; margin:32px auto; padding:24px; border:1px solid rgba(255,255,255,.12); border-radius:14px; background:rgba(255,255,255,.04); }
 .review-grid { max-width:1200px; margin:auto; display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:16px; }
 .review-card { display:grid; grid-template-columns:72px 1fr; gap:14px; border:1px solid rgba(255,255,255,.12); border-radius:14px; background:#1c1527; padding:14px; min-width:0; }

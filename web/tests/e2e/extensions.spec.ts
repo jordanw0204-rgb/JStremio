@@ -34,6 +34,7 @@ test.beforeEach(async ({ page }) => {
     const commands: Array<unknown[]> = [];
     const shortcutKeys: string[] = [];
     let revision = 0;
+    let thumbnailCounter = 0;
     const state = {
       selected: { streamRequest: { path: { id: "tt123" } } },
       metaItem: { content: { id: "tt123", type: "movie", name: "Fixture Movie", videos: [] } },
@@ -95,10 +96,11 @@ test.beforeEach(async ({ page }) => {
       }
       if (operation === "listAll") return respond(method, request.id, notes);
       if (operation === "listForMedia") return respond(method, request.id, notes.filter((item) => item.mediaKey === payload.mediaKey));
-      if (operation === "prepareFrameCapture") return respond(method, request.id, {
-        thumbnailId: "11111111-1111-4111-8111-111111111111",
-        path: "C:\\fixture\\11111111-1111-4111-8111-111111111111.jpg",
-      });
+      if (operation === "prepareFrameCapture") {
+        thumbnailCounter += 1;
+        const thumbnailId = `11111111-1111-4111-8111-${String(thumbnailCounter).padStart(12, "0")}`;
+        return respond(method, request.id, { thumbnailId, path: `C:\\fixture\\${thumbnailId}.jpg` });
+      }
       if (operation === "completeFrameCapture") return respond(method, request.id, { thumbnailId: payload.thumbnailId, ready: true });
       if (operation === "getThumbnail") return respond(method, request.id, { dataUrl: "data:image/jpeg;base64,/9j/2Q==" });
       if (operation === "get") return respond(method, request.id, notes.find((item) => item.id === payload.id) ?? null);
@@ -145,6 +147,9 @@ test.beforeEach(async ({ page }) => {
         emitShell: (name: string, data: unknown) => emit(JSON.stringify({ id: 0, type: 1, args: [name, data] })),
       },
     });
+    window.confirm = () => {
+      throw new Error("WebView2 default script dialogs are disabled");
+    };
     document.addEventListener("keydown", (event) => shortcutKeys.push(event.key));
   });
   await page.addScriptTag({ path: resolve(built, "runtime.js") });
@@ -227,6 +232,16 @@ test("creates and manages a private review without network leakage", async ({ pa
 
   await page.locator('[data-jstremio-testid="reviews-navigation"]').click();
   await expect(page.getByText("local-only-review-sentinel")).toBeVisible();
+  const closeReviews = page.getByRole("button", { name: "Close Reviews" });
+  await expect.poll(async () => {
+    const button = await closeReviews.boundingBox();
+    const icon = await closeReviews.locator("svg").boundingBox();
+    if (!button || !icon) return 99;
+    return Math.max(
+      Math.abs(button.x + button.width / 2 - (icon.x + icon.width / 2)),
+      Math.abs(button.y + button.height / 2 - (icon.y + icon.height / 2)),
+    );
+  }).toBeLessThan(0.6);
   expect(requests.join("\n")).not.toContain("local-only-review-sentinel");
 });
 
@@ -249,7 +264,7 @@ test("captures, pauses conditionally, clusters markers, and seeks without blocki
     color: (window as any).__fixture.notes[0].color,
     rating: (window as any).__fixture.notes[0].rating,
     thumbnailId: (window as any).__fixture.notes[0].thumbnailId,
-  }))).toEqual({ color: "#FF3366", rating: 5, thumbnailId: "11111111-1111-4111-8111-111111111111" });
+  }))).toEqual({ color: "#FF3366", rating: 5, thumbnailId: "11111111-1111-4111-8111-000000000001" });
   await expect.poll(() => page.evaluate(() => JSON.stringify((window as any).__fixture.commands))).toContain("screenshot-to-file");
 
   await emitPlayback(page, 12.7, 100, false);
@@ -304,13 +319,15 @@ test("captures, pauses conditionally, clusters markers, and seeks without blocki
   const firstItem = page.locator(".marker-note").filter({ hasText: "first marker note" });
   await expect(firstItem.getByLabel("5 out of 5 stars")).toBeVisible();
   await firstItem.getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel("Replace the saved thumbnail with this video frame").check();
   await page.getByLabel("Marker color").fill("#22aa44");
   await page.getByLabel("Rating (optional)").selectOption("3");
   await page.getByRole("button", { name: "Update" }).click();
   await expect.poll(() => page.evaluate(() => ({
     color: (window as any).__fixture.notes[0].color,
     rating: (window as any).__fixture.notes[0].rating,
-  }))).toEqual({ color: "#22AA44", rating: 3 });
+    thumbnailId: (window as any).__fixture.notes[0].thumbnailId,
+  }))).toEqual({ color: "#22AA44", rating: 3, thumbnailId: "11111111-1111-4111-8111-000000000002" });
   await expect.poll(() => marker.evaluate((element) => element.style.getPropertyValue("--marker-fill"))).toContain("#22AA44");
 
   await marker.click();
@@ -355,7 +372,6 @@ test("captures, pauses conditionally, clusters markers, and seeks without blocki
   await expect(page.locator(".marker-popover")).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => JSON.stringify((window as any).__fixture.commands))).toContain("time-pos");
 
-  page.once("dialog", (dialog) => dialog.accept());
   await marker.click();
   await page.locator(".marker-note").filter({ hasText: "nearby marker note" }).getByRole("button", { name: "Delete" }).click();
   await expect.poll(() => page.evaluate(() => (window as any).__fixture.notes.length)).toBe(1);
@@ -370,6 +386,17 @@ test("captures, pauses conditionally, clusters markers, and seeks without blocki
   await page.mouse.click(5, 5);
   await page.locator('[data-jstremio-testid="timestamp-notes-navigation"]').click();
   await expect(page.locator(".note-thumbnail")).toHaveCount(1);
+  const thumbnailButton = page.getByRole("button", { name: /Enlarge video frame/ });
+  await expect.poll(() => thumbnailButton.evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThanOrEqual(200);
+  await thumbnailButton.click();
+  const enlarged = page.getByRole("dialog", { name: /Video frame at/ }).locator("img");
+  await expect(enlarged).toBeVisible();
+  await expect.poll(() => enlarged.evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThan(300);
+  await page.getByRole("button", { name: "Close enlarged thumbnail" }).click();
+
+  await page.getByRole("button", { name: "Edit" }).click();
+  await page.getByRole("dialog", { name: "Update timestamp note" }).getByRole("button", { name: "Delete" }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).__fixture.notes.length)).toBe(0);
 
   const pauseCommands = await page.evaluate(() =>
     (window as any).__fixture.commands.filter((command: unknown[]) => command[0] === "pause"),

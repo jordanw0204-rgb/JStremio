@@ -86,6 +86,9 @@ impl TimestampNoteStore {
             note.text = input.text.trim().to_string();
             note.color = input.color.map(|value| value.to_ascii_uppercase());
             note.rating = input.rating;
+            if let Some(thumbnail_id) = input.thumbnail_id {
+                note.thumbnail_id = thumbnail_id;
+            }
             note.updated_at = now();
             note.validate()?;
             let result = note.clone();
@@ -157,6 +160,7 @@ mod tests {
                 text: "updated".into(),
                 color: Some("#ff3366".into()),
                 rating: Some(5),
+                thumbnail_id: None,
             })
             .unwrap();
         assert_eq!(updated.created_at, first.created_at);

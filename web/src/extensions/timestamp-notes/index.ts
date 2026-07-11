@@ -287,7 +287,7 @@ function openNoteDialog(
       <div class="captured"><button type="button" class="button" data-adjust="-5000" aria-label="Move timestamp back 5 seconds">−5s</button><strong></strong><button type="button" class="button" data-adjust="5000" aria-label="Move timestamp forward 5 seconds">+5s</button><button type="button" class="button" data-action="reset">Reset</button></div>
       <label class="field">Note (required)<textarea required maxlength="5000"></textarea><span class="count">0 / 5000</span></label>
       <div class="note-options"><label class="option-field">Marker color<input class="color-input" type="color" value="${DEFAULT_MARKER_COLOR}"></label><label class="option-field">Rating (optional)<select class="rating-select"><option value="">Not rated</option><option value="1">★☆☆☆☆ — 1</option><option value="2">★★☆☆☆ — 2</option><option value="3">★★★☆☆ — 3</option><option value="4">★★★★☆ — 4</option><option value="5">★★★★★ — 5</option></select></label></div>
-      ${existing ? "" : '<label class="capture-option"><input type="checkbox" data-capture-frame> Save a thumbnail of this video frame</label>'}
+      <label class="capture-option"><input type="checkbox" data-capture-frame> ${existing?.thumbnailId ? "Replace the saved thumbnail with this video frame" : "Save a thumbnail of this video frame"}</label>
       <div class="alert" role="alert" aria-live="polite"></div>
       <div class="dialog-actions">${existing ? '<button type="button" class="button danger" data-action="delete">Delete</button>' : ""}<button type="button" class="button" data-action="cancel">Cancel</button><button type="submit" class="button primary">${existing ? "Update" : "Save"}</button></div>`;
     form.querySelector<HTMLElement>(".subtitle")!.textContent = mediaLabel(target);
@@ -319,8 +319,9 @@ function openNoteDialog(
     textarea.addEventListener("input", render);
     form.querySelector('[data-action="cancel"]')?.addEventListener("click", close);
     form.querySelector('[data-action="delete"]')?.addEventListener("click", () => {
-      if (!existing || !confirm("Delete this timestamp note?")) return;
+      if (!existing) return;
       void runtime.bridge.request("timestamp-notes", "delete", { id: existing.id }).then(() => {
+        if (existing.thumbnailId) thumbnailCache.delete(existing.thumbnailId);
         changed();
         close();
       }).catch((error) => showError(alert, error));
@@ -341,7 +342,7 @@ function openNoteDialog(
       alert.textContent = "";
       let thumbnailId: string | null = existing?.thumbnailId ?? null;
       try {
-        if (!existing && form.querySelector<HTMLInputElement>("[data-capture-frame]")?.checked) {
+        if (form.querySelector<HTMLInputElement>("[data-capture-frame]")?.checked) {
           submit.textContent = "Capturing frameâ€¦";
           thumbnailId = await runtime.player.captureFrame();
         }
@@ -352,7 +353,7 @@ function openNoteDialog(
         return;
       }
       const payload = existing
-        ? { id: existing.id, timestampMs: Math.round(timestampMs), text: textarea.value, ...customization }
+        ? { id: existing.id, timestampMs: Math.round(timestampMs), text: textarea.value, thumbnailId, ...customization }
         : {
             ...targetPayload(target),
             timestampMs: Math.round(timestampMs),
@@ -583,8 +584,8 @@ function showMarkerPopover(
         openNoteDialog(runtime, noteTarget(note), note, note.timestampMs, note.durationMsAtCreation, changed);
       }),
       smallAction("Delete", () => {
-        if (!confirm("Delete this timestamp note?")) return;
         void runtime.bridge.request("timestamp-notes", "delete", { id: note.id }).then(() => {
+          if (note.thumbnailId) thumbnailCache.delete(note.thumbnailId);
           close();
           changed();
         }).catch((error) => runtime.diagnostics.report("timestamp-notes", error));
@@ -704,7 +705,7 @@ function renderGroups(
       timestamp.textContent = formatTimestamp(note.timestampMs);
       time.append(swatch, timestamp);
       const body = document.createElement("div");
-      appendThumbnail(runtime, body, note, "note-thumbnail");
+      appendThumbnail(runtime, body, note, "note-thumbnail", true);
       const text = document.createElement("div");
       text.className = "preview";
       text.textContent = note.text;
@@ -734,8 +735,10 @@ function renderGroups(
         smallAction("View in Stremio", () => viewInStremio(runtime, noteTarget(note))),
         smallAction("Edit", () => openNoteDialog(runtime, noteTarget(note), note, note.timestampMs, note.durationMsAtCreation, refresh)),
         smallAction("Delete", () => {
-          if (!confirm("Delete this timestamp note?")) return;
-          void runtime.bridge.request("timestamp-notes", "delete", { id: note.id }).then(refresh);
+          void runtime.bridge.request("timestamp-notes", "delete", { id: note.id }).then(() => {
+            if (note.thumbnailId) thumbnailCache.delete(note.thumbnailId);
+            refresh();
+          });
         }),
       );
       row.append(time, body, actions);
@@ -826,16 +829,61 @@ function noteRating(value: unknown): number | null {
   return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 5 ? value : null;
 }
 
-function appendThumbnail(runtime: JStremioRuntime, container: HTMLElement, note: Note, className: string) {
+function appendThumbnail(
+  runtime: JStremioRuntime,
+  container: HTMLElement,
+  note: Note,
+  className: string,
+  interactive = false,
+) {
   if (!note.thumbnailId) return;
   const image = document.createElement("img");
   image.className = className;
   image.alt = `Video frame at ${formatTimestamp(note.timestampMs)}`;
   image.loading = "lazy";
-  container.append(image);
+  const host = interactive ? document.createElement("button") : image;
+  if (host instanceof HTMLButtonElement) {
+    host.type = "button";
+    host.className = "thumbnail-preview-button";
+    host.disabled = true;
+    host.setAttribute("aria-label", `Enlarge video frame at ${formatTimestamp(note.timestampMs)}`);
+    host.append(image);
+  }
+  container.append(host);
   void loadThumbnail(runtime, note.thumbnailId).then((dataUrl) => {
-    if (dataUrl && image.isConnected) image.src = dataUrl;
-    else image.remove();
+    if (dataUrl && image.isConnected) {
+      image.src = dataUrl;
+      if (host instanceof HTMLButtonElement) {
+        host.disabled = false;
+        host.addEventListener("click", () => openThumbnailViewer(runtime, note, dataUrl));
+      }
+    } else host.remove();
+  });
+}
+
+function openThumbnailViewer(runtime: JStremioRuntime, note: Note, dataUrl: string) {
+  runtime.ui.openDialog((container, close) => {
+    addStyles(container, styles);
+    const dialog = document.createElement("section");
+    dialog.className = "image-dialog";
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+    dialog.setAttribute("aria-label", `Video frame at ${formatTimestamp(note.timestampMs)}`);
+    const header = document.createElement("header");
+    const title = document.createElement("strong");
+    title.textContent = `${formatTimestamp(note.timestampMs)} · ${mediaLabel(noteTarget(note))}`;
+    const closeButton = document.createElement("button");
+    closeButton.type = "button";
+    closeButton.className = "image-dialog-close";
+    closeButton.setAttribute("aria-label", "Close enlarged thumbnail");
+    closeButton.innerHTML = CLOSE_ICON;
+    closeButton.addEventListener("click", close);
+    header.append(title, closeButton);
+    const image = document.createElement("img");
+    image.src = dataUrl;
+    image.alt = `Video frame at ${formatTimestamp(note.timestampMs)}`;
+    dialog.append(header, image);
+    container.append(dialog);
   });
 }
 
