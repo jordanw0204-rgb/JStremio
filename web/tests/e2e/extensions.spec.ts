@@ -230,7 +230,32 @@ test("creates and manages a private review without network leakage", async ({ pa
   await page.getByRole("button", { name: "Save" }).click();
   await expect.poll(() => page.evaluate(() => (window as any).__fixture.reviews.length)).toBe(1);
 
+  await page.evaluate(() => {
+    const reviews = (window as any).__fixture.reviews;
+    const base = {
+      metaId: "tt2741602",
+      mediaType: "series",
+      name: "The Blacklist",
+      poster: null,
+      rating: 4,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    reviews.push(
+      { ...base, id: "series:tt2741602:1:1", videoId: "tt2741602:1:1", title: "Pilot", season: 1, episode: 1, text: "pilot review" },
+      { ...base, id: "series:tt2741602:1:2", videoId: "tt2741602:1:2", title: "The Freelancer", season: 1, episode: 2, text: "freelancer review" },
+    );
+  });
+
   await page.locator('[data-jstremio-testid="reviews-navigation"]').click();
+  await expect(page.locator(".collection-card")).toHaveCount(2);
+  await expect(page.getByText("The Blacklist", { exact: true })).toHaveCount(1);
+  await page.getByRole("button", { name: "Open The Blacklist, 2 reviews" }).click();
+  await expect(page.locator(".review-card")).toHaveCount(2);
+  await expect(page.getByText("Pilot", { exact: true })).toBeVisible();
+  await expect(page.getByText("The Freelancer", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "← Back to titles" }).click();
+  await page.getByRole("button", { name: "Open Fixture Movie, 1 review" }).click();
   await expect(page.getByText("local-only-review-sentinel")).toBeVisible();
   const closeReviews = page.getByRole("button", { name: "Close Reviews" });
   await expect.poll(async () => {
@@ -384,7 +409,33 @@ test("captures, pauses conditionally, clusters markers, and seeks without blocki
   await expect(page.locator(".marker-popover")).toHaveAttribute("data-sticky", "false");
 
   await page.mouse.click(5, 5);
+  await page.evaluate(() => {
+    const notes = (window as any).__fixture.notes;
+    const base = {
+      metaId: "tt2741602",
+      mediaType: "series",
+      name: "The Blacklist",
+      poster: null,
+      durationMsAtCreation: 2_700_000,
+      color: "#56E0CF",
+      rating: null,
+      thumbnailId: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    notes.push(
+      { ...base, id: "22222222-2222-4222-8222-000000000001", mediaKey: "series:tt2741602:1:1", videoId: "tt2741602:1:1", title: "Pilot", season: 1, episode: 1, timestampMs: 30_000, text: "pilot timestamp" },
+      { ...base, id: "22222222-2222-4222-8222-000000000002", mediaKey: "series:tt2741602:1:2", videoId: "tt2741602:1:2", title: "The Freelancer", season: 1, episode: 2, timestampMs: 45_000, text: "freelancer timestamp" },
+    );
+  });
   await page.locator('[data-jstremio-testid="timestamp-notes-navigation"]').click();
+  await expect(page.locator(".collection-card")).toHaveCount(2);
+  await expect(page.getByText("The Blacklist", { exact: true })).toHaveCount(1);
+  await page.getByRole("button", { name: "Open The Blacklist, 2 timestamp notes" }).click();
+  await expect(page.getByText("Pilot", { exact: true })).toBeVisible();
+  await expect(page.getByText("The Freelancer", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "← Back to titles" }).click();
+  await page.getByRole("button", { name: "Open Fixture Movie, 1 timestamp note" }).click();
   await expect(page.locator(".note-thumbnail")).toHaveCount(1);
   const thumbnailButton = page.getByRole("button", { name: /Enlarge video frame/ });
   await expect.poll(() => thumbnailButton.evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThanOrEqual(200);
@@ -396,7 +447,8 @@ test("captures, pauses conditionally, clusters markers, and seeks without blocki
 
   await page.getByRole("button", { name: "Edit" }).click();
   await page.getByRole("dialog", { name: "Update timestamp note" }).getByRole("button", { name: "Delete" }).click();
-  await expect.poll(() => page.evaluate(() => (window as any).__fixture.notes.length)).toBe(0);
+  await expect.poll(() => page.evaluate(() => (window as any).__fixture.notes.length)).toBe(2);
+  await expect(page.locator(".collection-card")).toHaveCount(1);
 
   const pauseCommands = await page.evaluate(() =>
     (window as any).__fixture.commands.filter((command: unknown[]) => command[0] === "pause"),

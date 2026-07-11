@@ -139,6 +139,16 @@ export function mediaLabel(target: MediaTarget): string {
   return [target.name, episode, target.title].filter(Boolean).join(" · ") || target.videoId;
 }
 
+export function mediaCollectionKey(target: Pick<MediaTarget, "mediaType" | "metaId">): string {
+  return `${target.mediaType}:${target.metaId}`;
+}
+
+export function mediaCollectionTitle(
+  target: Pick<MediaTarget, "mediaType" | "name" | "title" | "metaId">,
+): string {
+  return target.name || target.title || target.metaId;
+}
+
 export function escapeHtml(value: string): string {
   return value
     .replaceAll("&", "&amp;")

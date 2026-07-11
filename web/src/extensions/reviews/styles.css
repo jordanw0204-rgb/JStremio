@@ -3,6 +3,7 @@
 .reviews-header h1 { margin:0 0 8px; font-size:clamp(28px,4vw,48px); }
 .reviews-header p { margin:0; color:#bcb4ca; max-width:720px; }
 .toolbar { max-width:1200px; margin:0 auto 20px; display:flex; gap:10px; flex-wrap:wrap; }
+.search { flex:1 1 260px; border:1px solid rgba(255,255,255,.16); border-radius:10px; background:#1c1527; color:#fff; padding:10px 12px; }
 .button { border:1px solid rgba(255,255,255,.16); border-radius:10px; background:#292037; color:#fff; padding:10px 14px; cursor:pointer; }
 .button:hover,.button:focus-visible { border-color:#a881ff; outline:2px solid transparent; background:#382a4c; }
 .button.primary { background:#7c4dff; border-color:#9974ff; }
@@ -11,6 +12,13 @@
 .icon-button svg { display:block; margin:0; }
 .status { max-width:1200px; margin:32px auto; padding:24px; border:1px solid rgba(255,255,255,.12); border-radius:14px; background:rgba(255,255,255,.04); }
 .review-grid { max-width:1200px; margin:auto; display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:16px; }
+.collection-card { min-height:150px; display:grid; grid-template-columns:92px minmax(0,1fr); gap:16px; align-items:center; padding:14px; border:1px solid rgba(255,255,255,.14); border-radius:15px; background:#1c1527; color:#fff; text-align:left; cursor:pointer; }
+.collection-card:hover,.collection-card:focus-visible { border-color:#a881ff; background:#281d37; outline:2px solid rgba(168,129,255,.25); }
+.collection-artwork { display:block; width:92px; height:134px; border-radius:9px; background:linear-gradient(145deg,#3d3150,#241b31); overflow:hidden; }
+.collection-poster { width:92px; height:134px; border-radius:9px; object-fit:cover; background:#30273d; }
+.collection-body { display:grid; gap:7px; min-width:0; }
+.collection-body strong { font-size:20px; overflow-wrap:anywhere; }
+.collection-body span { color:#bcb4ca; font-size:13px; }
 .review-card { display:grid; grid-template-columns:72px 1fr; gap:14px; border:1px solid rgba(255,255,255,.12); border-radius:14px; background:#1c1527; padding:14px; min-width:0; }
 .poster { width:72px; height:106px; border-radius:8px; object-fit:cover; background:#30273d; }
 .review-card h2 { margin:0 0 5px; font-size:17px; overflow-wrap:anywhere; }
@@ -32,4 +40,4 @@ textarea { width:100%; min-height:150px; resize:vertical; border:1px solid rgba(
 .count { text-align:right; color:#aaa0b8; font-size:12px; }
 .dialog-actions { display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end; margin-top:18px; }
 .alert { color:#ffb5bd; min-height:1.4em; }
-@media (max-width:620px) { .reviews-shell{padding:18px}.review-card{grid-template-columns:56px 1fr}.poster{width:56px;height:84px}.dialog{padding:18px} }
+@media (max-width:620px) { .reviews-shell{padding:18px}.review-card{grid-template-columns:56px 1fr}.poster{width:56px;height:84px}.dialog{padding:18px}.collection-card{grid-template-columns:72px 1fr}.collection-artwork,.collection-poster{width:72px;height:106px} }

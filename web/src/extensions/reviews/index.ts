@@ -3,6 +3,8 @@ import { isPlayerRoute } from "../../runtime/compatibility";
 import type { JStremioRuntime, MediaTarget } from "../../runtime/types";
 import {
   addStyles,
+  mediaCollectionKey,
+  mediaCollectionTitle,
   mediaLabel,
   mountNavigationButton,
   mountPlayerButton,
@@ -24,7 +26,7 @@ const manifest = {
   schemaVersion: 1,
   id: "reviews",
   name: "Local Reviews",
-  version: "1.0.0",
+  version: "1.1.0",
   entry: "index.js",
   styles: "styles.css",
   enabledByDefault: true,
@@ -45,13 +47,61 @@ function activate(runtime: JStremioRuntime) {
       const shell = document.createElement("main");
       shell.className = "reviews-shell";
       shell.innerHTML = `
-        <header class="reviews-header"><div><h1>Local Reviews</h1><p>Private ratings and notes stored only on this computer.</p></div><button class="button icon-button" data-action="close" aria-label="Close Reviews">${CLOSE_ICON}</button></header>
-        <div class="toolbar"><button class="button" data-action="refresh">Refresh</button><button class="button" data-action="folder">Open data folder</button></div>
+        <header class="reviews-header"><div><h1 tabindex="-1">Local Reviews</h1><p>Private ratings and notes stored only on this computer.</p></div><button class="button icon-button" data-action="close" aria-label="Close Reviews">${CLOSE_ICON}</button></header>
+        <div class="toolbar"><button class="button" data-action="back" hidden>← Back to titles</button><input class="search" type="search" placeholder="Search titles or review text" aria-label="Search local reviews"><button class="button" data-action="refresh">Refresh</button><button class="button" data-action="folder">Open data folder</button></div>
         <section class="status" role="status">Loading reviews…</section><section class="review-grid" hidden></section>`;
       container.append(shell);
       const status = shell.querySelector<HTMLElement>(".status")!;
       const grid = shell.querySelector<HTMLElement>(".review-grid")!;
+      const heading = shell.querySelector<HTMLHeadingElement>("h1")!;
+      const back = shell.querySelector<HTMLButtonElement>('[data-action="back"]')!;
+      const search = shell.querySelector<HTMLInputElement>(".search")!;
+      let reviews: Review[] = [];
+      let selectedCollection: string | null = null;
+      const render = () => {
+        if (selectedCollection && !reviews.some((review) => mediaCollectionKey(review) === selectedCollection)) {
+          selectedCollection = null;
+        }
+        const query = search.value.trim().toLocaleLowerCase();
+        const filtered = reviews.filter((review) =>
+          [review.name, review.title, review.text, review.videoId]
+            .filter(Boolean)
+            .some((value) => value!.toLocaleLowerCase().includes(query)),
+        );
+        const visible = selectedCollection
+          ? filtered.filter((review) => mediaCollectionKey(review) === selectedCollection)
+          : filtered;
+        if (selectedCollection) {
+          const first = reviews.find((review) => mediaCollectionKey(review) === selectedCollection)!;
+          heading.textContent = mediaCollectionTitle(first);
+          back.hidden = false;
+          renderReviews(runtime, grid, visible, () => void load());
+        } else {
+          heading.textContent = "Local Reviews";
+          back.hidden = true;
+          renderReviewCollections(grid, visible, (key) => {
+            selectedCollection = key;
+            search.value = "";
+            render();
+            heading.focus();
+          });
+        }
+        grid.hidden = visible.length === 0;
+        status.hidden = visible.length > 0;
+        status.textContent = reviews.length
+          ? visible.length
+            ? ""
+            : "No reviews match this search."
+          : "No reviews yet. Open a movie or episode and use the star button.";
+      };
       shell.querySelector('[data-action="close"]')?.addEventListener("click", close);
+      back.addEventListener("click", () => {
+        selectedCollection = null;
+        search.value = "";
+        render();
+        heading.focus();
+      });
+      search.addEventListener("input", render);
       shell.querySelector('[data-action="refresh"]')?.addEventListener("click", () => void load());
       shell.querySelector('[data-action="folder"]')?.addEventListener("click", () => {
         void runtime.bridge.request("reviews", "openDataFolder").catch((error) => showError(status, error));
@@ -62,11 +112,8 @@ function activate(runtime: JStremioRuntime) {
         status.textContent = "Loading reviews…";
         grid.hidden = true;
         try {
-          const reviews = asReviews(await runtime.bridge.request("reviews", "list"));
-          renderReviews(runtime, grid, reviews, () => void load());
-          grid.hidden = reviews.length === 0;
-          status.hidden = reviews.length > 0;
-          status.textContent = reviews.length ? "" : "No reviews yet. Open a movie or episode and use the star button.";
+          reviews = asReviews(await runtime.bridge.request("reviews", "list"));
+          render();
         } catch (error) {
           showError(status, error);
         }
@@ -159,7 +206,7 @@ function openReviewDialog(
     updateCount();
     form.querySelector('[data-action="cancel"]')?.addEventListener("click", close);
     form.querySelector('[data-action="delete"]')?.addEventListener("click", () => {
-      if (!existing || !confirm("Delete this local review?")) return;
+      if (!existing) return;
       void runtime.bridge.request("reviews", "delete", { id: existing.id }).then(() => {
         changed();
         close();
@@ -185,6 +232,51 @@ function openReviewDialog(
   });
 }
 
+function renderReviewCollections(
+  grid: HTMLElement,
+  reviews: Review[],
+  select: (collectionKey: string) => void,
+) {
+  grid.replaceChildren();
+  const collections = new Map<string, Review[]>();
+  for (const review of reviews) {
+    const key = mediaCollectionKey(review);
+    const collection = collections.get(key) ?? [];
+    collection.push(review);
+    collections.set(key, collection);
+  }
+  for (const [key, collection] of collections) {
+    const first = collection[0]!;
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "collection-card";
+    card.setAttribute("aria-label", `Open ${mediaCollectionTitle(first)}, ${collection.length} ${collection.length === 1 ? "review" : "reviews"}`);
+    const artwork = document.createElement("span");
+    artwork.className = "collection-artwork";
+    if (first.poster) {
+      const image = document.createElement("img");
+      image.className = "collection-poster";
+      image.src = first.poster;
+      image.alt = "";
+      image.loading = "lazy";
+      artwork.append(image);
+    }
+    const body = document.createElement("span");
+    body.className = "collection-body";
+    const title = document.createElement("strong");
+    title.textContent = mediaCollectionTitle(first);
+    const count = document.createElement("span");
+    count.textContent = `${collection.length} ${collection.length === 1 ? "review" : "reviews"}`;
+    const episodes = new Set(collection.filter((review) => review.mediaType === "series").map((review) => review.videoId));
+    const detail = document.createElement("span");
+    detail.textContent = episodes.size ? `${episodes.size} ${episodes.size === 1 ? "episode" : "episodes"}` : "Movie";
+    body.append(title, count, detail);
+    card.append(artwork, body);
+    card.addEventListener("click", () => select(key));
+    grid.append(card);
+  }
+}
+
 function renderReviews(runtime: JStremioRuntime, grid: HTMLElement, reviews: Review[], refresh: () => void) {
   grid.replaceChildren();
   for (const review of reviews) {
@@ -202,10 +294,14 @@ function renderReviews(runtime: JStremioRuntime, grid: HTMLElement, reviews: Rev
     }
     const body = document.createElement("div");
     const title = document.createElement("h2");
-    title.textContent = review.name || review.title || review.videoId;
+    title.textContent = review.mediaType === "series"
+      ? review.title || `Season ${review.season ?? "?"}, Episode ${review.episode ?? "?"}`
+      : mediaCollectionTitle(review);
     const meta = document.createElement("div");
     meta.className = "meta";
-    meta.textContent = mediaLabel(target);
+    meta.textContent = review.mediaType === "series"
+      ? `S${review.season ?? "?"} E${review.episode ?? "?"}`
+      : "Movie";
     const rating = document.createElement("div");
     rating.className = "rating";
     rating.setAttribute("aria-label", `${review.rating} out of 5 stars`);
@@ -219,7 +315,6 @@ function renderReviews(runtime: JStremioRuntime, grid: HTMLElement, reviews: Rev
       action("View in Stremio", () => viewInStremio(runtime, target)),
       action("Edit", () => openReviewDialog(runtime, target, review, refresh)),
       action("Delete", () => {
-        if (!confirm("Delete this local review?")) return;
         void runtime.bridge.request("reviews", "delete", { id: review.id }).then(refresh);
       }, "danger"),
     );

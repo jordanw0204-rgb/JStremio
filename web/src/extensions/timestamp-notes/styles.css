@@ -11,6 +11,14 @@
 .icon-button { display:grid; place-items:center; width:42px; height:42px; border-radius:50%; padding:0; line-height:0; }
 .status { max-width:1200px; margin:30px auto; padding:22px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.12); border-radius:14px; }
 .groups { max-width:1200px; margin:auto; display:grid; gap:18px; }
+.groups.collection-grid { grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); }
+.collection-card { min-height:150px; display:grid; grid-template-columns:92px minmax(0,1fr); gap:16px; align-items:center; padding:14px; border:1px solid rgba(255,255,255,.14); border-radius:15px; background:#101e24; color:#fff; text-align:left; cursor:pointer; }
+.collection-card:hover,.collection-card:focus-visible { border-color:#62d7c9; background:#173039; outline:2px solid rgba(98,215,201,.24); }
+.collection-artwork { display:block; width:92px; height:134px; border-radius:9px; background:linear-gradient(145deg,#284149,#14252b); overflow:hidden; }
+.collection-poster { width:92px; height:134px; border-radius:9px; object-fit:cover; background:#24363c; }
+.collection-body { display:grid; gap:7px; min-width:0; }
+.collection-body strong { font-size:20px; overflow-wrap:anywhere; }
+.collection-body span { color:#a8c1c2; font-size:13px; }
 .group { border:1px solid rgba(255,255,255,.12); border-radius:15px; background:#101e24; overflow:hidden; }
 .group-header { display:grid; grid-template-columns:56px 1fr; gap:13px; padding:14px; background:rgba(255,255,255,.035); }
 .group-header img { width:56px; height:82px; object-fit:cover; border-radius:7px; background:#24363c; }
@@ -72,4 +80,4 @@ textarea { width:100%; min-height:170px; resize:vertical; border:1px solid rgba(
 .marker-actions { display:flex; gap:7px; }
 .marker-actions button { font-size:11px; }
 @media (prefers-reduced-motion:reduce) { .jstremio-marker-layer,.jstremio-marker::before,.jstremio-marker span{transition:none} }
-@media (max-width:680px) { .notes-shell{padding:18px}.note-row{grid-template-columns:70px 1fr}.row-actions{grid-column:1/-1;justify-content:flex-start}.dialog{padding:18px}.note-options{grid-template-columns:1fr}.thumbnail-preview-button{float:none;width:100%;max-width:none;margin:0 0 10px} }
+@media (max-width:680px) { .notes-shell{padding:18px}.note-row{grid-template-columns:70px 1fr}.row-actions{grid-column:1/-1;justify-content:flex-start}.dialog{padding:18px}.note-options{grid-template-columns:1fr}.thumbnail-preview-button{float:none;width:100%;max-width:none;margin:0 0 10px}.collection-card{grid-template-columns:72px 1fr}.collection-artwork,.collection-poster{width:72px;height:106px} }

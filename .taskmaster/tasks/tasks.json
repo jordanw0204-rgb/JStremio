@@ -280,13 +280,25 @@
         "priority": "high",
         "subtasks": [],
         "updatedAt": "2026-07-11T07:13:19.063Z"
+      },
+      {
+        "id": "21",
+        "title": "Group Reviews and Timestamp Notes by title",
+        "description": "Redesign both management overlays as a two-level title collection: one card per movie/series, then drill down to all reviews or timestamp notes for that title.",
+        "details": "Use mediaType+metaId as the stable title grouping key, preserve per-episode metadata inside detail views, support search, accessible title-card buttons and Back navigation, keep CRUD refresh state coherent, add Playwright coverage, package and push.",
+        "testStrategy": "TypeScript typecheck/build, Playwright grouping/drilldown/search/CRUD regressions for both extensions, full check, portable package.",
+        "status": "done",
+        "dependencies": [],
+        "priority": "high",
+        "subtasks": [],
+        "updatedAt": "2026-07-11T07:30:41.373Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-07-11T07:13:19.064Z",
-      "taskCount": 20,
-      "completedCount": 18,
+      "lastModified": "2026-07-11T07:30:41.373Z",
+      "taskCount": 21,
+      "completedCount": 19,
       "tags": [
         "master"
       ]

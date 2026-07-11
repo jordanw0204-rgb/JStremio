@@ -2,8 +2,8 @@
 
 JStremio is a Windows desktop build based on the official `stremio-shell-ng`. It still loads `https://web.stremio.com/`, starts Stremio's bundled streaming server, and uses native MPV for playback. A small, origin-gated loader injects two trusted local extensions without rebuilding Stremio Web:
 
-- **Local Reviews** — private 1–5 ratings and optional review text.
-- **Timestamp Notes** — private notes captured at an on-demand playback position, with customizable marker colors, optional 1–5 ratings, replaceable native-video frame thumbnails with an enlarged viewer, clustering, and click-to-seek.
+- **Local Reviews** — private 1–5 ratings and optional review text, organized into movie and TV-series collections.
+- **Timestamp Notes** — private notes organized by movie or TV series, captured at an on-demand playback position, with customizable marker colors, optional 1–5 ratings, replaceable native-video frame thumbnails with an enlarged viewer, clustering, and click-to-seek.
 
 Both stores are human-readable JSON under `%LOCALAPPDATA%\JStremio\data`. Their content is not synchronized or sent to Stremio. JStremio has its own executable, WebView2 profile, IPC pipe, local data, portable package, installer AppId, and updater policy, so it can coexist with official Stremio.
 

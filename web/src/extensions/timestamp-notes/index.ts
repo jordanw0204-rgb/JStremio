@@ -11,6 +11,8 @@ import type { JStremioRuntime, MediaTarget, PlaybackSnapshot } from "../../runti
 import {
   addStyles,
   formatTimestamp,
+  mediaCollectionKey,
+  mediaCollectionTitle,
   mediaLabel,
   mountNavigationButton,
   mountPlayerButton,
@@ -39,7 +41,7 @@ const manifest = {
   schemaVersion: 1,
   id: "timestamp-notes",
   name: "Timestamp Notes",
-  version: "1.0.0",
+  version: "1.3.0",
   entry: "index.js",
   styles: "styles.css",
   enabledByDefault: true,
@@ -200,26 +202,49 @@ function activate(runtime: JStremioRuntime) {
       const shell = document.createElement("main");
       shell.className = "notes-shell";
       shell.innerHTML = `
-        <header class="notes-header"><div><h1>Timestamp Notes</h1><p>Private moments saved against absolute playback times on this computer.</p></div><button class="button icon-button" data-action="close" aria-label="Close Timestamp Notes">${CLOSE_ICON}</button></header>
-        <div class="toolbar"><input class="search" type="search" placeholder="Search titles or note text" aria-label="Search timestamp notes"><button class="button" data-action="refresh">Refresh</button><button class="button" data-action="folder">Open data folder</button></div>
+        <header class="notes-header"><div><h1 tabindex="-1">Timestamp Notes</h1><p>Private moments saved against absolute playback times on this computer.</p></div><button class="button icon-button" data-action="close" aria-label="Close Timestamp Notes">${CLOSE_ICON}</button></header>
+        <div class="toolbar"><button class="button" data-action="back" hidden>← Back to titles</button><input class="search" type="search" placeholder="Search titles or note text" aria-label="Search timestamp notes"><button class="button" data-action="refresh">Refresh</button><button class="button" data-action="folder">Open data folder</button></div>
         <section class="status" role="status">Loading notes…</section><section class="groups" hidden></section>`;
       container.append(shell);
       const status = shell.querySelector<HTMLElement>(".status")!;
       const groups = shell.querySelector<HTMLElement>(".groups")!;
       const search = shell.querySelector<HTMLInputElement>(".search")!;
+      const heading = shell.querySelector<HTMLHeadingElement>("h1")!;
+      const back = shell.querySelector<HTMLButtonElement>('[data-action="back"]')!;
       let allNotes: Note[] = [];
+      let selectedCollection: string | null = null;
       const render = () => {
+        if (selectedCollection && !allNotes.some((note) => mediaCollectionKey(note) === selectedCollection)) {
+          selectedCollection = null;
+        }
         const query = search.value.trim().toLocaleLowerCase();
         const filtered = allNotes.filter((note) =>
           [note.name, note.title, note.text, note.videoId]
             .filter(Boolean)
             .some((value) => value!.toLocaleLowerCase().includes(query)),
         );
-        renderGroups(runtime, groups, filtered, target, snapshot, () => void load());
-        groups.hidden = filtered.length === 0;
-        status.hidden = filtered.length > 0;
+        const visible = selectedCollection
+          ? filtered.filter((note) => mediaCollectionKey(note) === selectedCollection)
+          : filtered;
+        if (selectedCollection) {
+          const first = allNotes.find((note) => mediaCollectionKey(note) === selectedCollection)!;
+          heading.textContent = mediaCollectionTitle(first);
+          back.hidden = false;
+          renderGroups(runtime, groups, visible, target, snapshot, () => void load());
+        } else {
+          heading.textContent = "Timestamp Notes";
+          back.hidden = true;
+          renderNoteCollections(groups, visible, (key) => {
+            selectedCollection = key;
+            search.value = "";
+            render();
+            heading.focus();
+          });
+        }
+        groups.hidden = visible.length === 0;
+        status.hidden = visible.length > 0;
         status.textContent = allNotes.length
-          ? filtered.length
+          ? visible.length
             ? ""
             : "No timestamp notes match this search."
           : "No timestamp notes yet. Open an on-demand movie or episode and use the note button.";
@@ -236,6 +261,12 @@ function activate(runtime: JStremioRuntime) {
         }
       };
       search.addEventListener("input", render);
+      back.addEventListener("click", () => {
+        selectedCollection = null;
+        search.value = "";
+        render();
+        heading.focus();
+      });
       shell.querySelector('[data-action="close"]')?.addEventListener("click", close);
       shell.querySelector('[data-action="refresh"]')?.addEventListener("click", () => void load());
       shell.querySelector('[data-action="folder"]')?.addEventListener("click", () => {
@@ -653,6 +684,52 @@ function closeMarkerPopover(layer: HTMLElement) {
   popover.remove();
 }
 
+function renderNoteCollections(
+  root: HTMLElement,
+  notes: Note[],
+  select: (collectionKey: string) => void,
+) {
+  root.replaceChildren();
+  root.classList.add("collection-grid");
+  const collections = new Map<string, Note[]>();
+  for (const note of notes) {
+    const key = mediaCollectionKey(note);
+    const collection = collections.get(key) ?? [];
+    collection.push(note);
+    collections.set(key, collection);
+  }
+  for (const [key, collection] of collections) {
+    const first = collection[0]!;
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "collection-card";
+    card.setAttribute("aria-label", `Open ${mediaCollectionTitle(first)}, ${collection.length} timestamp ${collection.length === 1 ? "note" : "notes"}`);
+    const artwork = document.createElement("span");
+    artwork.className = "collection-artwork";
+    if (first.poster) {
+      const image = document.createElement("img");
+      image.className = "collection-poster";
+      image.src = first.poster;
+      image.alt = "";
+      image.loading = "lazy";
+      artwork.append(image);
+    }
+    const body = document.createElement("span");
+    body.className = "collection-body";
+    const title = document.createElement("strong");
+    title.textContent = mediaCollectionTitle(first);
+    const count = document.createElement("span");
+    count.textContent = `${collection.length} timestamp ${collection.length === 1 ? "note" : "notes"}`;
+    const episodes = new Set(collection.filter((note) => note.mediaType === "series").map((note) => note.videoId));
+    const detail = document.createElement("span");
+    detail.textContent = episodes.size ? `${episodes.size} ${episodes.size === 1 ? "episode" : "episodes"}` : "Movie";
+    body.append(title, count, detail);
+    card.append(artwork, body);
+    card.addEventListener("click", () => select(key));
+    root.append(card);
+  }
+}
+
 function renderGroups(
   runtime: JStremioRuntime,
   root: HTMLElement,
@@ -662,6 +739,7 @@ function renderGroups(
   refresh: () => void,
 ) {
   root.replaceChildren();
+  root.classList.remove("collection-grid");
   const grouped = new Map<string, Note[]>();
   for (const note of notes) {
     const group = grouped.get(note.mediaKey) ?? [];
@@ -685,10 +763,14 @@ function renderGroups(
     }
     const heading = document.createElement("div");
     const title = document.createElement("h2");
-    title.textContent = first.name || first.title || first.videoId;
+    title.textContent = first.mediaType === "series"
+      ? first.title || `Season ${first.season ?? "?"}, Episode ${first.episode ?? "?"}`
+      : mediaCollectionTitle(first);
     const meta = document.createElement("div");
     meta.className = "meta";
-    meta.textContent = mediaLabel(target);
+    meta.textContent = first.mediaType === "series"
+      ? `S${first.season ?? "?"} E${first.episode ?? "?"}`
+      : "Movie";
     heading.append(title, meta);
     header.append(artwork, heading);
     section.append(header);
