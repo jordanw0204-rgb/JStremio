@@ -228,13 +228,27 @@
         "priority": "high",
         "subtasks": [],
         "updatedAt": "2026-07-10T22:13:44.367Z"
+      },
+      {
+        "id": "17",
+        "title": "Polish dense timestamp marker interaction",
+        "description": "Shrink timeline marker visuals, add hover/focus scaling, and show a cursor-positioned picker for clustered nearby timestamp notes.",
+        "details": "Keep the marker hit area usable while reducing the visible marker footprint. Open clustered-note popovers on hover/focus without stealing focus, position the picker near the cursor, and preserve direct click-to-seek behavior plus edit/delete actions.",
+        "testStrategy": "Playwright marker size, hover scale, cluster picker, outside dismissal, seek, and package audit.",
+        "status": "done",
+        "dependencies": [
+          "16"
+        ],
+        "priority": "high",
+        "subtasks": [],
+        "updatedAt": "2026-07-11T00:47:30.000Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-07-10T22:13:44.367Z",
-      "taskCount": 16,
-      "completedCount": 14,
+      "lastModified": "2026-07-11T00:47:30.000Z",
+      "taskCount": 17,
+      "completedCount": 15,
       "tags": [
         "master"
       ]

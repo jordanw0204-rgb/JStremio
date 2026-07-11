@@ -593,7 +593,7 @@ dependencies = [
 
 [[package]]
 name = "jstremio"
-version = "1.0.5"
+version = "1.0.6"
 dependencies = [
  "anyhow",
  "bitflags 2.4.2",

@@ -67,7 +67,7 @@ await page.waitForFunction(
   undefined,
   { timeout: 10_000 },
 );
-await page.waitForSelector('[data-jstremio-testid="timestamp-note-markers"]', { timeout: 10_000 });
+await page.waitForSelector('[data-jstremio-testid="timestamp-note-markers"]', { state: "attached", timeout: 10_000 });
 await page.mouse.move(1, 1);
 await page.mouse.move(400, 300);
 await page.waitForTimeout(500);
@@ -82,17 +82,17 @@ await page.waitForFunction(
 );
 await noteButton.click();
 await page.waitForFunction(() => window.JStremio.player.getSnapshot()?.paused === true, undefined, { timeout: 5_000 });
-const noteField = page.getByLabel("Note (required)");
-await noteField.click();
-await page.keyboard.type("real-player customization smoke");
+await setTimestampDialogValues(page, {
+  text: "real-player customization smoke",
+  color: "#ff3366",
+  rating: "4",
+});
 const dialogTypingKeptPaused = await page.evaluate(() =>
   window.JStremio.player.getSnapshot()?.paused === true &&
   document.querySelector('[data-jstremio-testid="overlay-host"]')?.shadowRoot?.querySelector("textarea")?.value ===
     "real-player customization smoke",
 );
-await page.getByLabel("Marker color").fill("#ff3366");
-await page.getByLabel("Rating (optional)").selectOption("4");
-await page.getByRole("button", { name: "Save" }).click();
+await submitTimestampDialog(page);
 const marker = page.locator(".jstremio-marker").first();
 await marker.waitFor({ state: "visible", timeout: 10_000 });
 const customizationPersisted = await page.evaluate(async () => {
@@ -107,6 +107,46 @@ const customizationPersisted = await page.evaluate(async () => {
 const markerColorApplied = await marker.evaluate(
   (element) => element.style.getPropertyValue("--marker-color") === "#FF3366",
 );
+await page.evaluate(async () => {
+  const notes = await window.JStremio.bridge.request("timestamp-notes", "listForMedia", {
+    mediaKey: "series:tt2741602:4:22",
+  });
+  const customized = Array.isArray(notes)
+    ? notes.find((note) => note && typeof note === "object" && note.color === "#FF3366" && note.rating === 4)
+    : null;
+  if (!customized || typeof customized.timestampMs !== "number") {
+    throw new Error("Cannot create clustered smoke note without the first customized note");
+  }
+  await window.JStremio.player.seekTo(customized.timestampMs + 250);
+  await window.JStremio.player.setPaused(true);
+});
+await noteButton.click();
+await setTimestampDialogValues(page, { text: "nearby real-player marker smoke" });
+await submitTimestampDialog(page);
+const clusterMarker = page.locator(".jstremio-marker.cluster").first();
+await clusterMarker.waitFor({ state: "visible", timeout: 10_000 });
+const clusterMarkerSmall = await clusterMarker.evaluate(
+  (element) => getComputedStyle(element, "::before").width === "11px",
+);
+await clusterMarker.hover();
+await page.waitForSelector(".marker-popover");
+const clusterHoverPicker = await page.evaluate(() => {
+  const marker = document.querySelector(".jstremio-marker.cluster");
+  const popover = document.querySelector(".marker-popover");
+  const markerRect = marker?.getBoundingClientRect();
+  const popoverRect = popover?.getBoundingClientRect();
+  return Boolean(
+    marker &&
+    popover &&
+    getComputedStyle(marker, "::before").transform !== "none" &&
+    document.querySelectorAll(".marker-note").length >= 2 &&
+    markerRect &&
+    popoverRect &&
+    Math.abs(popoverRect.left - (markerRect.left + markerRect.width / 2 + 14)) < 20
+  );
+});
+await page.mouse.click(5, 5);
+await page.waitForSelector(".marker-popover", { state: "detached" });
 
 const viewportBeforeFullscreen = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
 await page.evaluate(async () => {
@@ -260,6 +300,8 @@ const result = await page.evaluate((verification) => {
       Boolean(layerRect && sliderRect) && Math.abs(layerRect.top - sliderRect.top) < 1,
     customizationPersisted: verification.customizationPersisted,
     markerColorApplied: verification.markerColorApplied,
+    clusterMarkerSmall: verification.clusterMarkerSmall,
+    clusterHoverPicker: verification.clusterHoverPicker,
     dialogTypingKeptPaused: verification.dialogTypingKeptPaused,
     pausedFullscreenMarkerAligned: verification.pausedFullscreenMarkerAligned,
     outsideDismissed: verification.outsideDismissed,
@@ -274,6 +316,8 @@ const result = await page.evaluate((verification) => {
 }, {
   customizationPersisted,
   markerColorApplied,
+  clusterMarkerSmall,
+  clusterHoverPicker,
   dialogTypingKeptPaused,
   pausedFullscreenMarkerAligned,
   outsideDismissed,
@@ -358,6 +402,7 @@ const failures = [
   [result.markerLayerVisible, "visible marker layer"],
   [result.markerWidthMatchesSlider && result.markerLeftMatchesSlider && result.markerTopMatchesSlider, "marker geometry aligned to the official slider"],
   [result.customizationPersisted && result.markerColorApplied, "persisted marker color and rating"],
+  [result.clusterMarkerSmall && result.clusterHoverPicker, "small clustered marker and hover picker"],
   [result.dialogTypingKeptPaused, "dialog typing isolated from Stremio shortcuts"],
   [result.pausedFullscreenMarkerAligned, "paused fullscreen marker alignment"],
   [result.outsideDismissed && result.closeButtonDismissed, "popover outside and close-button dismissal"],
@@ -368,3 +413,57 @@ const failures = [
 ].filter(([passed]) => !passed).map(([, label]) => label);
 if (failures.length) throw new Error(`Real-player DOM smoke failed: ${failures.join(", ")}`);
 await browser.close();
+
+async function setTimestampDialogValues(page, values) {
+  let lastError;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      await page.waitForFunction(() =>
+        Boolean(document.querySelector('[data-jstremio-testid="overlay-host"]')?.shadowRoot?.querySelector("form.dialog")),
+      undefined, { timeout: 5_000 });
+      await page.evaluate(({ text, color, rating }) => {
+        const root = document.querySelector('[data-jstremio-testid="overlay-host"]')?.shadowRoot;
+        const textarea = root?.querySelector("textarea");
+        const colorInput = root?.querySelector(".color-input");
+        const ratingSelect = root?.querySelector(".rating-select");
+        if (!(textarea instanceof HTMLTextAreaElement)) throw new Error("Timestamp note textarea missing");
+        textarea.value = text;
+        textarea.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: text }));
+        if (typeof color === "string" && colorInput instanceof HTMLInputElement) {
+          colorInput.value = color;
+          colorInput.dispatchEvent(new Event("input", { bubbles: true }));
+          colorInput.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+        if (typeof rating === "string" && ratingSelect instanceof HTMLSelectElement) {
+          ratingSelect.value = rating;
+          ratingSelect.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+      }, values);
+      await page.waitForFunction(
+        (expected) =>
+          document.querySelector('[data-jstremio-testid="overlay-host"]')?.shadowRoot?.querySelector("textarea")?.value ===
+          expected,
+        values.text,
+        { timeout: 3_000 },
+      );
+      return;
+    } catch (error) {
+      lastError = error;
+      await page.waitForTimeout(250);
+    }
+  }
+  throw lastError ?? new Error("Timestamp note field was not available");
+}
+
+async function submitTimestampDialog(page) {
+  await page.evaluate(() => {
+    const form = document.querySelector('[data-jstremio-testid="overlay-host"]')?.shadowRoot?.querySelector("form.dialog");
+    if (!(form instanceof HTMLFormElement)) throw new Error("Timestamp note form missing");
+    form.requestSubmit();
+  });
+  await page.waitForFunction(
+    () => !document.querySelector('[data-jstremio-testid="overlay-host"]')?.shadowRoot?.querySelector("form.dialog"),
+    undefined,
+    { timeout: 10_000 },
+  );
+}

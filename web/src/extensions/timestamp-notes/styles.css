@@ -39,10 +39,13 @@ textarea { width:100%; min-height:170px; resize:vertical; border:1px solid rgba(
 .alert { color:#ffb5bd; min-height:1.4em; }
 .dialog-actions { display:flex; gap:9px; justify-content:flex-end; flex-wrap:wrap; margin-top:18px; }
 .jstremio-marker-layer { position:absolute; inset:0; pointer-events:none; overflow:visible; z-index:20; opacity:1; visibility:visible; transition:opacity 160ms ease,visibility 160ms ease; }
-.jstremio-marker { position:absolute; top:50%; width:18px; height:22px; padding:0; border:0; background:transparent; pointer-events:auto; transform:translate(-50%,-50%); cursor:pointer; }
-.jstremio-marker::before { content:""; display:block; margin:auto; width:8px; height:8px; background:var(--marker-fill,var(--marker-color,#56e0cf)); border:2px solid #062b27; transform:rotate(45deg); box-shadow:0 0 0 1px rgba(255,255,255,.7),0 0 8px var(--marker-color,#56e0cf); }
-.jstremio-marker.cluster::before { width:16px; height:16px; border-radius:50%; transform:none; }
-.jstremio-marker span { position:absolute; inset:0; display:grid; place-items:center; color:#062b27; font-size:10px; font-weight:800; }
+.jstremio-marker { position:absolute; top:50%; width:22px; height:26px; padding:0; border:0; background:transparent; pointer-events:auto; transform:translate(-50%,-50%); cursor:pointer; }
+.jstremio-marker::before { content:""; display:block; margin:auto; width:6px; height:6px; background:var(--marker-fill,var(--marker-color,#56e0cf)); border:1.5px solid #062b27; transform:rotate(45deg); box-shadow:0 0 0 1px rgba(255,255,255,.7),0 0 7px var(--marker-color,#56e0cf); transition:transform 120ms ease,width 120ms ease,height 120ms ease,box-shadow 120ms ease; }
+.jstremio-marker:hover::before,.jstremio-marker:focus-visible::before { transform:rotate(45deg) scale(1.55); box-shadow:0 0 0 1px rgba(255,255,255,.9),0 0 10px var(--marker-color,#56e0cf); }
+.jstremio-marker.cluster::before { width:11px; height:11px; border-radius:50%; transform:none; }
+.jstremio-marker.cluster:hover::before,.jstremio-marker.cluster:focus-visible::before { transform:scale(1.35); }
+.jstremio-marker span { position:absolute; left:50%; top:50%; width:13px; height:13px; display:grid; place-items:center; transform:translate(-50%,-50%); color:#062b27; font-size:8px; font-weight:800; line-height:1; transition:transform 120ms ease; }
+.jstremio-marker.cluster:hover span,.jstremio-marker.cluster:focus-visible span { transform:translate(-50%,-50%) scale(1.35); }
 .marker-popover { position:absolute; left:50%; bottom:24px; width:min(360px,80vw); max-height:280px; overflow:auto; transform:translateX(-50%); pointer-events:auto; background:#0d1a1f; color:#fff; border:1px solid rgba(255,255,255,.18); border-radius:11px; padding:10px; box-shadow:0 12px 40px rgba(0,0,0,.6); }
 .marker-popover-header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:1px 2px 8px; border-bottom:1px solid rgba(255,255,255,.1); }
 .marker-popover-close { display:grid; place-items:center; width:30px; height:30px; padding:0; border:1px solid rgba(255,255,255,.17); border-radius:8px; background:#173039; color:#fff; cursor:pointer; line-height:0; }
@@ -56,5 +59,5 @@ textarea { width:100%; min-height:170px; resize:vertical; border:1px solid rgba(
 .marker-note-meta .note-rating { margin:0; }
 .marker-actions { display:flex; gap:7px; }
 .marker-actions button { font-size:11px; }
-@media (prefers-reduced-motion:reduce) { .jstremio-marker-layer{transition:none} }
+@media (prefers-reduced-motion:reduce) { .jstremio-marker-layer,.jstremio-marker::before,.jstremio-marker span{transition:none} }
 @media (max-width:680px) { .notes-shell{padding:18px}.note-row{grid-template-columns:70px 1fr}.row-actions{grid-column:1/-1;justify-content:flex-start}.dialog{padding:18px}.note-options{grid-template-columns:1fr} }

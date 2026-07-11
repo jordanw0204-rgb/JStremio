@@ -248,10 +248,28 @@ test("captures, pauses conditionally, clusters markers, and seeks without blocki
   const marker = page.locator(".jstremio-marker.cluster");
   await expect(marker).toHaveCount(1);
   await expect(marker).toHaveAccessibleName(/2 notes/);
+  await expect.poll(() =>
+    marker.evaluate((element) => getComputedStyle(element, "::before").width),
+  ).toBe("11px");
   const layer = page.locator('[data-jstremio-testid="timestamp-note-markers"]');
   await expect(layer).toHaveCSS("pointer-events", "none");
   await expect(layer.locator("..")).toHaveJSProperty("tagName", "BODY");
   await expect.poll(() => layer.evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThan(0);
+
+  await marker.hover();
+  await expect(page.locator(".marker-popover")).toHaveCount(1);
+  await expect(page.locator(".marker-note")).toHaveCount(2);
+  await expect.poll(() =>
+    marker.evaluate((element) => getComputedStyle(element, "::before").transform),
+  ).not.toBe("none");
+  await expect.poll(async () => {
+    const markerBounds = await marker.boundingBox();
+    const popoverBounds = await page.locator(".marker-popover").boundingBox();
+    if (!markerBounds || !popoverBounds) return 999;
+    return Math.abs(popoverBounds.x - (markerBounds.x + markerBounds.width / 2 + 14));
+  }).toBeLessThan(12);
+  await page.mouse.click(5, 5);
+  await expect(page.locator(".marker-popover")).toHaveCount(0);
 
   // Native shell fullscreen can move a paused control bar without changing the
   // seek element's own size. Its visibility signal must realign the body-owned

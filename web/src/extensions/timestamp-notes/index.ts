@@ -446,13 +446,21 @@ function createTimeline(
         : markerDescription(cluster.notes[0]!);
       marker.setAttribute("aria-label", marker.title);
       if (cluster.notes.length > 1) marker.innerHTML = `<span aria-hidden="true">${cluster.notes.length}</span>`;
-      marker.addEventListener("click", () => {
+      if (cluster.notes.length > 1) {
+        marker.addEventListener("pointerenter", (event) => {
+          showMarkerPopover(runtime, layer, cluster.notes, changed, { clientX: event.clientX, clientY: event.clientY }, false);
+        });
+        marker.addEventListener("pointermove", (event) => {
+          positionMarkerPopover(layer, { clientX: event.clientX, clientY: event.clientY });
+        });
+      }
+      marker.addEventListener("click", (event) => {
         if (cluster.notes.length === 1) {
           void runtime.player.seekTo(cluster.notes[0]!.timestampMs).catch((error) =>
             runtime.diagnostics.report("timestamp-notes", error),
           );
         }
-        showMarkerPopover(runtime, layer, cluster.notes, changed);
+        showMarkerPopover(runtime, layer, cluster.notes, changed, { clientX: event.clientX, clientY: event.clientY });
       });
       layer.append(marker);
     }
@@ -473,7 +481,14 @@ function createTimeline(
   };
 }
 
-function showMarkerPopover(runtime: JStremioRuntime, layer: HTMLElement, notes: Note[], changed: () => void) {
+function showMarkerPopover(
+  runtime: JStremioRuntime,
+  layer: HTMLElement,
+  notes: Note[],
+  changed: () => void,
+  anchor?: { clientX: number; clientY: number },
+  focusCloseButton = true,
+) {
   closeMarkerPopover(layer);
   const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   const popover = document.createElement("div");
@@ -546,6 +561,7 @@ function showMarkerPopover(runtime: JStremioRuntime, layer: HTMLElement, notes: 
     popover.append(item);
   }
   layer.append(popover);
+  positionMarkerPopover(layer, anchor);
   document.addEventListener(
     "pointerdown",
     (event) => {
@@ -565,7 +581,33 @@ function showMarkerPopover(runtime: JStremioRuntime, layer: HTMLElement, notes: 
     },
     { capture: true, signal: controller.signal },
   );
-  closeButton.focus();
+  if (focusCloseButton) closeButton.focus();
+}
+
+function positionMarkerPopover(layer: HTMLElement, anchor?: { clientX: number; clientY: number }) {
+  const popover = layer.querySelector<HTMLElement>(".marker-popover");
+  if (!popover) return;
+  if (!anchor) {
+    popover.style.left = "50%";
+    popover.style.top = "auto";
+    popover.style.bottom = "24px";
+    popover.style.transform = "translateX(-50%)";
+    return;
+  }
+  const layerBounds = layer.getBoundingClientRect();
+  const popoverBounds = popover.getBoundingClientRect();
+  const margin = 10;
+  const offset = 14;
+  const preferredLeft = anchor.clientX - layerBounds.left + offset;
+  const preferredTop = anchor.clientY - layerBounds.top - popoverBounds.height - offset;
+  const maxLeft = Math.max(margin, layerBounds.width - popoverBounds.width - margin);
+  const maxTop = Math.max(margin, layerBounds.height - popoverBounds.height - margin);
+  const left = Math.min(Math.max(preferredLeft, margin), maxLeft);
+  const top = Math.min(Math.max(preferredTop, margin), maxTop);
+  popover.style.left = `${left}px`;
+  popover.style.top = `${top}px`;
+  popover.style.bottom = "auto";
+  popover.style.transform = "none";
 }
 
 function closeMarkerPopover(layer: HTMLElement) {
