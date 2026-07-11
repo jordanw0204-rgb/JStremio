@@ -242,13 +242,27 @@
         "priority": "high",
         "subtasks": [],
         "updatedAt": "2026-07-11T00:47:30.000Z"
+      },
+      {
+        "id": "18",
+        "title": "Fix timestamp marker popout placement and sticky interaction",
+        "description": "Keep marker popouts inside the visible window, make click-opened popouts stay while users select timestamps, and show details popouts for single markers too.",
+        "details": "Clamp marker popouts against the viewport using fixed positioning, prefer above-marker placement, prevent hover updates from replacing sticky click popouts, and expose the same note details picker for single-note markers on hover.",
+        "testStrategy": "Playwright viewport-clamp, sticky click, single-marker hover popout, full check, real WebView2/MPV smoke, package audit.",
+        "status": "done",
+        "dependencies": [
+          "17"
+        ],
+        "priority": "high",
+        "subtasks": [],
+        "updatedAt": "2026-07-11T01:05:00.000Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-07-11T00:47:30.000Z",
-      "taskCount": 17,
-      "completedCount": 15,
+      "lastModified": "2026-07-11T01:05:00.000Z",
+      "taskCount": 18,
+      "completedCount": 16,
       "tags": [
         "master"
       ]

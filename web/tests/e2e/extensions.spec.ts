@@ -263,11 +263,11 @@ test("captures, pauses conditionally, clusters markers, and seeks without blocki
     marker.evaluate((element) => getComputedStyle(element, "::before").transform),
   ).not.toBe("none");
   await expect.poll(async () => {
-    const markerBounds = await marker.boundingBox();
     const popoverBounds = await page.locator(".marker-popover").boundingBox();
-    if (!markerBounds || !popoverBounds) return 999;
-    return Math.abs(popoverBounds.x - (markerBounds.x + markerBounds.width / 2 + 14));
-  }).toBeLessThan(12);
+    const viewport = page.viewportSize();
+    if (!popoverBounds || !viewport) return -999;
+    return Math.min(popoverBounds.x, viewport.width - popoverBounds.x - popoverBounds.width);
+  }).toBeGreaterThanOrEqual(9);
   await page.mouse.click(5, 5);
   await expect(page.locator(".marker-popover")).toHaveCount(0);
 
@@ -301,6 +301,9 @@ test("captures, pauses conditionally, clusters markers, and seeks without blocki
 
   await marker.click();
   await expect(page.locator(".marker-popover")).toHaveCount(1);
+  await expect(page.locator(".marker-popover")).toHaveAttribute("data-sticky", "true");
+  await marker.hover();
+  await expect(page.locator(".marker-popover")).toHaveAttribute("data-sticky", "true");
   await page.mouse.click(5, 5);
   await expect(page.locator(".marker-popover")).toHaveCount(0);
 
@@ -334,6 +337,18 @@ test("captures, pauses conditionally, clusters markers, and seeks without blocki
   await page.getByRole("button", { name: /first marker note/ }).click();
   await expect(page.locator(".marker-popover")).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => JSON.stringify((window as any).__fixture.commands))).toContain("time-pos");
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await marker.click();
+  await page.locator(".marker-note").filter({ hasText: "nearby marker note" }).getByRole("button", { name: "Delete" }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).__fixture.notes.length)).toBe(1);
+  await emitPlayback(page, 50, 100, false);
+  const singleMarker = page.locator(".jstremio-marker:not(.cluster)");
+  await expect(singleMarker).toHaveCount(1);
+  await singleMarker.hover();
+  await expect(page.locator(".marker-popover")).toHaveCount(1);
+  await expect(page.locator(".marker-note")).toHaveCount(1);
+  await expect(page.locator(".marker-popover")).toHaveAttribute("data-sticky", "false");
 
   const pauseCommands = await page.evaluate(() =>
     (window as any).__fixture.commands.filter((command: unknown[]) => command[0] === "pause"),

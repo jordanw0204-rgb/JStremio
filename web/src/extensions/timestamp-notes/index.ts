@@ -446,21 +446,25 @@ function createTimeline(
         : markerDescription(cluster.notes[0]!);
       marker.setAttribute("aria-label", marker.title);
       if (cluster.notes.length > 1) marker.innerHTML = `<span aria-hidden="true">${cluster.notes.length}</span>`;
-      if (cluster.notes.length > 1) {
-        marker.addEventListener("pointerenter", (event) => {
-          showMarkerPopover(runtime, layer, cluster.notes, changed, { clientX: event.clientX, clientY: event.clientY }, false);
+      marker.addEventListener("pointerenter", (event) => {
+        showMarkerPopover(runtime, layer, cluster.notes, changed, { clientX: event.clientX, clientY: event.clientY }, {
+          focusCloseButton: false,
+          sticky: false,
         });
-        marker.addEventListener("pointermove", (event) => {
-          positionMarkerPopover(layer, { clientX: event.clientX, clientY: event.clientY });
-        });
-      }
+      });
+      marker.addEventListener("pointermove", (event) => {
+        positionMarkerPopover(layer, { clientX: event.clientX, clientY: event.clientY });
+      });
       marker.addEventListener("click", (event) => {
         if (cluster.notes.length === 1) {
           void runtime.player.seekTo(cluster.notes[0]!.timestampMs).catch((error) =>
             runtime.diagnostics.report("timestamp-notes", error),
           );
         }
-        showMarkerPopover(runtime, layer, cluster.notes, changed, { clientX: event.clientX, clientY: event.clientY });
+        showMarkerPopover(runtime, layer, cluster.notes, changed, { clientX: event.clientX, clientY: event.clientY }, {
+          focusCloseButton: true,
+          sticky: true,
+        });
       });
       layer.append(marker);
     }
@@ -487,12 +491,15 @@ function showMarkerPopover(
   notes: Note[],
   changed: () => void,
   anchor?: { clientX: number; clientY: number },
-  focusCloseButton = true,
+  options: { focusCloseButton?: boolean; sticky?: boolean } = {},
 ) {
+  const existing = layer.querySelector<HTMLElement>(".marker-popover");
+  if (existing?.dataset.sticky === "true" && !options.sticky) return;
   closeMarkerPopover(layer);
   const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   const popover = document.createElement("div");
   popover.className = "marker-popover";
+  popover.dataset.sticky = options.sticky ? "true" : "false";
   popover.setAttribute("role", "dialog");
   popover.setAttribute("aria-label", "Timestamp notes");
   const controller = new AbortController();
@@ -554,7 +561,7 @@ function showMarkerPopover(
         void runtime.bridge.request("timestamp-notes", "delete", { id: note.id }).then(() => {
           close();
           changed();
-        });
+        }).catch((error) => runtime.diagnostics.report("timestamp-notes", error));
       }),
     );
     item.append(seek, metadata, actions);
@@ -581,7 +588,7 @@ function showMarkerPopover(
     },
     { capture: true, signal: controller.signal },
   );
-  if (focusCloseButton) closeButton.focus();
+  if (options.focusCloseButton ?? true) closeButton.focus();
 }
 
 function positionMarkerPopover(layer: HTMLElement, anchor?: { clientX: number; clientY: number }) {
@@ -594,16 +601,18 @@ function positionMarkerPopover(layer: HTMLElement, anchor?: { clientX: number; c
     popover.style.transform = "translateX(-50%)";
     return;
   }
-  const layerBounds = layer.getBoundingClientRect();
   const popoverBounds = popover.getBoundingClientRect();
   const margin = 10;
   const offset = 14;
-  const preferredLeft = anchor.clientX - layerBounds.left + offset;
-  const preferredTop = anchor.clientY - layerBounds.top - popoverBounds.height - offset;
-  const maxLeft = Math.max(margin, layerBounds.width - popoverBounds.width - margin);
-  const maxTop = Math.max(margin, layerBounds.height - popoverBounds.height - margin);
+  const preferredLeft = anchor.clientX + offset;
+  const aboveTop = anchor.clientY - popoverBounds.height - offset;
+  const belowTop = anchor.clientY + offset;
+  const preferredTop = aboveTop >= margin ? aboveTop : belowTop;
+  const maxLeft = Math.max(margin, window.innerWidth - popoverBounds.width - margin);
+  const maxTop = Math.max(margin, window.innerHeight - popoverBounds.height - margin);
   const left = Math.min(Math.max(preferredLeft, margin), maxLeft);
   const top = Math.min(Math.max(preferredTop, margin), maxTop);
+  popover.style.position = "fixed";
   popover.style.left = `${left}px`;
   popover.style.top = `${top}px`;
   popover.style.bottom = "auto";

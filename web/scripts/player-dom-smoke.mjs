@@ -142,8 +142,20 @@ const clusterHoverPicker = await page.evaluate(() => {
     document.querySelectorAll(".marker-note").length >= 2 &&
     markerRect &&
     popoverRect &&
-    Math.abs(popoverRect.left - (markerRect.left + markerRect.width / 2 + 14)) < 20
+    popoverRect.left >= 8 &&
+    popoverRect.right <= innerWidth - 8 &&
+    popoverRect.top >= 8 &&
+    popoverRect.bottom <= innerHeight - 8
   );
+});
+await page.mouse.click(5, 5);
+await page.waitForSelector(".marker-popover", { state: "detached" });
+await clusterMarker.click();
+await page.waitForSelector('.marker-popover[data-sticky="true"]');
+await clusterMarker.hover();
+const clickPopoverStayedSticky = await page.evaluate(() => {
+  const popover = document.querySelector(".marker-popover");
+  return Boolean(popover?.getAttribute("data-sticky") === "true" && document.querySelectorAll(".marker-note").length >= 2);
 });
 await page.mouse.click(5, 5);
 await page.waitForSelector(".marker-popover", { state: "detached" });
@@ -201,6 +213,7 @@ await page.getByRole("button", { name: "Close timestamp notes" }).click();
 await page.waitForSelector(".marker-popover", { state: "detached" });
 const closeButtonDismissed = true;
 
+await clusterMarker.click();
 await marker.click();
 await page.waitForSelector(".marker-popover");
 await page.evaluate(async () => {
@@ -302,6 +315,7 @@ const result = await page.evaluate((verification) => {
     markerColorApplied: verification.markerColorApplied,
     clusterMarkerSmall: verification.clusterMarkerSmall,
     clusterHoverPicker: verification.clusterHoverPicker,
+    clickPopoverStayedSticky: verification.clickPopoverStayedSticky,
     dialogTypingKeptPaused: verification.dialogTypingKeptPaused,
     pausedFullscreenMarkerAligned: verification.pausedFullscreenMarkerAligned,
     outsideDismissed: verification.outsideDismissed,
@@ -318,6 +332,7 @@ const result = await page.evaluate((verification) => {
   markerColorApplied,
   clusterMarkerSmall,
   clusterHoverPicker,
+  clickPopoverStayedSticky,
   dialogTypingKeptPaused,
   pausedFullscreenMarkerAligned,
   outsideDismissed,
@@ -403,6 +418,7 @@ const failures = [
   [result.markerWidthMatchesSlider && result.markerLeftMatchesSlider && result.markerTopMatchesSlider, "marker geometry aligned to the official slider"],
   [result.customizationPersisted && result.markerColorApplied, "persisted marker color and rating"],
   [result.clusterMarkerSmall && result.clusterHoverPicker, "small clustered marker and hover picker"],
+  [result.clickPopoverStayedSticky, "click-opened marker popover stays sticky"],
   [result.dialogTypingKeptPaused, "dialog typing isolated from Stremio shortcuts"],
   [result.pausedFullscreenMarkerAligned, "paused fullscreen marker alignment"],
   [result.outsideDismissed && result.closeButtonDismissed, "popover outside and close-button dismissal"],
