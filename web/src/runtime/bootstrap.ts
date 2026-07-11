@@ -19,6 +19,10 @@ function bootstrap() {
   const cleanups = new Map<string, () => void>();
   const registered = new Set<string>();
   let reconcileGeneration = 0;
+  const pluginStyleSource = globalRecord.__JSTREMIO_PLUGIN_STYLES__;
+  const pluginStyles = pluginStyleSource && typeof pluginStyleSource === "object"
+    ? pluginStyleSource as Record<string, unknown>
+    : {};
 
   const diagnostics = Object.freeze({
     report(extensionId: string, error: unknown) {
@@ -54,6 +58,12 @@ function bootstrap() {
     bridge: Object.freeze({ request: bridge.request }),
     stremio: Object.freeze({ getPlayerState, getCurrentMediaTarget }),
     player: Object.freeze(player.publicApi),
+    plugins: Object.freeze({
+      getStyles(id: string) {
+        const value = pluginStyles[id];
+        return typeof value === "string" ? value : "";
+      },
+    }),
     lifecycle: Object.freeze(lifecycle.publicApi),
     ui: Object.freeze(overlays.publicApi),
     diagnostics,

@@ -43,7 +43,7 @@ export type JStremioRuntime = {
   ): void;
   bridge: Readonly<{
     request(
-      namespace: "reviews" | "timestamp-notes",
+      namespace: "reviews" | "timestamp-notes" | "plugins",
       operation: string,
       payload?: unknown,
       options?: { timeoutMs?: number },
@@ -59,6 +59,9 @@ export type JStremioRuntime = {
     seekTo(positionMs: number): Promise<void>;
     setPaused(paused: boolean): Promise<void>;
     captureFrame(): Promise<string>;
+  }>;
+  plugins: Readonly<{
+    getStyles(id: string): string;
   }>;
   lifecycle: Readonly<{
     onReconcile(callback: () => void): () => void;
@@ -88,5 +91,6 @@ declare global {
         removeEventListener(type: "message", listener: (event: MessageEvent) => void): void;
       };
     };
+    __JSTREMIO_PLUGIN_STYLES__?: Readonly<Record<string, string>>;
   }
 }

@@ -4,7 +4,7 @@ import type { MediaTarget, PlaybackSnapshot } from "./types";
 type TargetProvider = () => Promise<MediaTarget | null>;
 type Listener = (snapshot: PlaybackSnapshot | null) => void;
 type BridgeRequest = (
-  namespace: "reviews" | "timestamp-notes",
+  namespace: "reviews" | "timestamp-notes" | "plugins",
   operation: string,
   payload?: unknown,
   options?: { timeoutMs?: number },

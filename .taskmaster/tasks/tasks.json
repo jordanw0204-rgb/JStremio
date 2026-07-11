@@ -292,13 +292,25 @@
         "priority": "high",
         "subtasks": [],
         "updatedAt": "2026-07-11T07:30:41.373Z"
+      },
+      {
+        "id": "22",
+        "title": "Build local plugin platform and manager",
+        "description": "Add a Plugins sidebar manager, independently toggle built-in Reviews and Timestamp Notes, discover validated local user plugins, persist settings, and provide a plug-and-play plugin authoring workflow.",
+        "details": "Extend native manifest model with plugin metadata and source; merge packaged and per-user plugin directories with duplicate, traversal, and size defenses; add fixed plugins IPC for list, toggle, and open folder; inject a built-in manager; apply state changes on reload; document trusted-code risk and starter template; preserve safe mode and origin gating.",
+        "testStrategy": "Rust manifest, settings, bridge, origin, path, and duplicate tests; TypeScript manager tests; Playwright sidebar, toggle, persisted state, and error UX; safe-mode, build, and package verification.",
+        "status": "done",
+        "dependencies": [],
+        "priority": "high",
+        "subtasks": [],
+        "updatedAt": "2026-07-11T08:06:17.351Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-07-11T07:30:41.373Z",
-      "taskCount": 21,
-      "completedCount": 19,
+      "lastModified": "2026-07-11T08:06:17.351Z",
+      "taskCount": 22,
+      "completedCount": 20,
       "tags": [
         "master"
       ]

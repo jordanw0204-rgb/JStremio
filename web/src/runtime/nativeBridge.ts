@@ -3,6 +3,7 @@ import { isRecord, unwrapNativeEvent } from "./nativeEvents";
 const METHODS = {
   reviews: "jstremio-reviews",
   "timestamp-notes": "jstremio-timestamp-notes",
+  plugins: "jstremio-plugins",
 } as const;
 const MAX_REQUEST_BYTES = 60 * 1024;
 const DEFAULT_TIMEOUT_MS = 7_500;

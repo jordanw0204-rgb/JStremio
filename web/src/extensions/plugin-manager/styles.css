@@ -1,0 +1,28 @@
+.plugins-shell { min-height:100%; padding:clamp(20px,4vw,56px); background:radial-gradient(circle at 85% 0%,rgba(85,122,255,.2),transparent 36%),#0c101b; color:#f4f7ff; }
+.plugins-header { max-width:1200px; margin:0 auto 24px; display:flex; align-items:flex-start; justify-content:space-between; gap:20px; }
+.plugins-header h1 { margin:0 0 7px; font-size:clamp(28px,4vw,48px); }
+.plugins-header p { margin:0; color:#afb9d1; }
+.button { border:1px solid rgba(255,255,255,.17); border-radius:10px; background:#202a43; color:#fff; padding:9px 13px; cursor:pointer; }
+.button:hover,.button:focus-visible { border-color:#8ca7ff; background:#2b395c; }
+.icon-button { display:grid; place-items:center; width:42px; height:42px; border-radius:50%; padding:0; line-height:0; }
+.icon-button svg { display:block; }
+.warning,.restart,.status,.install-help { max-width:1200px; margin:0 auto 18px; padding:15px 17px; border:1px solid rgba(255,255,255,.13); border-radius:12px; background:rgba(255,255,255,.045); }
+.warning { display:grid; gap:4px; border-color:rgba(255,194,92,.38); background:rgba(126,79,0,.18); }
+.warning span,.install-help p { color:#c0c8d9; }
+.restart { border-color:rgba(114,224,212,.4); color:#8de8dc; }
+.toolbar { max-width:1200px; margin:0 auto 18px; display:flex; gap:10px; flex-wrap:wrap; }
+.plugin-grid { max-width:1200px; margin:0 auto 24px; display:grid; grid-template-columns:repeat(auto-fill,minmax(290px,1fr)); gap:14px; }
+.plugin-card { display:grid; align-content:start; gap:9px; min-height:210px; padding:17px; border:1px solid rgba(255,255,255,.13); border-radius:14px; background:#141b2d; }
+.plugin-card.invalid { border-color:rgba(255,116,132,.45); }
+.plugin-card p { margin:0; overflow-wrap:anywhere; }
+.plugin-heading { display:flex; align-items:start; justify-content:space-between; gap:12px; }
+.plugin-heading h2 { margin:0; font-size:19px; }
+.badges { border-radius:999px; padding:4px 8px; background:#293654; color:#bdcaff; font-size:11px; }
+.meta { color:#99a6c1; font-size:12px; min-height:1.3em; }
+.toggle-row { display:flex; align-items:center; gap:9px; margin-top:auto; cursor:pointer; }
+.toggle-row input { width:19px; height:19px; accent-color:#6788ff; }
+.toggle-row:has(input:disabled) { cursor:not-allowed; opacity:.65; }
+.install-help h2 { margin:0 0 9px; }
+.install-help ol { margin:0 0 10px; padding-left:22px; }
+.install-help code { color:#9fb4ff; }
+@media (max-width:650px) { .plugins-shell{padding:18px}.plugin-grid{grid-template-columns:1fr} }

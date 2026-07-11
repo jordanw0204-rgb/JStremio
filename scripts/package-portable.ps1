@@ -46,6 +46,8 @@ Copy-Item -LiteralPath (Join-Path $Root 'libmpv-2.dll'), (Join-Path $Root 'serve
 Get-ChildItem -File -LiteralPath (Join-Path $Root 'bin') | Copy-Item -Destination $Destination
 Copy-Item -Recurse -LiteralPath (Join-Path $Root 'resources') -Destination $Destination
 Copy-Item -LiteralPath (Join-Path $Root 'README.md'), (Join-Path $Root 'LICENSE.md'), (Join-Path $Root 'upstream.lock.json') -Destination $Destination
+Copy-Item -Recurse -LiteralPath (Join-Path $Root 'templates') -Destination $Destination
+Copy-Item -Recurse -LiteralPath (Join-Path $Root 'docs') -Destination $Destination
 
 $Files = Get-ChildItem -File -Recurse -LiteralPath $Destination | Sort-Object FullName
 $Manifest = [ordered]@{

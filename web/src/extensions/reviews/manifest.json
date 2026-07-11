@@ -6,5 +6,7 @@
   "entry": "index.js",
   "styles": "styles.css",
   "enabledByDefault": true,
-  "loadOrder": 100
+  "loadOrder": 100,
+  "description": "Private movie and episode ratings and reviews stored on this computer.",
+  "author": "JStremio"
 }

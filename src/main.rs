@@ -166,7 +166,13 @@ fn main() {
         println!("JStremio extensions disabled (safe mode)");
         None
     } else {
-        match ExtensionHost::load(&extensions_dir, &paths.data, &disabled_ids, origins) {
+        match ExtensionHost::load(
+            &extensions_dir,
+            &paths.plugins,
+            &paths.data,
+            &disabled_ids,
+            origins,
+        ) {
             Ok(host) => {
                 println!(
                     "JStremio {} loaded extensions: {}",

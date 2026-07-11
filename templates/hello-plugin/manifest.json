@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "hello-plugin",
+  "name": "Hello Plugin",
+  "version": "1.0.0",
+  "entry": "index.js",
+  "styles": "styles.css",
+  "enabledByDefault": false,
+  "loadOrder": 500,
+  "description": "A minimal local JStremio plugin starter.",
+  "author": "Your name"
+}

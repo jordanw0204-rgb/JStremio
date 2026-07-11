@@ -32,6 +32,11 @@ test.beforeEach(async ({ page }) => {
     const reviews: Array<Record<string, unknown>> = [];
     const notes: Array<Record<string, unknown>> = [];
     const commands: Array<unknown[]> = [];
+    const plugins = [
+      { id: "plugin-manager", name: "Plugins", version: "1.0.0", description: "Manage plugins", author: "JStremio", builtIn: true, enabled: true, core: true, error: null },
+      { id: "reviews", name: "Local Reviews", version: "1.1.0", description: "Private reviews", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
+      { id: "timestamp-notes", name: "Timestamp Notes", version: "1.3.0", description: "Playback notes", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
+    ];
     const shortcutKeys: string[] = [];
     let revision = 0;
     let thumbnailCounter = 0;
@@ -74,6 +79,15 @@ test.beforeEach(async ({ page }) => {
       if (!method.startsWith("jstremio-") || Array.isArray(params)) return;
       const operation = params.operation ?? "";
       const payload = params.payload ?? {};
+      if (method === "jstremio-plugins") {
+        if (operation === "list") return respond(method, request.id, plugins);
+        if (operation === "setEnabled") {
+          const plugin = plugins.find((item) => item.id === payload.id);
+          if (plugin) plugin.enabled = payload.enabled === true;
+          return respond(method, request.id, { enabled: payload.enabled, restartRequired: true });
+        }
+        return respond(method, request.id, { opened: true });
+      }
       if (method === "jstremio-reviews") {
         if (operation === "list") return respond(method, request.id, reviews);
         if (operation === "get") return respond(method, request.id, reviews.find((item) => item.id === payload.id) ?? null);
@@ -142,6 +156,7 @@ test.beforeEach(async ({ page }) => {
         reviews,
         notes,
         commands,
+        plugins,
         shortcutKeys,
         emitMpv: (name: string, data: unknown) => emit({ args: ["mpv-prop-change", { name, data }] }),
         emitShell: (name: string, data: unknown) => emit(JSON.stringify({ id: 0, type: 1, args: [name, data] })),
@@ -153,15 +168,26 @@ test.beforeEach(async ({ page }) => {
     document.addEventListener("keydown", (event) => shortcutKeys.push(event.key));
   });
   await page.addScriptTag({ path: resolve(built, "runtime.js") });
+  await page.addScriptTag({ path: resolve(built, "plugin-manager", "index.js") });
   await page.addScriptTag({ path: resolve(built, "reviews", "index.js") });
   await page.addScriptTag({ path: resolve(built, "timestamp-notes", "index.js") });
 });
 
 test("mounts each extension once and remounts after upstream replacement", async ({ page }) => {
+  await expect(page.locator('[data-jstremio-testid="plugin-manager-navigation"]')).toHaveCount(1);
   await expect(page.locator('[data-jstremio-testid="reviews-navigation"]')).toHaveCount(1);
   await expect(page.locator('[data-jstremio-testid="timestamp-notes-navigation"]')).toHaveCount(1);
   await expect(page.locator('[data-jstremio-testid="reviews-player-button"]')).toHaveCount(1);
   await expect(page.locator('[data-jstremio-testid="timestamp-notes-player-button"]')).toHaveCount(1);
+  const pluginNavigation = page.locator('[data-jstremio-testid="plugin-manager-navigation"]');
+  await expect(pluginNavigation).toHaveAttribute("title", "Plugins");
+  await pluginNavigation.click();
+  await expect(page.locator(".plugin-card")).toHaveCount(3);
+  await expect(page.getByLabel("Disable Plugins")).toBeDisabled();
+  await page.getByLabel("Disable Local Reviews").uncheck();
+  await expect(page.getByText("Plugin changes were saved. Fully restart JStremio to apply them.")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => (window as any).__fixture.plugins.find((plugin: any) => plugin.id === "reviews").enabled)).toBe(false);
+  await page.getByRole("button", { name: "Close Plugins" }).click();
   await expect(page.locator('[data-jstremio-testid="reviews-player-button"]')).toHaveClass(/control-bar-button_fixture/);
   await expect(page.locator('[data-jstremio-testid="reviews-player-button"]').locator("..")).toHaveAttribute("data-jstremio-control", "player-dock");
   const officialNavigation = page.locator('a[href="#/library"]');

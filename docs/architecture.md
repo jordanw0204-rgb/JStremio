@@ -11,15 +11,16 @@ JStremio WebView2 shell ---- bundled Stremio server
        +---- native MPV (existing Stremio messages)
        |
        +---- origin-gated runtime
+               |---- Plugin Manager --- plugins.json / user plugins
                |---- Local Reviews ---- reviews.json
                `---- Timestamp Notes -- timestamp-notes.json
 ```
 
 ## Native boundary
 
-`src/extensions` validates local schema-v1 manifests, rejects absolute/traversing/remote paths, applies file/count caps, sorts by load order and ID, and composes the runtime before feature bundles. Production reads only `resources/extensions` beside the executable. `--extensions-dir` and loopback CDP work only in debug builds. `--disable-extensions` constructs no extension host.
+`src/extensions` validates schema-v1 manifests, rejects absolute/traversing/remote paths, applies file/count caps, sorts by load order and ID, and composes the runtime before plugin bundles. Production combines built-ins from `resources/extensions` beside the executable with explicitly enabled user plugins under `%LOCALAPPDATA%\JStremio\plugins`. User plugins begin disabled, invalid folders are isolated, duplicate IDs cannot override built-ins, and settings changes apply after restart. `--extensions-dir` and loopback CDP work only in debug builds. `--disable-extensions` constructs no plugin host.
 
-Web messages retain Stremio's existing `{id,args}` envelope. Custom messages are handled only when the sender and current top-level document have the same approved HTTP(S) origin. Fixed namespaces expose only Reviews and Timestamp Notes operations. No generic path, command, network, key/value, or MPV bridge exists.
+Web messages retain Stremio's existing `{id,args}` envelope. Custom messages are handled only when the sender and current top-level document have the same approved HTTP(S) origin. Fixed namespaces expose Reviews, Timestamp Notes, and narrow plugin-manager operations. No generic path, command, key/value, or MPV bridge exists.
 
 The native updater trigger was removed. The app name, pipe, window settings directory, bundled-server cache/settings path, WebView2 profile, executable, installer AppId, and local data directory are JStremio-specific.
 

@@ -1,11 +1,14 @@
 # JStremio
 
-JStremio is a Windows desktop build based on the official `stremio-shell-ng`. It still loads `https://web.stremio.com/`, starts Stremio's bundled streaming server, and uses native MPV for playback. A small, origin-gated loader injects two trusted local extensions without rebuilding Stremio Web:
+JStremio is a Windows desktop build based on the official `stremio-shell-ng`. It still loads `https://web.stremio.com/`, starts Stremio's bundled streaming server, and uses native MPV for playback. An origin-gated plugin loader customizes the unchanged Stremio Web application:
 
 - **Local Reviews** — private 1–5 ratings and optional review text, organized into movie and TV-series collections.
 - **Timestamp Notes** — private notes organized by movie or TV series, captured at an on-demand playback position, with customizable marker colors, optional 1–5 ratings, replaceable native-video frame thumbnails with an enlarged viewer, clustering, and click-to-seek.
+- **Plugins** — manage built-in features and explicitly enable trusted local plugins installed under `%LOCALAPPDATA%\JStremio\plugins`.
 
 Both stores are human-readable JSON under `%LOCALAPPDATA%\JStremio\data`. Their content is not synchronized or sent to Stremio. JStremio has its own executable, WebView2 profile, IPC pipe, local data, portable package, installer AppId, and updater policy, so it can coexist with official Stremio.
+
+Local plugins are trusted JavaScript running inside Stremio's WebView. They can inspect or change the page, access JStremio's browser runtime and fixed bridges, and use browser networking. Install only reviewed code from authors you trust. JStremio 1.1 does not include a remote marketplace or automatic plugin downloads; newly discovered user plugins always start disabled.
 
 ## Build and run
 
@@ -45,6 +48,8 @@ Safe mode does not load the runtime or extension code and leaves the official UI
 - Reviews: `%LOCALAPPDATA%\JStremio\data\reviews.json`
 - Timestamp notes: `%LOCALAPPDATA%\JStremio\data\timestamp-notes.json`
 - Timestamp thumbnails: `%LOCALAPPDATA%\JStremio\data\timestamp-thumbnails`
+- Plugin enablement: `%LOCALAPPDATA%\JStremio\data\plugins.json`
+- User plugins: `%LOCALAPPDATA%\JStremio\plugins`
 - Backups: the matching `.bak` file after replacement
 - Bundled server cache/settings: `%LOCALAPPDATA%\JStremio\server`
 - WebView2 profile: `%LOCALAPPDATA%\JStremio\webview2`
@@ -55,7 +60,7 @@ Back up the JSON files while JStremio is closed. A malformed or unsupported file
 .\scripts\import-legacy-reviews.ps1 -Source D:\path\to\reviews.json
 ```
 
-See [installation and rollback](docs/installation.md), [data and privacy](docs/data-and-privacy.md), [testing](docs/testing.md), and [architecture](docs/architecture.md).
+See [plugin installation and development](docs/plugins.md), [installation and rollback](docs/installation.md), [data and privacy](docs/data-and-privacy.md), [testing](docs/testing.md), and [architecture](docs/architecture.md).
 
 ## Verification status
 

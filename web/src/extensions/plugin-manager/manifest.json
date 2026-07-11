@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "plugin-manager",
+  "name": "Plugins",
+  "version": "1.0.0",
+  "entry": "index.js",
+  "styles": "styles.css",
+  "enabledByDefault": true,
+  "loadOrder": 10,
+  "description": "Manage built-in and local JStremio plugins.",
+  "author": "JStremio",
+  "core": true
+}

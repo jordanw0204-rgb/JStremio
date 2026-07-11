@@ -19,3 +19,7 @@ Text is sent only through the local WebView2 host channel and written to the fix
 The WebView2 profile contains ordinary Stremio login/session data and should be protected like a browser profile. It is separate from official Stremio and is never included in portable packages.
 
 The bundled streaming server stores its cache and settings under `%LOCALAPPDATA%\JStremio\server`, separate from official Stremio's server state. Neither that directory nor the WebView2 profile is included in portable packages.
+
+## Local plugin trust boundary
+
+The privacy guarantees above apply to JStremio's built-in code. An enabled user plugin is trusted JavaScript executing in the same WebView as Stremio and the JStremio runtime. It can inspect page state, call browser networking, and invoke exposed fixed bridges, including reading locally stored review or note data. Review user-plugin source before enabling it. Safe mode prevents all plugin injection, and no remote marketplace or automatic downloader is included.

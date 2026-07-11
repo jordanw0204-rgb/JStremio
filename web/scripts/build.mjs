@@ -27,7 +27,7 @@ await build({
   outfile: resolve(outputRoot, "runtime.js"),
 });
 
-for (const id of ["reviews", "timestamp-notes"]) {
+for (const id of ["plugin-manager", "reviews", "timestamp-notes"]) {
   const source = resolve(webRoot, "src", "extensions", id);
   const output = resolve(outputRoot, id);
   await mkdir(output, { recursive: true });

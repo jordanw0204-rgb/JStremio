@@ -1,4 +1,5 @@
 use crate::{
+    extensions::{PluginDescriptor, PluginSettingsStore},
     reviews::{ReviewInput, ReviewStore},
     storage::StorageError,
     timestamp_notes::{CreateNoteInput, TimestampNoteStore, UpdateNoteInput},
@@ -9,15 +10,20 @@ use serde_json::{json, Value};
 use std::{
     fs,
     path::{Path, PathBuf},
+    sync::Mutex,
 };
 
 pub const REVIEWS_METHOD: &str = "jstremio-reviews";
 pub const TIMESTAMP_NOTES_METHOD: &str = "jstremio-timestamp-notes";
+pub const PLUGINS_METHOD: &str = "jstremio-plugins";
 
 pub struct NativeBridge {
     reviews: ReviewStore,
     notes: TimestampNoteStore,
     data_directory: PathBuf,
+    plugin_directory: PathBuf,
+    plugins: Mutex<Vec<PluginDescriptor>>,
+    plugin_settings: PluginSettingsStore,
 }
 
 #[derive(Debug, Deserialize)]
@@ -46,6 +52,13 @@ struct ThumbnailPayload {
     thumbnail_id: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SetPluginEnabledPayload {
+    id: String,
+    enabled: bool,
+}
+
 const MAX_THUMBNAIL_BYTES: u64 = 2 * 1024 * 1024;
 
 #[derive(Debug, Serialize)]
@@ -69,16 +82,31 @@ impl BridgeResponse {
 }
 
 impl NativeBridge {
+    #[cfg(test)]
     pub fn new(data_directory: &Path) -> Self {
+        Self::new_with_plugins(data_directory, &data_directory.join("plugins"), Vec::new())
+    }
+
+    pub fn new_with_plugins(
+        data_directory: &Path,
+        plugin_directory: &Path,
+        plugins: Vec<PluginDescriptor>,
+    ) -> Self {
         Self {
             reviews: ReviewStore::new(data_directory),
             notes: TimestampNoteStore::new(data_directory),
             data_directory: data_directory.to_path_buf(),
+            plugin_directory: plugin_directory.to_path_buf(),
+            plugins: Mutex::new(plugins),
+            plugin_settings: PluginSettingsStore::new(data_directory),
         }
     }
 
     pub fn supports(method: &str) -> bool {
-        matches!(method, REVIEWS_METHOD | TIMESTAMP_NOTES_METHOD)
+        matches!(
+            method,
+            REVIEWS_METHOD | TIMESTAMP_NOTES_METHOD | PLUGINS_METHOD
+        )
     }
 
     pub fn error(method: &str, request_id: u64, code: &str, message: &str) -> BridgeResponse {
@@ -101,6 +129,7 @@ impl NativeBridge {
         let result = match request {
             Ok(request) if method == REVIEWS_METHOD => self.handle_reviews(request),
             Ok(request) if method == TIMESTAMP_NOTES_METHOD => self.handle_notes(request),
+            Ok(request) if method == PLUGINS_METHOD => self.handle_plugins(request),
             Ok(_) => Err(validation_error("unsupported bridge namespace")),
             Err(error) => Err(error),
         };
@@ -244,6 +273,44 @@ impl NativeBridge {
         }
     }
 
+    fn handle_plugins(&self, request: BridgeRequest) -> Result<Value, ErrorPayload> {
+        match request.operation.as_str() {
+            "list" => self
+                .plugins
+                .lock()
+                .map(|plugins| json!(&*plugins))
+                .map_err(|_| validation_error("plugin state is unavailable")),
+            "setEnabled" => {
+                let payload: SetPluginEnabledPayload = parse_value(request.payload)?;
+                validate_lookup_id(&payload.id)?;
+                let mut plugins = self
+                    .plugins
+                    .lock()
+                    .map_err(|_| validation_error("plugin state is unavailable"))?;
+                let plugin = plugins
+                    .iter_mut()
+                    .find(|plugin| plugin.id == payload.id)
+                    .ok_or_else(|| validation_error("the plugin was not found"))?;
+                if plugin.core || plugin.error.is_some() {
+                    return Err(validation_error("this plugin cannot be toggled"));
+                }
+                self.plugin_settings
+                    .set_enabled(&payload.id, payload.enabled)
+                    .map_err(storage_error)?;
+                plugin.enabled = payload.enabled;
+                Ok(json!({ "enabled": payload.enabled, "restartRequired": true }))
+            }
+            "openPluginsFolder" => {
+                fs::create_dir_all(&self.plugin_directory)
+                    .map_err(|_| plugin_error("The plugins folder could not be created."))?;
+                open::that(&self.plugin_directory)
+                    .map_err(|_| plugin_error("The plugins folder could not be opened."))?;
+                Ok(json!({ "opened": true }))
+            }
+            _ => Err(operation_error()),
+        }
+    }
+
     fn open_data_folder(&self) -> Result<Value, ErrorPayload> {
         fs::create_dir_all(&self.data_directory).map_err(|_| ErrorPayload {
             code: "storage_io".into(),
@@ -327,6 +394,14 @@ fn thumbnail_error(message: &str) -> ErrorPayload {
     }
 }
 
+fn plugin_error(message: &str) -> ErrorPayload {
+    ErrorPayload {
+        code: "plugin_io".into(),
+        message: message.into(),
+        recoverable: true,
+    }
+}
+
 fn parse_value<T: DeserializeOwned>(value: Value) -> Result<T, ErrorPayload> {
     serde_json::from_value(value).map_err(|_| validation_error("the request payload is invalid"))
 }
@@ -387,7 +462,8 @@ fn response(method: &str, request_id: u64, result: Result<Value, ErrorPayload>) 
 
 #[cfg(test)]
 mod tests {
-    use super::{NativeBridge, REVIEWS_METHOD, TIMESTAMP_NOTES_METHOD};
+    use super::{NativeBridge, PLUGINS_METHOD, REVIEWS_METHOD, TIMESTAMP_NOTES_METHOD};
+    use crate::extensions::{PluginDescriptor, PluginSettingsStore};
     use serde_json::json;
     use tempfile::tempdir;
 
@@ -411,7 +487,47 @@ mod tests {
     fn namespaces_are_fixed() {
         assert!(NativeBridge::supports(REVIEWS_METHOD));
         assert!(NativeBridge::supports(TIMESTAMP_NOTES_METHOD));
+        assert!(NativeBridge::supports(PLUGINS_METHOD));
         assert!(!NativeBridge::supports("jstremio-filesystem"));
+    }
+
+    #[test]
+    fn plugin_toggles_are_fixed_persisted_operations() {
+        let directory = tempdir().unwrap();
+        let plugin_directory = directory.path().join("plugins");
+        let bridge = NativeBridge::new_with_plugins(
+            directory.path(),
+            &plugin_directory,
+            vec![PluginDescriptor {
+                id: "reviews".into(),
+                name: "Local Reviews".into(),
+                version: "1.0.0".into(),
+                description: "Private reviews".into(),
+                author: "JStremio".into(),
+                built_in: true,
+                enabled: true,
+                core: false,
+                error: None,
+            }],
+        );
+        let response = bridge
+            .handle(
+                PLUGINS_METHOD,
+                50,
+                Some(&json!({
+                    "operation": "setEnabled",
+                    "payload": { "id": "reviews", "enabled": false }
+                })),
+            )
+            .into_event();
+        assert_eq!(response[1]["result"]["restartRequired"], true);
+        assert_eq!(
+            PluginSettingsStore::new(directory.path())
+                .overrides()
+                .unwrap()
+                .get("reviews"),
+            Some(&false)
+        );
     }
 
     #[test]

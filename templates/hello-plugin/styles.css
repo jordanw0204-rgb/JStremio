@@ -1,0 +1,12 @@
+.hello-plugin-badge {
+  position: fixed;
+  right: 24px;
+  bottom: 90px;
+  z-index: 2147482000;
+  border: 1px solid rgba(255,255,255,.25);
+  border-radius: 10px;
+  background: #25345a;
+  color: white;
+  padding: 10px 14px;
+  cursor: pointer;
+}

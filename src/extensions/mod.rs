@@ -1,6 +1,8 @@
 mod manifest;
+mod settings;
 
-pub use manifest::{ExtensionLoader, ManifestError};
+pub use manifest::{ExtensionLoader, ManifestError, PluginDescriptor};
+pub use settings::PluginSettingsStore;
 
 use crate::bridge::{BridgeResponse, NativeBridge};
 use serde_json::Value;
@@ -53,13 +55,28 @@ pub struct ExtensionHost {
 impl ExtensionHost {
     pub fn load(
         extensions_directory: &Path,
+        user_plugins_directory: &Path,
         data_directory: &Path,
         disabled_ids: &HashSet<String>,
         origins: OriginPolicy,
     ) -> Result<Self, ManifestError> {
+        let overrides = PluginSettingsStore::new(data_directory)
+            .overrides()
+            .unwrap_or_default();
+        let loader = ExtensionLoader::load_with_user(
+            extensions_directory,
+            Some(user_plugins_directory),
+            disabled_ids,
+            &overrides,
+        )?;
+        let bridge = NativeBridge::new_with_plugins(
+            data_directory,
+            user_plugins_directory,
+            loader.plugins().to_vec(),
+        );
         Ok(Self {
-            loader: ExtensionLoader::load(extensions_directory, disabled_ids)?,
-            bridge: NativeBridge::new(data_directory),
+            loader,
+            bridge,
             origins,
         })
     }
