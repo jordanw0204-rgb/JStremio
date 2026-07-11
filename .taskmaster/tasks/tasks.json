@@ -256,13 +256,25 @@
         "priority": "high",
         "subtasks": [],
         "updatedAt": "2026-07-11T01:05:00.000Z"
+      },
+      {
+        "id": "19",
+        "title": "Pin timestamp popovers and add frame thumbnails",
+        "description": "Keep click-opened timestamp popovers anchored in place and add optional local frame screenshot capture with thumbnails in timestamp management and marker previews.",
+        "details": "Add an opt-in screenshot control to timestamp create/edit UI; capture the current native MPV frame through a narrow validated bridge operation; store image files locally without embedding large data in JSON; persist a safe thumbnail reference; render thumbnails in management cards and marker hover/click popovers; ensure pinned popovers no longer track pointer or get replaced; add cleanup and validation.",
+        "testStrategy": "Rust storage/IPC tests, TypeScript unit coverage, Playwright marker popover and thumbnail tests, full check script, release portable package.",
+        "status": "done",
+        "dependencies": [],
+        "priority": "high",
+        "subtasks": [],
+        "updatedAt": "2026-07-11T04:31:15.398Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-07-11T01:05:00.000Z",
-      "taskCount": 18,
-      "completedCount": 16,
+      "lastModified": "2026-07-11T04:31:15.398Z",
+      "taskCount": 19,
+      "completedCount": 17,
       "tags": [
         "master"
       ]

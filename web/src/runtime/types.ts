@@ -58,6 +58,7 @@ export type JStremioRuntime = {
     subscribe(listener: (snapshot: PlaybackSnapshot | null) => void): () => void;
     seekTo(positionMs: number): Promise<void>;
     setPaused(paused: boolean): Promise<void>;
+    captureFrame(): Promise<string>;
   }>;
   lifecycle: Readonly<{
     onReconcile(callback: () => void): () => void;

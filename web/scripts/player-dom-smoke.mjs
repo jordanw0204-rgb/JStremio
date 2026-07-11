@@ -86,6 +86,7 @@ await setTimestampDialogValues(page, {
   text: "real-player customization smoke",
   color: "#ff3366",
   rating: "4",
+  captureFrame: true,
 });
 const dialogTypingKeptPaused = await page.evaluate(() =>
   window.JStremio.player.getSnapshot()?.paused === true &&
@@ -102,7 +103,7 @@ const customizationPersisted = await page.evaluate(async () => {
   const customized = Array.isArray(notes)
     ? notes.find((note) => note && typeof note === "object" && note.color === "#FF3366" && note.rating === 4)
     : null;
-  return Boolean(customized);
+  return Boolean(customized && typeof customized.thumbnailId === "string");
 });
 const markerColorApplied = await marker.evaluate(
   (element) => element.style.getPropertyValue("--marker-color") === "#FF3366",
@@ -130,6 +131,8 @@ const clusterMarkerSmall = await clusterMarker.evaluate(
 );
 await clusterMarker.hover();
 await page.waitForSelector(".marker-popover");
+await page.waitForSelector('.marker-thumbnail[src^="data:image/jpeg;base64,"]', { timeout: 10_000 });
+const markerThumbnailVisible = true;
 const clusterHoverPicker = await page.evaluate(() => {
   const marker = document.querySelector(".jstremio-marker.cluster");
   const popover = document.querySelector(".marker-popover");
@@ -316,6 +319,7 @@ const result = await page.evaluate((verification) => {
     clusterMarkerSmall: verification.clusterMarkerSmall,
     clusterHoverPicker: verification.clusterHoverPicker,
     clickPopoverStayedSticky: verification.clickPopoverStayedSticky,
+    markerThumbnailVisible: verification.markerThumbnailVisible,
     dialogTypingKeptPaused: verification.dialogTypingKeptPaused,
     pausedFullscreenMarkerAligned: verification.pausedFullscreenMarkerAligned,
     outsideDismissed: verification.outsideDismissed,
@@ -333,6 +337,7 @@ const result = await page.evaluate((verification) => {
   clusterMarkerSmall,
   clusterHoverPicker,
   clickPopoverStayedSticky,
+  markerThumbnailVisible,
   dialogTypingKeptPaused,
   pausedFullscreenMarkerAligned,
   outsideDismissed,
@@ -419,6 +424,7 @@ const failures = [
   [result.customizationPersisted && result.markerColorApplied, "persisted marker color and rating"],
   [result.clusterMarkerSmall && result.clusterHoverPicker, "small clustered marker and hover picker"],
   [result.clickPopoverStayedSticky, "click-opened marker popover stays sticky"],
+  [result.markerThumbnailVisible, "captured frame thumbnail in marker popover"],
   [result.dialogTypingKeptPaused, "dialog typing isolated from Stremio shortcuts"],
   [result.pausedFullscreenMarkerAligned, "paused fullscreen marker alignment"],
   [result.outsideDismissed && result.closeButtonDismissed, "popover outside and close-button dismissal"],
@@ -437,11 +443,12 @@ async function setTimestampDialogValues(page, values) {
       await page.waitForFunction(() =>
         Boolean(document.querySelector('[data-jstremio-testid="overlay-host"]')?.shadowRoot?.querySelector("form.dialog")),
       undefined, { timeout: 5_000 });
-      await page.evaluate(({ text, color, rating }) => {
+      await page.evaluate(({ text, color, rating, captureFrame }) => {
         const root = document.querySelector('[data-jstremio-testid="overlay-host"]')?.shadowRoot;
         const textarea = root?.querySelector("textarea");
         const colorInput = root?.querySelector(".color-input");
         const ratingSelect = root?.querySelector(".rating-select");
+        const captureInput = root?.querySelector("[data-capture-frame]");
         if (!(textarea instanceof HTMLTextAreaElement)) throw new Error("Timestamp note textarea missing");
         textarea.value = text;
         textarea.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: text }));
@@ -453,6 +460,10 @@ async function setTimestampDialogValues(page, values) {
         if (typeof rating === "string" && ratingSelect instanceof HTMLSelectElement) {
           ratingSelect.value = rating;
           ratingSelect.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+        if (captureFrame === true && captureInput instanceof HTMLInputElement) {
+          captureInput.checked = true;
+          captureInput.dispatchEvent(new Event("change", { bubbles: true }));
         }
       }, values);
       await page.waitForFunction(

@@ -1,6 +1,6 @@
 [package]
 name = "jstremio"
-version = "1.0.7"
+version = "1.0.8"
 edition = "2018"
 
 [[bin]]
@@ -52,6 +52,7 @@ url = { version = "2", features = ["serde"] }
 uuid = { version = "1.19", features = ["v4"]}
 chrono = { version = "0.4.35", features = ["clock", "serde"] }
 thiserror = "2"
+base64 = "0.22"
 
 [build-dependencies]
 winres = "0.1"

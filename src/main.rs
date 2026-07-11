@@ -200,6 +200,7 @@ fn main() {
         dev_tools: opt.development || opt.dev_tools,
         start_hidden: opt.start_hidden,
         extension_host,
+        data_directory: paths.data,
         server,
         ..Default::default()
     })

@@ -3,6 +3,12 @@ import type { MediaTarget, PlaybackSnapshot } from "./types";
 
 type TargetProvider = () => Promise<MediaTarget | null>;
 type Listener = (snapshot: PlaybackSnapshot | null) => void;
+type BridgeRequest = (
+  namespace: "reviews" | "timestamp-notes",
+  operation: string,
+  payload?: unknown,
+  options?: { timeoutMs?: number },
+) => Promise<unknown>;
 
 export function parseMpvPropertyEvent(input: unknown): Partial<PlaybackSnapshot> | null {
   const nativeEvent = unwrapNativeEvent(input);
@@ -22,7 +28,7 @@ export function parseMpvPropertyEvent(input: unknown): Partial<PlaybackSnapshot>
   return null;
 }
 
-export function createPlayerAdapter(getTarget: TargetProvider) {
+export function createPlayerAdapter(getTarget: TargetProvider, bridgeRequest?: BridgeRequest) {
   let snapshot: PlaybackSnapshot | null = null;
   let mediaKey: string | null = null;
   let notifyScheduled = false;
@@ -71,6 +77,11 @@ export function createPlayerAdapter(getTarget: TargetProvider) {
     channel.postMessage(JSON.stringify({ id: commandId++, args: ["mpv-set-prop", [name, value]] }));
   };
 
+  const postCommand = (args: string[]) => {
+    if (!channel) throw new Error("The local MPV channel is unavailable.");
+    channel.postMessage(JSON.stringify({ id: commandId++, args: ["mpv-command", args] }));
+  };
+
   const seekTo = async (positionMs: number) => {
     const activation = (navigator as Navigator & { userActivation?: { isActive: boolean } }).userActivation;
     if (activation && !activation.isActive) throw new Error("Seeking requires a direct user action.");
@@ -90,6 +101,28 @@ export function createPlayerAdapter(getTarget: TargetProvider) {
     postProperty("pause", paused);
   };
 
+  const captureFrame = async () => {
+    const target = await getTarget();
+    if (!target || target.key !== mediaKey || !snapshot || !bridgeRequest) {
+      throw new Error("The active player cannot capture this frame.");
+    }
+    const prepared = await bridgeRequest("timestamp-notes", "prepareFrameCapture", {});
+    if (!isRecord(prepared) || typeof prepared.thumbnailId !== "string" || typeof prepared.path !== "string") {
+      throw new Error("The frame capture could not be prepared.");
+    }
+    postCommand(["screenshot-to-file", prepared.path, "video"]);
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      try {
+        await bridgeRequest("timestamp-notes", "completeFrameCapture", { thumbnailId: prepared.thumbnailId });
+        return prepared.thumbnailId;
+      } catch (error) {
+        if (attempt === 19) throw error;
+      }
+    }
+    throw new Error("The frame thumbnail was not created.");
+  };
+
   const subscribe = (listener: Listener) => {
     listeners.add(listener);
     listener(cloneSnapshot(snapshot));
@@ -107,6 +140,7 @@ export function createPlayerAdapter(getTarget: TargetProvider) {
       subscribe,
       seekTo,
       setPaused,
+      captureFrame,
     },
     setMediaKey,
     destroy,

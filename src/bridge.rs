@@ -3,6 +3,7 @@ use crate::{
     storage::StorageError,
     timestamp_notes::{CreateNoteInput, TimestampNoteStore, UpdateNoteInput},
 };
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
@@ -38,6 +39,14 @@ struct IdPayload {
 struct MediaKeyPayload {
     media_key: String,
 }
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ThumbnailPayload {
+    thumbnail_id: String,
+}
+
+const MAX_THUMBNAIL_BYTES: u64 = 2 * 1024 * 1024;
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -178,6 +187,7 @@ impl NativeBridge {
             }
             "create" => {
                 let input: CreateNoteInput = parse_value(request.payload)?;
+                self.validate_thumbnail_reference(input.thumbnail_id.as_deref())?;
                 self.notes
                     .create(input)
                     .map(|note| json!(note))
@@ -193,10 +203,27 @@ impl NativeBridge {
             "delete" => {
                 let payload: IdPayload = parse_value(request.payload)?;
                 validate_lookup_id(&payload.id)?;
-                self.notes
-                    .delete(&payload.id)
-                    .map(|deleted| json!({ "deleted": deleted }))
-                    .map_err(storage_error)
+                let thumbnail_id = self
+                    .notes
+                    .get(&payload.id)
+                    .map_err(storage_error)?
+                    .and_then(|note| note.thumbnail_id);
+                let result = self.notes.delete(&payload.id).map_err(storage_error)?;
+                if result {
+                    if let Some(id) = thumbnail_id {
+                        let _ = fs::remove_file(self.thumbnail_path(&id));
+                    }
+                }
+                Ok(json!({ "deleted": result }))
+            }
+            "prepareFrameCapture" => self.prepare_frame_capture(),
+            "completeFrameCapture" => {
+                let payload: ThumbnailPayload = parse_value(request.payload)?;
+                self.complete_frame_capture(&payload.thumbnail_id)
+            }
+            "getThumbnail" => {
+                let payload: ThumbnailPayload = parse_value(request.payload)?;
+                self.get_thumbnail(&payload.thumbnail_id)
             }
             "openDataFolder" => self.open_data_folder(),
             _ => Err(operation_error()),
@@ -215,6 +242,74 @@ impl NativeBridge {
             recoverable: true,
         })?;
         Ok(json!({ "opened": true }))
+    }
+
+    fn thumbnail_directory(&self) -> PathBuf {
+        self.data_directory.join("timestamp-thumbnails")
+    }
+
+    fn thumbnail_path(&self, id: &str) -> PathBuf {
+        self.thumbnail_directory().join(format!("{id}.jpg"))
+    }
+
+    fn validate_thumbnail_id(&self, id: &str) -> Result<(), ErrorPayload> {
+        uuid::Uuid::parse_str(id)
+            .map(|_| ())
+            .map_err(|_| validation_error("the thumbnail ID is invalid"))
+    }
+
+    fn validate_thumbnail_reference(&self, id: Option<&str>) -> Result<(), ErrorPayload> {
+        let Some(id) = id else {
+            return Ok(());
+        };
+        self.validate_thumbnail_id(id)?;
+        self.validate_thumbnail_file(&self.thumbnail_path(id))
+            .map(|_| ())
+    }
+
+    fn prepare_frame_capture(&self) -> Result<Value, ErrorPayload> {
+        let directory = self.thumbnail_directory();
+        fs::create_dir_all(&directory)
+            .map_err(|_| thumbnail_error("The thumbnail folder could not be created."))?;
+        let id = uuid::Uuid::new_v4().to_string();
+        let path = self.thumbnail_path(&id);
+        Ok(json!({ "thumbnailId": id, "path": path.to_string_lossy() }))
+    }
+
+    fn complete_frame_capture(&self, id: &str) -> Result<Value, ErrorPayload> {
+        self.validate_thumbnail_id(id)?;
+        self.validate_thumbnail_file(&self.thumbnail_path(id))?;
+        Ok(json!({ "thumbnailId": id, "ready": true }))
+    }
+
+    fn get_thumbnail(&self, id: &str) -> Result<Value, ErrorPayload> {
+        self.validate_thumbnail_id(id)?;
+        let bytes = self.validate_thumbnail_file(&self.thumbnail_path(id))?;
+        Ok(json!({ "dataUrl": format!("data:image/jpeg;base64,{}", STANDARD.encode(bytes)) }))
+    }
+
+    fn validate_thumbnail_file(&self, path: &Path) -> Result<Vec<u8>, ErrorPayload> {
+        let metadata =
+            fs::metadata(path).map_err(|_| thumbnail_error("The frame thumbnail is not ready."))?;
+        if metadata.len() == 0 || metadata.len() > MAX_THUMBNAIL_BYTES {
+            return Err(thumbnail_error("The frame thumbnail has an invalid size."));
+        }
+        let bytes = fs::read(path)
+            .map_err(|_| thumbnail_error("The frame thumbnail could not be read."))?;
+        if !bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
+            return Err(thumbnail_error(
+                "The captured frame is not a valid JPEG image.",
+            ));
+        }
+        Ok(bytes)
+    }
+}
+
+fn thumbnail_error(message: &str) -> ErrorPayload {
+    ErrorPayload {
+        code: "thumbnail_unavailable".into(),
+        message: message.into(),
+        recoverable: true,
     }
 }
 
@@ -303,5 +398,49 @@ mod tests {
         assert!(NativeBridge::supports(REVIEWS_METHOD));
         assert!(NativeBridge::supports(TIMESTAMP_NOTES_METHOD));
         assert!(!NativeBridge::supports("jstremio-filesystem"));
+    }
+
+    #[test]
+    fn frame_capture_uses_generated_local_jpeg_slots() {
+        let directory = tempdir().unwrap();
+        let bridge = NativeBridge::new(directory.path());
+        let prepared = bridge
+            .handle(
+                TIMESTAMP_NOTES_METHOD,
+                1,
+                Some(&json!({ "operation": "prepareFrameCapture", "payload": {} })),
+            )
+            .into_event();
+        let id = prepared[1]["result"]["thumbnailId"].as_str().unwrap();
+        let path = prepared[1]["result"]["path"].as_str().unwrap();
+        assert!(path.starts_with(directory.path().to_string_lossy().as_ref()));
+        std::fs::write(path, [0xFF, 0xD8, 0xFF, 0xD9]).unwrap();
+
+        let completed = bridge
+            .handle(
+                TIMESTAMP_NOTES_METHOD,
+                2,
+                Some(&json!({
+                    "operation": "completeFrameCapture",
+                    "payload": { "thumbnailId": id }
+                })),
+            )
+            .into_event();
+        assert_eq!(completed[1]["ok"], true);
+
+        let thumbnail = bridge
+            .handle(
+                TIMESTAMP_NOTES_METHOD,
+                3,
+                Some(&json!({
+                    "operation": "getThumbnail",
+                    "payload": { "thumbnailId": id }
+                })),
+            )
+            .into_event();
+        assert!(thumbnail[1]["result"]["dataUrl"]
+            .as_str()
+            .unwrap()
+            .starts_with("data:image/jpeg;base64,"));
     }
 }

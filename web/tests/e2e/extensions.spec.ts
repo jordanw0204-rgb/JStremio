@@ -66,6 +66,10 @@ test.beforeEach(async ({ page }) => {
         queueMicrotask(() => emit({ args: ["mpv-prop-change", { name, data: value }] }));
         return;
       }
+      if (method === "mpv-command") {
+        commands.push(params as unknown[]);
+        return;
+      }
       if (!method.startsWith("jstremio-") || Array.isArray(params)) return;
       const operation = params.operation ?? "";
       const payload = params.payload ?? {};
@@ -91,6 +95,12 @@ test.beforeEach(async ({ page }) => {
       }
       if (operation === "listAll") return respond(method, request.id, notes);
       if (operation === "listForMedia") return respond(method, request.id, notes.filter((item) => item.mediaKey === payload.mediaKey));
+      if (operation === "prepareFrameCapture") return respond(method, request.id, {
+        thumbnailId: "11111111-1111-4111-8111-111111111111",
+        path: "C:\\fixture\\11111111-1111-4111-8111-111111111111.jpg",
+      });
+      if (operation === "completeFrameCapture") return respond(method, request.id, { thumbnailId: payload.thumbnailId, ready: true });
+      if (operation === "getThumbnail") return respond(method, request.id, { dataUrl: "data:image/jpeg;base64,/9j/2Q==" });
       if (operation === "get") return respond(method, request.id, notes.find((item) => item.id === payload.id) ?? null);
       if (operation === "create") {
         const now = new Date().toISOString();
@@ -232,12 +242,15 @@ test("captures, pauses conditionally, clusters markers, and seeks without blocki
   await expect.poll(() => page.evaluate(() => (window as any).__fixture.shortcutKeys)).toEqual([]);
   await page.getByLabel("Marker color").fill("#ff3366");
   await page.getByLabel("Rating (optional)").selectOption("5");
+  await page.getByLabel("Save a thumbnail of this video frame").check();
   await page.getByRole("button", { name: "Save" }).click();
   await expect.poll(() => page.evaluate(() => (window as any).__fixture.notes.length)).toBe(1);
   await expect.poll(() => page.evaluate(() => ({
     color: (window as any).__fixture.notes[0].color,
     rating: (window as any).__fixture.notes[0].rating,
-  }))).toEqual({ color: "#FF3366", rating: 5 });
+    thumbnailId: (window as any).__fixture.notes[0].thumbnailId,
+  }))).toEqual({ color: "#FF3366", rating: 5, thumbnailId: "11111111-1111-4111-8111-111111111111" });
+  await expect.poll(() => page.evaluate(() => JSON.stringify((window as any).__fixture.commands))).toContain("screenshot-to-file");
 
   await emitPlayback(page, 12.7, 100, false);
   await addButton.click();
@@ -259,6 +272,7 @@ test("captures, pauses conditionally, clusters markers, and seeks without blocki
   await marker.hover();
   await expect(page.locator(".marker-popover")).toHaveCount(1);
   await expect(page.locator(".marker-note")).toHaveCount(2);
+  await expect(page.locator(".marker-thumbnail")).toHaveCount(1);
   await expect.poll(() =>
     marker.evaluate((element) => getComputedStyle(element, "::before").transform),
   ).not.toBe("none");
@@ -302,6 +316,9 @@ test("captures, pauses conditionally, clusters markers, and seeks without blocki
   await marker.click();
   await expect(page.locator(".marker-popover")).toHaveCount(1);
   await expect(page.locator(".marker-popover")).toHaveAttribute("data-sticky", "true");
+  const pinnedPosition = await page.locator(".marker-popover").boundingBox();
+  await page.mouse.move(700, 300);
+  expect(await page.locator(".marker-popover").boundingBox()).toEqual(pinnedPosition);
   await marker.hover();
   await expect(page.locator(".marker-popover")).toHaveAttribute("data-sticky", "true");
   await page.mouse.click(5, 5);
@@ -349,6 +366,10 @@ test("captures, pauses conditionally, clusters markers, and seeks without blocki
   await expect(page.locator(".marker-popover")).toHaveCount(1);
   await expect(page.locator(".marker-note")).toHaveCount(1);
   await expect(page.locator(".marker-popover")).toHaveAttribute("data-sticky", "false");
+
+  await page.mouse.click(5, 5);
+  await page.locator('[data-jstremio-testid="timestamp-notes-navigation"]').click();
+  await expect(page.locator(".note-thumbnail")).toHaveCount(1);
 
   const pauseCommands = await page.evaluate(() =>
     (window as any).__fixture.commands.filter((command: unknown[]) => command[0] === "pause"),

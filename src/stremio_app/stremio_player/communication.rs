@@ -246,6 +246,7 @@ pub enum PropVal {
 #[serde(untagged)]
 pub enum MpvCmd {
     Loadfile,
+    ScreenshotToFile,
     Stop,
 }
 stringable!(MpvCmd);

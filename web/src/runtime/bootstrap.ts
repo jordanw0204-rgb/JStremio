@@ -15,7 +15,7 @@ function bootstrap() {
   const bridge = createNativeBridge();
   const lifecycle = createLifecycle();
   const overlays = createOverlayHost();
-  const player = createPlayerAdapter(getCurrentMediaTarget);
+  const player = createPlayerAdapter(getCurrentMediaTarget, bridge.request);
   const cleanups = new Map<string, () => void>();
   const registered = new Set<string>();
   let reconcileGeneration = 0;

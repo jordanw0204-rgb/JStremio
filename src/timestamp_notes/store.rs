@@ -54,6 +54,7 @@ impl TimestampNoteStore {
                 text: input.text.trim().to_string(),
                 color: input.color.map(|value| value.to_ascii_uppercase()),
                 rating: input.rating,
+                thumbnail_id: input.thumbnail_id,
                 created_at: now.clone(),
                 updated_at: now,
             };
@@ -136,6 +137,7 @@ mod tests {
             text: " note ".into(),
             color: Some("#56e0cf".into()),
             rating: Some(4),
+            thumbnail_id: None,
         }
     }
 

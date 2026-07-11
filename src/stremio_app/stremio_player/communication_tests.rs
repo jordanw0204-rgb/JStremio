@@ -223,3 +223,29 @@ fn command_loadfile_tokens() {
         ],
     );
 }
+#[test]
+fn command_screenshot_to_file_tokens() {
+    assert_tokens(
+        &InMsg(
+            InMsgFn::MpvCommand,
+            InMsgArgs::Cmd(CmdVal::Tripple(
+                MpvCmd::ScreenshotToFile,
+                "C:\\JStremio\\frame.jpg".to_string(),
+                "video".to_string(),
+            )),
+        ),
+        &[
+            Token::TupleStruct {
+                name: "InMsg",
+                len: 2,
+            },
+            Token::Str("mpv-command"),
+            Token::Tuple { len: 3 },
+            Token::Str("screenshot-to-file"),
+            Token::Str("C:\\JStremio\\frame.jpg"),
+            Token::Str("video"),
+            Token::TupleEnd,
+            Token::TupleStructEnd,
+        ],
+    );
+}

@@ -5,7 +5,7 @@ use std::{
     cell::RefCell,
     io::Read,
     os::windows::process::CommandExt,
-    path::Path,
+    path::{Path, PathBuf},
     process::Command,
     str,
     sync::{Arc, Mutex},
@@ -44,6 +44,7 @@ pub struct MainWindow {
     pub dev_tools: bool,
     pub start_hidden: bool,
     pub extension_host: Option<Arc<ExtensionHost>>,
+    pub data_directory: PathBuf,
     pub requested_fullscreen: Arc<Mutex<Option<bool>>>,
     pub saved_window_style: RefCell<WindowStyle>,
     #[nwg_resource]
@@ -216,6 +217,7 @@ impl MainWindow {
         let discord_rpc = DiscordRpc::new(web_tx.clone());
         let requested_fullscreen = self.requested_fullscreen.clone();
         let extension_host = self.extension_host.clone();
+        let data_directory = self.data_directory.clone();
 
         thread::spawn(move || loop {
             if let Ok(web_message) = web_rx.recv() {
@@ -383,6 +385,18 @@ impl MainWindow {
                         }
                     }
                     Some(player_command) if player_command.starts_with("mpv-") => {
+                        if player_command == "mpv-command"
+                            && msg
+                                .get_params()
+                                .and_then(|params| params.as_array())
+                                .and_then(|params| params.first())
+                                .and_then(|command| command.as_str())
+                                == Some("screenshot-to-file")
+                            && !allowed_screenshot_command(msg.get_params(), &data_directory)
+                        {
+                            eprintln!("Rejected screenshot command outside the prepared thumbnail directory");
+                            continue;
+                        }
                         let resp_json = serde_json::to_string(
                             &msg.args.expect("Cannot have method without args"),
                         )
@@ -501,5 +515,66 @@ impl MainWindow {
     fn on_exit(&self) {
         self.save_window_settings();
         nwg::stop_thread_dispatch();
+    }
+}
+
+fn allowed_screenshot_command(params: Option<&serde_json::Value>, data_directory: &Path) -> bool {
+    let Some(values) = params.and_then(|value| value.as_array()) else {
+        return false;
+    };
+    if values.len() != 3
+        || values.first().and_then(|value| value.as_str()) != Some("screenshot-to-file")
+        || values.get(2).and_then(|value| value.as_str()) != Some("video")
+    {
+        return false;
+    }
+    let Some(path) = values
+        .get(1)
+        .and_then(|value| value.as_str())
+        .map(Path::new)
+    else {
+        return false;
+    };
+    let Some(file_name) = path.file_name().and_then(|value| value.to_str()) else {
+        return false;
+    };
+    let Some(id) = file_name.strip_suffix(".jpg") else {
+        return false;
+    };
+    if uuid::Uuid::parse_str(id).is_err() {
+        return false;
+    }
+    let expected = data_directory.join("timestamp-thumbnails");
+    path.parent()
+        .and_then(|parent| parent.canonicalize().ok())
+        .zip(expected.canonicalize().ok())
+        .is_some_and(|(parent, expected)| parent == expected)
+}
+
+#[cfg(test)]
+mod frame_capture_tests {
+    use super::allowed_screenshot_command;
+    use serde_json::json;
+    use std::fs;
+    use tempfile::tempdir;
+
+    #[test]
+    fn screenshot_command_is_limited_to_generated_thumbnail_paths() {
+        let root = tempdir().unwrap();
+        let thumbnails = root.path().join("timestamp-thumbnails");
+        fs::create_dir_all(&thumbnails).unwrap();
+        let allowed = thumbnails.join("11111111-1111-4111-8111-111111111111.jpg");
+        assert!(allowed_screenshot_command(
+            Some(&json!(["screenshot-to-file", allowed, "video"])),
+            root.path(),
+        ));
+        assert!(!allowed_screenshot_command(
+            Some(&json!([
+                "screenshot-to-file",
+                "C:\\Windows\\outside.jpg",
+                "video"
+            ])),
+            root.path(),
+        ));
     }
 }

@@ -25,6 +25,8 @@ pub struct TimestampNote {
     pub color: Option<String>,
     #[serde(default)]
     pub rating: Option<u8>,
+    #[serde(default)]
+    pub thumbnail_id: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -43,6 +45,7 @@ impl TimestampNote {
         }
         validate_note_values(self.timestamp_ms, self.duration_ms_at_creation, &self.text)?;
         validate_customization(self.color.as_deref(), self.rating)?;
+        validate_thumbnail_id(self.thumbnail_id.as_deref())?;
         validate_timestamp("createdAt", &self.created_at)?;
         validate_timestamp("updatedAt", &self.updated_at)?;
         Ok(())
@@ -61,13 +64,16 @@ pub struct CreateNoteInput {
     pub color: Option<String>,
     #[serde(default)]
     pub rating: Option<u8>,
+    #[serde(default)]
+    pub thumbnail_id: Option<String>,
 }
 
 impl CreateNoteInput {
     pub fn validate(&self) -> Result<(), StorageError> {
         self.media.validate()?;
         validate_note_values(self.timestamp_ms, self.duration_ms_at_creation, &self.text)?;
-        validate_customization(self.color.as_deref(), self.rating)
+        validate_customization(self.color.as_deref(), self.rating)?;
+        validate_thumbnail_id(self.thumbnail_id.as_deref())
     }
 }
 
@@ -186,6 +192,13 @@ fn validate_customization(color: Option<&str>, rating: Option<u8>) -> Result<(),
     Ok(())
 }
 
+fn validate_thumbnail_id(value: Option<&str>) -> Result<(), StorageError> {
+    if value.is_some_and(|id| Uuid::parse_str(id).is_err()) {
+        return Err(StorageError::invalid("thumbnailId", "must be a UUID"));
+    }
+    Ok(())
+}
+
 fn validate_timestamp(field: &'static str, value: &str) -> Result<(), StorageError> {
     DateTime::parse_from_rfc3339(value)
         .map(|_| ())
@@ -217,12 +230,14 @@ mod tests {
             text: "Legacy note".into(),
             color: None,
             rating: None,
+            thumbnail_id: None,
             created_at: "2026-07-10T00:00:00.000Z".into(),
             updated_at: "2026-07-10T00:00:00.000Z".into(),
         };
         let mut value = serde_json::to_value(note).unwrap();
         value.as_object_mut().unwrap().remove("color");
         value.as_object_mut().unwrap().remove("rating");
+        value.as_object_mut().unwrap().remove("thumbnailId");
         let decoded: TimestampNote = serde_json::from_value(value).unwrap();
         assert_eq!(decoded.color, None);
         assert_eq!(decoded.rating, None);
