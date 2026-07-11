@@ -1,0 +1,7 @@
+[data-jstremio-last-played-card]{position:absolute;left:10px;right:10px;bottom:54px;z-index:8;display:flex;justify-content:center;opacity:0;transform:translateY(5px);transition:opacity .15s ease,transform .15s ease;pointer-events:none}
+[data-jstremio-last-played-host]:hover [data-jstremio-last-played-card],[data-jstremio-last-played-host]:focus-within [data-jstremio-last-played-card]{opacity:1;transform:none;pointer-events:auto}
+.jstremio-last-played-button{border:1px solid rgba(142,230,220,.75);border-radius:9px;background:rgba(10,24,33,.94);color:#fff;padding:9px 12px;font:600 13px/1.1 Inter,"Segoe UI",sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.48);cursor:pointer}
+.jstremio-last-played-button:hover,.jstremio-last-played-button:focus-visible{background:#174a50;border-color:#8ee6dc;outline:2px solid rgba(142,230,220,.35)}
+[data-jstremio-last-played-resume]{display:block;width:calc(100% - 16px);margin:8px;padding:12px 14px;text-align:left}
+[data-jstremio-last-played-badge]{display:inline-flex;align-items:center;margin:6px 8px;padding:4px 7px;border-radius:999px;background:#a72532;color:#fff;font:700 11px/1 Inter,"Segoe UI",sans-serif;box-shadow:0 2px 9px rgba(0,0,0,.4)}
+@media (prefers-reduced-motion:reduce){[data-jstremio-last-played-card]{transition:none}}

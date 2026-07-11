@@ -43,7 +43,7 @@ export type JStremioRuntime = {
   ): void;
   bridge: Readonly<{
     request(
-      namespace: "reviews" | "timestamp-notes" | "plugins",
+      namespace: "reviews" | "timestamp-notes" | "plugins" | "last-played",
       operation: string,
       payload?: unknown,
       options?: { timeoutMs?: number },

@@ -15,6 +15,7 @@ use native_windows_gui::{self as nwg, NativeUi};
 mod app_paths;
 mod bridge;
 mod extensions;
+mod last_played;
 mod media;
 mod reviews;
 mod storage;
@@ -71,6 +72,8 @@ struct Opt {
         help = "Secret key for communication with the server. By default it is randomly generrated on startup"
     )]
     server_ipc_key: String,
+    #[clap(long, hide = true)]
+    restart_after_pid: Option<u32>,
 }
 
 fn main() {
@@ -86,6 +89,10 @@ fn main() {
     nwg::enable_visual_styles();
 
     let opt = Opt::parse();
+
+    if let Some(pid) = opt.restart_after_pid {
+        wait_for_process_exit(pid);
+    }
 
     std::env::set_var(
         SERVER_IPC_KEY,
@@ -214,6 +221,24 @@ fn main() {
     println!("JStremio main window initialized");
     nwg::dispatch_thread_events();
 }
+
+#[cfg(windows)]
+fn wait_for_process_exit(pid: u32) {
+    use winapi::um::{
+        handleapi::CloseHandle, processthreadsapi::OpenProcess, synchapi::WaitForSingleObject,
+        winbase::INFINITE, winnt::SYNCHRONIZE,
+    };
+    unsafe {
+        let process = OpenProcess(SYNCHRONIZE, 0, pid);
+        if !process.is_null() {
+            WaitForSingleObject(process, INFINITE);
+            CloseHandle(process);
+        }
+    }
+}
+
+#[cfg(not(windows))]
+fn wait_for_process_exit(_pid: u32) {}
 
 fn packaged_extensions_directory() -> PathBuf {
     std::env::current_exe()

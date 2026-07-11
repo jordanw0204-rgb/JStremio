@@ -36,12 +36,15 @@ test.beforeEach(async ({ page }) => {
       { id: "plugin-manager", name: "Plugins", version: "1.0.0", description: "Manage plugins", author: "JStremio", builtIn: true, enabled: true, core: true, error: null },
       { id: "reviews", name: "Local Reviews", version: "1.1.0", description: "Private reviews", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
       { id: "timestamp-notes", name: "Timestamp Notes", version: "1.3.0", description: "Playback notes", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
+      { id: "last-played", name: "LastPlayed", version: "1.0.0", description: "Exact stream resume", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
     ];
     const shortcutKeys: string[] = [];
+    const lastPlayed: Array<Record<string, unknown>> = [];
     let revision = 0;
     let thumbnailCounter = 0;
     const state = {
-      selected: { streamRequest: { path: { id: "tt123" } } },
+      selected: { streamRequest: { path: { id: "tt123" } }, stream: { name: "Fixture 1080p", description: "MediaFusion fixture", infoHash: "ABC123", fileIdx: 2, deepLinks: { player: "#/player/stream/exact-fixture" } } },
+      addon: { manifest: { name: "MediaFusion" } },
       metaItem: { content: { id: "tt123", type: "movie", name: "Fixture Movie", videos: [] } },
       title: "Fixture Movie",
     };
@@ -108,6 +111,17 @@ test.beforeEach(async ({ page }) => {
         }
         return respond(method, request.id, { status: "ok", revision });
       }
+      if (method === "jstremio-last-played") {
+        if (operation === "list") return respond(method, request.id, lastPlayed);
+        if (operation === "get") return respond(method, request.id, lastPlayed.find((item) => item.id === payload.id) ?? null);
+        if (operation === "upsert") {
+          const id = `${payload.mediaType}:${payload.videoId}`;
+          const entry = { ...payload, id, key:id, updatedAt:new Date().toISOString() };
+          const existing = lastPlayed.find((item) => item.id === id);
+          if (existing) Object.assign(existing,entry); else lastPlayed.push(entry);
+          return respond(method,request.id,entry);
+        }
+      }
       if (operation === "listAll") return respond(method, request.id, notes);
       if (operation === "listForMedia") return respond(method, request.id, notes.filter((item) => item.mediaKey === payload.mediaKey));
       if (operation === "prepareFrameCapture") {
@@ -158,6 +172,8 @@ test.beforeEach(async ({ page }) => {
         commands,
         plugins,
         shortcutKeys,
+        lastPlayed,
+        state,
         emitMpv: (name: string, data: unknown) => emit({ args: ["mpv-prop-change", { name, data }] }),
         emitShell: (name: string, data: unknown) => emit(JSON.stringify({ id: 0, type: 1, args: [name, data] })),
       },
@@ -171,6 +187,7 @@ test.beforeEach(async ({ page }) => {
   await page.addScriptTag({ path: resolve(built, "plugin-manager", "index.js") });
   await page.addScriptTag({ path: resolve(built, "reviews", "index.js") });
   await page.addScriptTag({ path: resolve(built, "timestamp-notes", "index.js") });
+  await page.addScriptTag({ path: resolve(built, "last-played", "index.js") });
 });
 
 test("mounts each extension once and remounts after upstream replacement", async ({ page }) => {
@@ -182,10 +199,11 @@ test("mounts each extension once and remounts after upstream replacement", async
   const pluginNavigation = page.locator('[data-jstremio-testid="plugin-manager-navigation"]');
   await expect(pluginNavigation).toHaveAttribute("title", "Plugins");
   await pluginNavigation.click();
-  await expect(page.locator(".plugin-card")).toHaveCount(3);
+  await expect(page.locator(".plugin-card")).toHaveCount(4);
   await expect(page.getByLabel("Disable Plugins")).toBeDisabled();
   await page.getByLabel("Disable Local Reviews").uncheck();
   await expect(page.getByText("Plugin changes were saved. Fully restart JStremio to apply them.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Restart JStremio" })).toBeVisible();
   await expect.poll(() => page.evaluate(() => (window as any).__fixture.plugins.find((plugin: any) => plugin.id === "reviews").enabled)).toBe(false);
   await page.getByRole("button", { name: "Close Plugins" }).click();
   await expect(page.locator('[data-jstremio-testid="reviews-player-button"]')).toHaveClass(/control-bar-button_fixture/);
@@ -242,6 +260,25 @@ test("mounts each extension once and remounts after upstream replacement", async
   });
   await expect(page.locator('[data-jstremio-testid="reviews-player-button"]')).toHaveCount(1);
   await expect(page.locator('[data-jstremio-testid="timestamp-notes-player-button"]')).toHaveCount(1);
+});
+
+test("LastPlayed resumes and promotes the exact previously selected stream", async ({ page }) => {
+  await expect.poll(() => page.evaluate(() => (window as any).__fixture.lastPlayed.length)).toBe(1);
+  await page.evaluate(() => {
+    location.hash="#/";
+    document.querySelector("main")!.insertAdjacentHTML("afterbegin", `
+      <section><h2>Continue watching</h2><article class="continue-card"><a href="#/detail/movie/tt123/tt123"><img alt="Fixture Movie"></a></article></section>
+      <aside class="streams-panel"><div class="streams-list">
+        <div class="stream-row"><a href="#/player/stream/other">Other stream</a></div>
+        <div class="stream-row exact"><a href="#/player/stream/exact-fixture">MediaFusion fixture</a></div>
+      </div></aside>`);
+  });
+  await expect(page.getByRole("button", { name: /Resume last played Fixture Movie/ })).toBeVisible();
+  await expect(page.locator("[data-jstremio-last-played-badge]")).toHaveText("Last played");
+  await expect(page.locator(".streams-list > :first-child")).toHaveClass(/exact/);
+  await expect(page.locator("[data-jstremio-last-played-resume]")).toContainText("MediaFusion");
+  await page.locator("[data-jstremio-last-played-resume]").click();
+  await expect.poll(() => page.evaluate(() => location.hash)).toBe("#/player/stream/exact-fixture");
 });
 
 test("creates and manages a private review without network leakage", async ({ page }) => {

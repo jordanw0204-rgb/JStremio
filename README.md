@@ -5,6 +5,7 @@ JStremio is a Windows desktop build based on the official `stremio-shell-ng`. It
 - **Local Reviews** — private 1–5 ratings and optional review text, organized into movie and TV-series collections.
 - **Timestamp Notes** — private notes organized by movie or TV series, captured at an on-demand playback position, with customizable marker colors, optional 1–5 ratings, replaceable native-video frame thumbnails with an enlarged viewer, clustering, and click-to-seek.
 - **Plugins** — manage built-in features and explicitly enable trusted local plugins installed under `%LOCALAPPDATA%\JStremio\plugins`.
+- **LastPlayed** — resume the exact previously selected add-on stream from Continue Watching or the episode stream list, with the matching source promoted and labeled.
 
 Both stores are human-readable JSON under `%LOCALAPPDATA%\JStremio\data`. Their content is not synchronized or sent to Stremio. JStremio has its own executable, WebView2 profile, IPC pipe, local data, portable package, installer AppId, and updater policy, so it can coexist with official Stremio.
 
@@ -49,6 +50,7 @@ Safe mode does not load the runtime or extension code and leaves the official UI
 - Timestamp notes: `%LOCALAPPDATA%\JStremio\data\timestamp-notes.json`
 - Timestamp thumbnails: `%LOCALAPPDATA%\JStremio\data\timestamp-thumbnails`
 - Plugin enablement: `%LOCALAPPDATA%\JStremio\data\plugins.json`
+- Last played streams: `%LOCALAPPDATA%\JStremio\data\last-played.json`
 - User plugins: `%LOCALAPPDATA%\JStremio\plugins`
 - Backups: the matching `.bak` file after replacement
 - Bundled server cache/settings: `%LOCALAPPDATA%\JStremio\server`

@@ -4,6 +4,7 @@ const METHODS = {
   reviews: "jstremio-reviews",
   "timestamp-notes": "jstremio-timestamp-notes",
   plugins: "jstremio-plugins",
+  "last-played": "jstremio-last-played",
 } as const;
 const MAX_REQUEST_BYTES = 60 * 1024;
 const DEFAULT_TIMEOUT_MS = 7_500;

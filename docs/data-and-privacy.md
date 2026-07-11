@@ -6,6 +6,8 @@ Reviews use `reviews.json`; timestamp notes use `timestamp-notes.json`. Both doc
 
 Review text is optional and limited to 5,000 Unicode characters. Timestamp-note text is required after trimming and has the same limit. Marker colors must use six-digit hexadecimal notation and ratings, when present, must be integers from 1 through 5. Native validation repeats every browser-side check.
 
+LastPlayed uses `last-played.json`. It stores the selected video's metadata, playback position, add-on label, stream fingerprint, and official Stremio player deep link. A deep link can contain a direct-stream URL or torrent identity supplied by an installed add-on. It remains local and is used only to reopen the exact source through Stremio's normal player route.
+
 ## File safety
 
 Each store owns a mutex. A mutation reads and validates the primary file, writes a UUID-named temporary file in the same directory, flushes it, creates a known-good `.bak` from the previous validated primary, and uses Windows `ReplaceFileW` with write-through semantics. The first write uses a same-volume rename. Abandoned temp files are ignored.

@@ -1,5 +1,6 @@
 use crate::{
     extensions::{PluginDescriptor, PluginSettingsStore},
+    last_played::{LastPlayedInput, LastPlayedStore},
     reviews::{ReviewInput, ReviewStore},
     storage::StorageError,
     timestamp_notes::{CreateNoteInput, TimestampNoteStore, UpdateNoteInput},
@@ -16,6 +17,7 @@ use std::{
 pub const REVIEWS_METHOD: &str = "jstremio-reviews";
 pub const TIMESTAMP_NOTES_METHOD: &str = "jstremio-timestamp-notes";
 pub const PLUGINS_METHOD: &str = "jstremio-plugins";
+pub const LAST_PLAYED_METHOD: &str = "jstremio-last-played";
 
 pub struct NativeBridge {
     reviews: ReviewStore,
@@ -24,6 +26,7 @@ pub struct NativeBridge {
     plugin_directory: PathBuf,
     plugins: Mutex<Vec<PluginDescriptor>>,
     plugin_settings: PluginSettingsStore,
+    last_played: LastPlayedStore,
 }
 
 #[derive(Debug, Deserialize)]
@@ -99,13 +102,14 @@ impl NativeBridge {
             plugin_directory: plugin_directory.to_path_buf(),
             plugins: Mutex::new(plugins),
             plugin_settings: PluginSettingsStore::new(data_directory),
+            last_played: LastPlayedStore::new(data_directory),
         }
     }
 
     pub fn supports(method: &str) -> bool {
         matches!(
             method,
-            REVIEWS_METHOD | TIMESTAMP_NOTES_METHOD | PLUGINS_METHOD
+            REVIEWS_METHOD | TIMESTAMP_NOTES_METHOD | PLUGINS_METHOD | LAST_PLAYED_METHOD
         )
     }
 
@@ -130,6 +134,7 @@ impl NativeBridge {
             Ok(request) if method == REVIEWS_METHOD => self.handle_reviews(request),
             Ok(request) if method == TIMESTAMP_NOTES_METHOD => self.handle_notes(request),
             Ok(request) if method == PLUGINS_METHOD => self.handle_plugins(request),
+            Ok(request) if method == LAST_PLAYED_METHOD => self.handle_last_played(request),
             Ok(_) => Err(validation_error("unsupported bridge namespace")),
             Err(error) => Err(error),
         };
@@ -307,6 +312,40 @@ impl NativeBridge {
                     .map_err(|_| plugin_error("The plugins folder could not be opened."))?;
                 Ok(json!({ "opened": true }))
             }
+            "restart" => {
+                schedule_restart()?;
+                Ok(json!({ "restarting": true }))
+            }
+            _ => Err(operation_error()),
+        }
+    }
+
+    fn handle_last_played(&self, request: BridgeRequest) -> Result<Value, ErrorPayload> {
+        match request.operation.as_str() {
+            "list" => self
+                .last_played
+                .list()
+                .map(|mut entries| {
+                    entries.sort_by(|left, right| right.updated_at.cmp(&left.updated_at));
+                    json!(entries)
+                })
+                .map_err(storage_error),
+            "get" => {
+                let payload: IdPayload = parse_value(request.payload)?;
+                validate_lookup_id(&payload.id)?;
+                self.last_played
+                    .get(&payload.id)
+                    .map(|entry| json!(entry))
+                    .map_err(storage_error)
+            }
+            "upsert" => {
+                let input: LastPlayedInput = parse_value(request.payload)?;
+                self.last_played
+                    .upsert(input)
+                    .map(|entry| json!(entry))
+                    .map_err(storage_error)
+            }
+            "openDataFolder" => self.open_data_folder(),
             _ => Err(operation_error()),
         }
     }
@@ -386,6 +425,28 @@ impl NativeBridge {
     }
 }
 
+#[cfg(not(test))]
+fn schedule_restart() -> Result<(), ErrorPayload> {
+    use std::{process::Command, thread, time::Duration};
+    let executable = std::env::current_exe()
+        .map_err(|_| plugin_error("JStremio could not locate its executable."))?;
+    Command::new(executable)
+        .arg("--restart-after-pid")
+        .arg(std::process::id().to_string())
+        .spawn()
+        .map_err(|_| plugin_error("JStremio could not start the restart helper."))?;
+    thread::spawn(|| {
+        thread::sleep(Duration::from_millis(350));
+        std::process::exit(0);
+    });
+    Ok(())
+}
+
+#[cfg(test)]
+fn schedule_restart() -> Result<(), ErrorPayload> {
+    Ok(())
+}
+
 fn thumbnail_error(message: &str) -> ErrorPayload {
     ErrorPayload {
         code: "thumbnail_unavailable".into(),
@@ -462,7 +523,9 @@ fn response(method: &str, request_id: u64, result: Result<Value, ErrorPayload>) 
 
 #[cfg(test)]
 mod tests {
-    use super::{NativeBridge, PLUGINS_METHOD, REVIEWS_METHOD, TIMESTAMP_NOTES_METHOD};
+    use super::{
+        NativeBridge, LAST_PLAYED_METHOD, PLUGINS_METHOD, REVIEWS_METHOD, TIMESTAMP_NOTES_METHOD,
+    };
     use crate::extensions::{PluginDescriptor, PluginSettingsStore};
     use serde_json::json;
     use tempfile::tempdir;
@@ -488,7 +551,38 @@ mod tests {
         assert!(NativeBridge::supports(REVIEWS_METHOD));
         assert!(NativeBridge::supports(TIMESTAMP_NOTES_METHOD));
         assert!(NativeBridge::supports(PLUGINS_METHOD));
+        assert!(NativeBridge::supports(LAST_PLAYED_METHOD));
         assert!(!NativeBridge::supports("jstremio-filesystem"));
+    }
+
+    #[test]
+    fn last_played_bridge_persists_only_validated_routes() {
+        let directory = tempdir().unwrap();
+        let bridge = NativeBridge::new(directory.path());
+        let payload = json!({
+            "videoId":"tt1:1:1","metaId":"tt1","mediaType":"series","name":"Series","title":"Pilot",
+            "season":1,"episode":1,"poster":null,"playerDeepLink":"#/player/stream/exact","streamKey":"hash:abc:0",
+            "addonName":"Torrentio","streamName":"1080p","streamDescription":"seeded","positionMs":42000
+        });
+        let saved = bridge
+            .handle(
+                LAST_PLAYED_METHOD,
+                61,
+                Some(&json!({"operation":"upsert","payload":payload})),
+            )
+            .into_event();
+        assert_eq!(saved[1]["ok"], true);
+        let listed = bridge
+            .handle(
+                LAST_PLAYED_METHOD,
+                62,
+                Some(&json!({"operation":"list","payload":{}})),
+            )
+            .into_event();
+        assert_eq!(
+            listed[1]["result"][0]["playerDeepLink"],
+            "#/player/stream/exact"
+        );
     }
 
     #[test]

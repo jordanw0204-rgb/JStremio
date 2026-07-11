@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "last-played",
+  "name": "LastPlayed",
+  "version": "1.0.0",
+  "description": "Resume the exact add-on stream used most recently for a movie or episode.",
+  "author": "JStremio",
+  "entry": "index.js",
+  "styles": "styles.css",
+  "enabledByDefault": true,
+  "loadOrder": 120
+}

@@ -13,14 +13,15 @@ JStremio WebView2 shell ---- bundled Stremio server
        +---- origin-gated runtime
                |---- Plugin Manager --- plugins.json / user plugins
                |---- Local Reviews ---- reviews.json
-               `---- Timestamp Notes -- timestamp-notes.json
+               |---- Timestamp Notes -- timestamp-notes.json
+               `---- LastPlayed ------- last-played.json
 ```
 
 ## Native boundary
 
 `src/extensions` validates schema-v1 manifests, rejects absolute/traversing/remote paths, applies file/count caps, sorts by load order and ID, and composes the runtime before plugin bundles. Production combines built-ins from `resources/extensions` beside the executable with explicitly enabled user plugins under `%LOCALAPPDATA%\JStremio\plugins`. User plugins begin disabled, invalid folders are isolated, duplicate IDs cannot override built-ins, and settings changes apply after restart. `--extensions-dir` and loopback CDP work only in debug builds. `--disable-extensions` constructs no plugin host.
 
-Web messages retain Stremio's existing `{id,args}` envelope. Custom messages are handled only when the sender and current top-level document have the same approved HTTP(S) origin. Fixed namespaces expose Reviews, Timestamp Notes, and narrow plugin-manager operations. No generic path, command, key/value, or MPV bridge exists.
+Web messages retain Stremio's existing `{id,args}` envelope. Custom messages are handled only when the sender and current top-level document have the same approved HTTP(S) origin. Fixed namespaces expose Reviews, Timestamp Notes, LastPlayed, and narrow plugin-manager operations. No generic path, command, key/value, or MPV bridge exists.
 
 The native updater trigger was removed. The app name, pipe, window settings directory, bundled-server cache/settings path, WebView2 profile, executable, installer AppId, and local data directory are JStremio-specific.
 
@@ -35,5 +36,7 @@ MPV property events are observed alongside Stremio's listener. `time-pos` and `d
 ## Extension behavior
 
 Reviews never call the player API. Timestamp capture reads the latest position before pausing, records the media and duration, and conditionally resumes only a pause it owns on the same media without a manual pause-state change.
+
+LastPlayed observes the selected player stream, persists its exact official player deep link and stream fingerprint, and augments Continue Watching and stream-selection surfaces without modifying Stremio React code. Resume actions navigate through Stremio's existing player route; they do not reconstruct or substitute a source.
 
 Markers are current-media-only, pointer-transparent outside explicit buttons, positioned against the current duration, hidden when out of range, and clustered within approximately ten physical pixels. Absolute timestamps are never ratio-scaled for alternate cuts.

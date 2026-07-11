@@ -12,6 +12,8 @@
 
 ## Automated evidence from 2026-07-10
 
+The 2026-07-11 LastPlayed release passed 40 native tests, strict TypeScript checking with 16 unit tests, and four Playwright scenarios. New coverage verifies validated exact-stream persistence, torrent/direct-URL fingerprints, the native restart control, Continue Watching hover resume, exact stream promotion and labeling, and navigation through the stored official player route.
+
 - Unmodified `v5.0.23`: 10 native tests and optimized x64 build passed.
 - JStremio native layer: 37 tests passed, including first write, Windows replacement/backup, malformed/unsupported preservation, concurrency, abandoned temps, validation, persisted plugin enablement, disabled-by-default user-plugin discovery, malformed-plugin isolation, backward-compatible note customization, constrained native-frame thumbnail capture and replacement cleanup, CRUD, UUIDs, manifests, origins, fixed IPC, and the pinned shell handshake.
 - TypeScript: strict typecheck and 14 unit tests passed, including the current official focusable-`div` controls, copied navigation presentation layers, immersed-player signal, and layered-slider fixture.

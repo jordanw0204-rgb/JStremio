@@ -18,7 +18,7 @@ const manifest = {
   schemaVersion: 1,
   id: "plugin-manager",
   name: "Plugins",
-  version: "1.0.0",
+  version: "1.1.0",
   entry: "index.js",
   styles: "styles.css",
   enabledByDefault: true,
@@ -40,7 +40,7 @@ function activate(runtime: JStremioRuntime) {
         <header class="plugins-header"><div><h1>Plugins</h1><p>Enable built-in features and trusted local plugins.</p></div><button class="button icon-button" data-action="close" aria-label="Close Plugins">${CLOSE_ICON}</button></header>
         <section class="warning"><strong>Local plugins are trusted code.</strong><span>They run inside Stremio's WebView and can access the page. Install plugins only from authors you trust.</span></section>
         <div class="toolbar"><button class="button" data-action="folder">Open plugins folder</button><button class="button" data-action="refresh">Refresh status</button></div>
-        <div class="restart" role="status" hidden>Plugin changes were saved. Fully restart JStremio to apply them.</div>
+        <div class="restart" role="status" hidden><span>Plugin changes were saved. Fully restart JStremio to apply them.</span><button class="button restart-button" data-action="restart">Restart JStremio</button></div>
         <section class="status" role="status">Loading plugins…</section><section class="plugin-grid" hidden></section>
         <section class="install-help"><h2>Add a local plugin</h2><ol><li>Create a folder under <code>%LOCALAPPDATA%\\JStremio\\plugins</code>.</li><li>Add <code>manifest.json</code>, <code>index.js</code>, and <code>styles.css</code>.</li><li>Restart JStremio, enable the plugin here, then restart once more.</li></ol><p>User plugins start disabled, even if their manifest requests otherwise.</p></section>`;
       container.append(shell);
@@ -67,6 +67,17 @@ function activate(runtime: JStremioRuntime) {
         void runtime.bridge.request("plugins", "openPluginsFolder").catch((error) => {
           status.hidden = false;
           status.textContent = error instanceof Error ? error.message : "The plugins folder could not be opened.";
+        });
+      });
+      shell.querySelector<HTMLButtonElement>('[data-action="restart"]')?.addEventListener("click", (event) => {
+        const button = event.currentTarget as HTMLButtonElement;
+        button.disabled = true;
+        button.textContent = "Restarting…";
+        void runtime.bridge.request("plugins", "restart", {}, { timeoutMs: 2_000 }).catch((error) => {
+          button.disabled = false;
+          button.textContent = "Restart JStremio";
+          status.hidden = false;
+          status.textContent = error instanceof Error ? error.message : "JStremio could not restart.";
         });
       });
       void load();
