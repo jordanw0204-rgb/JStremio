@@ -25,7 +25,7 @@ Use CodeGraph before structural code exploration. A persistent project overview 
 
 - Branch: `feature/jstremio-extensions`
 - Upstream: `origin/feature/jstremio-extensions`
-- HEAD: `f375699 feat: add exact-stream LastPlayed resume`
+- Latest release tag: `v1.3.0` (use `git log -1` for the current commit)
 - Working tree was clean immediately before this handoff was created. Resumed work on 2026-07-16 added the expected uncommitted handoff/testing/check-script changes plus a dedicated JStremio icon wired into the executable and installer.
 - Current application version: `1.3.0`
 - Pinned shell upstream: `Stremio/stremio-shell-ng` release `v5.0.23`

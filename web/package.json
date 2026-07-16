@@ -12,7 +12,7 @@
     "check": "pnpm typecheck && pnpm test && pnpm build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:e2e": "pnpm build && playwright test"
+    "test:e2e": "node scripts/build.mjs && playwright test"
   },
   "devDependencies": {
     "@playwright/test": "1.54.1",
