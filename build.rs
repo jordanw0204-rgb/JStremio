@@ -33,7 +33,7 @@ fn main() {
     res.set("ProductName", "JStremio");
     res.set("LegalCopyright", &copyright);
     res.set("OriginalFilename", exe_name);
-    res.set_icon_with_id("images/stremio.ico", "MAINICON");
+    res.set_icon_with_id("images/jstremio.ico", "MAINICON");
     res.append_rc_content(r##"SPLASHIMAGE IMAGE "images/stremio.png""##);
     res.compile().unwrap();
 

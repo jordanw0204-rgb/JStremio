@@ -1,0 +1,60 @@
+name: Build and publish JStremio release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - name: Disable Git EOL translation
+        run: git config --global core.autocrlf false
+      - name: Check out source
+        uses: actions/checkout@v6
+      - name: Install stable Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          target: x86_64-pc-windows-msvc
+          components: rustfmt, clippy
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Install Inno Setup
+        shell: powershell
+        run: choco install innosetup --no-progress -y
+      - name: Build and verify release artifacts
+        shell: powershell
+        run: .\scripts\build-release.ps1
+      - name: Publish GitHub release
+        if: github.ref_type == 'tag'
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $Version = '${{ github.ref_name }}'.TrimStart('v')
+          gh release create '${{ github.ref_name }}' `
+            "installer/JStremioSetup-v${Version}_x64-unsigned.exe" `
+            "artifacts/JStremio-${Version}-windows-x64-portable.zip" `
+            'installer/SHA256SUMS.txt' `
+            --verify-tag `
+            --generate-notes `
+            --title "JStremio ${{ github.ref_name }}"
+      - name: Retain workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: JStremio-release-${{ github.ref_name }}
+          path: |
+            installer/*.exe
+            installer/SHA256SUMS.txt
+            artifacts/*-portable.zip
+          if-no-files-found: error
+          retention-days: 14

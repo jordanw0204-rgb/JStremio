@@ -10,6 +10,37 @@
 
 `check.ps1` runs Rust formatting/clippy/tests, TypeScript typecheck/unit tests, deterministic bundles, Playwright fixtures in installed Edge, and an optimized x64 compile.
 
+## Automated evidence from 2026-07-16
+
+The v1.3.0 installer/updater gate passed on Windows:
+
+- The expanded full gate passed Rust formatting and clippy with warnings denied, all 41 native tests, strict TypeScript with all 16 unit tests, all four installed-Edge Playwright scenarios, deterministic bundles, and both optimized x64 binaries.
+- The standalone updater passed three selection/integrity unit tests plus a local HTTP end-to-end test. The integration test served GitHub-shaped release JSON and a mock Windows installer, then proved semantic-version selection, exact asset naming, trusted loopback test policy, declared-size enforcement, PE signature validation, SHA-256 verification, atomic staging, and verified-cache reuse without a second download.
+- Inno Setup 6.7.3 compiled the branded per-user installer with all four built-in plugin directories, native MPV/server dependencies, WebView2 bootstrap support, Start Menu and default desktop shortcuts, update helper, installed-channel metadata, and the empty future-addon manifest.
+- A real clean per-user install created both shortcuts, installed JStremio and its updater under `%LOCALAPPDATA%\Programs\JStremio`, bundled four plugin directories, and launched installed v1.3.0.
+- A real same-version `/JSTREMIOUPDATE=1` upgrade completed successfully and relaunched v1.3.0. Before/after SHA-256 comparison found zero changes and zero additions across all nine existing files under the protected `data` and custom `plugins` trees.
+- Final artifacts: `JStremioSetup-v1.3.0_x64-unsigned.exe`, 70,667,814 bytes, SHA-256 `7BC87BAD4D21997D520EDD50A32F574703459DEB75EEB732C7A33FC90D13160A`; `JStremio-1.3.0-windows-x64-portable.zip`, 92,107,476 bytes, SHA-256 `35DDD49EFE1B9DF88D65D5A8A16CDD94D951F91ABEAAA345058B71B78CBFE882`.
+- The installed app's anonymous update check currently records a private-repository 404. Production update delivery remains gated on making the existing release repository public or selecting a public release-only repository; no GitHub credential is embedded.
+
+Earlier v1.2.0 evidence follows for the LastPlayed/icon work included in this release.
+
+The full `check.ps1` release gate passed on Windows after changing its browser-test invocation to the existing `test:e2e` package script. The prior `corepack pnpm@11.0.0 exec playwright test` form did not resolve the installed Playwright shim in this environment, while package-script execution supplied the correct local binary path.
+
+- Rust formatting and clippy passed with warnings denied.
+- All 40 native tests passed.
+- Strict TypeScript checking and all 16 unit tests passed.
+- All four Playwright scenarios passed in installed Edge.
+- Deterministic extension bundles rebuilt successfully.
+- The optimized x64 release build completed successfully.
+- pnpm reported a non-fatal failure while checking online update metadata; the frozen locked install itself reported `Already up to date` and the complete gate passed.
+- After the dedicated icon and LastPlayed 1.0.1 fixes, `JStremio-1.2.0-windows-x64-portable.zip` was rebuilt at 92,099,895 bytes with SHA-256 `BF0BE52D2740255CB1700D373718A9D9E457B9BD1ACDC5C3C3E42CE1C18692C4`.
+- Windows successfully extracted the new icon from both the release executable and the packaged executable; the `.ico` contains 16, 24, 32, 48, 64, 128, and 256-pixel layers.
+- LastPlayed 1.0.1 passed a current-profile WebView2/CDP regression on `series:tt2741602:5:15`: its control rendered at 224x34 pixels inside the 434-pixel stream panel, both stable saved description lines matched one refreshed stream row, clicking used that row's current official route instead of the changed saved URL, native MPV reported a duration, playback position advanced, and the proven active refreshed route was persisted before the smoke paused playback.
+- The LastPlayed Playwright regression now covers browsing without playback, unrelated player-link decoys, current direct-anchor stream-list markup, refreshed-route fingerprint matching, compact placement, row promotion/labeling, and navigation through the matched current route.
+- Every packaged runtime and extension file in the v1.2.0 portable directory matched the current built resources byte-for-byte.
+
+This automated evidence does not replace the manual playback, audible-output, clean-profile, restart-persistence, safe-mode, or coexistence acceptance checks below. Tasks 11 and 12 remain in review until those checks are completed on the target Windows desktop.
+
 ## Automated evidence from 2026-07-10
 
 The 2026-07-11 LastPlayed release passed 40 native tests, strict TypeScript checking with 16 unit tests, and four Playwright scenarios. New coverage verifies validated exact-stream persistence, torrent/direct-URL fingerprints, the native restart control, Continue Watching hover resume, exact stream promotion and labeling, and navigation through the stored official player route.

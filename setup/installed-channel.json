@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "channel": "stable",
+  "distribution": "installer",
+  "releaseApi": "https://api.github.com/repos/jordanw0204-rgb/JStremio/releases/latest",
+  "automaticUpdates": true
+}

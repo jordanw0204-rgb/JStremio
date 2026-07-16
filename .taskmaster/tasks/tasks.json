@@ -316,13 +316,37 @@
         "priority": "high",
         "subtasks": [],
         "updatedAt": "2026-07-11T08:32:13.463Z"
+      },
+      {
+        "id": "24",
+        "title": "Fix LastPlayed live resume UI and refreshed stream matching",
+        "description": "Keep LastPlayed controls compact in the current Stremio stream-list DOM, record only streams proven active in native playback, and resume the same logical source through its refreshed official player route.",
+        "details": "Guard capture by fresh MPV position plus matching current player route; derive detail identity from the canonical hash when core target state is transiently null; recognize direct-anchor stream lists; match renewed debrid routes by stable saved description lines with tie rejection; use the matched row's current player route; add fixture and live CDP regression coverage.",
+        "testStrategy": "TypeScript checks and unit tests; realistic Playwright overwrite/decoy/direct-anchor/refreshed-route regression; full check.ps1; live WebView2/CDP check proving compact layout, fingerprint match, fresh-route click, known native duration, and advancing MPV position; rebuild portable ZIP.",
+        "status": "done",
+        "dependencies": [],
+        "priority": "high",
+        "subtasks": [],
+        "updatedAt": "2026-07-16T10:48:22.390Z"
+      },
+      {
+        "id": "25",
+        "title": "Ship one-click installer, versioned releases, and safe auto-updater",
+        "description": "Build a polished per-user single-EXE installer, add semantic version/release automation, and check GitHub Releases on every app launch with verified, settings-preserving updates.",
+        "details": "Keep JStremio data, WebView2/server state, official account addons, and user plugins under %LOCALAPPDATA%\\JStremio untouched. Bundle built-in plugins in the install image. Add an empty versioned default-addon provisioning manifest ready for the user's later addon list. Use the GitHub latest stable release API, select the matching x64 setup asset, require a GitHub-provided SHA-256 digest and expected size, download to a staged local updates directory, prompt before updating, gracefully exit JStremio, silently run the Inno upgrade, and relaunch. Produce the installer under D:\\Dev\\JStremio\\installer, create desktop and Start Menu shortcuts by default, and launch after setup. Document that an anonymous release channel requires a public repository or public release-only repo.",
+        "testStrategy": "Rust unit tests for release selection/version/digest/size/URL policy; local HTTP end-to-end updater check/download; full check.ps1; installer compile; clean isolated install/uninstall smoke; shortcut and post-install launch verification; update from prior version while sentinel settings/user-plugin files remain byte-identical; final artifact hashes and GitHub deployment audit.",
+        "status": "review",
+        "dependencies": [],
+        "priority": "high",
+        "subtasks": [],
+        "updatedAt": "2026-07-16T11:28:59.903Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-07-11T08:32:13.463Z",
-      "taskCount": 23,
-      "completedCount": 21,
+      "lastModified": "2026-07-16T11:28:59.904Z",
+      "taskCount": 25,
+      "completedCount": 22,
       "tags": [
         "master"
       ]

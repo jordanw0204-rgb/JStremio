@@ -1,0 +1,5 @@
+{
+  "schemaVersion": 1,
+  "description": "Required Stremio addons provisioned through Stremio's official install confirmation after sign-in.",
+  "addons": []
+}

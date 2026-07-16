@@ -30,6 +30,7 @@ use crate::{
         window_settings::WindowSettings,
         PipeServer,
     },
+    updater::UpdateLaunch,
 };
 
 use super::discord::DiscordRpc;
@@ -45,6 +46,8 @@ pub struct MainWindow {
     pub start_hidden: bool,
     pub extension_host: Option<Arc<ExtensionHost>>,
     pub data_directory: PathBuf,
+    pub update_launch: Option<UpdateLaunch>,
+    pub update_shutdown_command: Option<String>,
     pub requested_fullscreen: Arc<Mutex<Option<bool>>>,
     pub saved_window_style: RefCell<WindowStyle>,
     #[nwg_resource]
@@ -178,6 +181,8 @@ impl MainWindow {
         let web_rx = web_rx.clone();
 
         let command_clone = self.command.clone();
+        let update_shutdown_command = self.update_shutdown_command.clone();
+        let quit_sender = self.quit_notice.sender();
 
         // Single application IPC
         let socket_path = Path::new(
@@ -193,11 +198,23 @@ impl MainWindow {
                     let mut buf = vec![];
                     stream.read_to_end(&mut buf).ok();
                     if let Ok(s) = str::from_utf8(&buf) {
+                        if is_update_shutdown_command(s, update_shutdown_command.as_deref()) {
+                            quit_sender.notice();
+                            continue;
+                        }
                         focus_sender.notice();
                         // ['open-media', url]
                         web_tx_arg.send(RPCResponse::open_media(s.to_string())).ok();
                         println!("{s}");
                     }
+                }
+            });
+        }
+
+        if let Some(update_launch) = self.update_launch.clone() {
+            thread::spawn(move || {
+                if let Err(error) = update_launch.start() {
+                    eprintln!("JStremio update check could not start: {error}");
                 }
             });
         }
@@ -211,7 +228,6 @@ impl MainWindow {
         }); // thread
 
         let toggle_fullscreen_sender = self.toggle_fullscreen_notice.sender();
-        let quit_sender = self.quit_notice.sender();
         let hide_splash_sender = self.hide_splash_notice.sender();
         let focus_sender = self.focus_notice.sender();
         let discord_rpc = DiscordRpc::new(web_tx.clone());
@@ -551,9 +567,13 @@ fn allowed_screenshot_command(params: Option<&serde_json::Value>, data_directory
         .is_some_and(|(parent, expected)| parent == expected)
 }
 
+fn is_update_shutdown_command(incoming: &str, expected: Option<&str>) -> bool {
+    expected.is_some_and(|expected| incoming == expected)
+}
+
 #[cfg(test)]
 mod frame_capture_tests {
-    use super::allowed_screenshot_command;
+    use super::{allowed_screenshot_command, is_update_shutdown_command};
     use serde_json::json;
     use std::fs;
     use tempfile::tempdir;
@@ -576,5 +596,16 @@ mod frame_capture_tests {
             ])),
             root.path(),
         ));
+    }
+
+    #[test]
+    fn update_shutdown_requires_the_exact_per_launch_command() {
+        let expected = "jstremio-internal-update-ready:11111111-1111-4111-8111-111111111111";
+        assert!(is_update_shutdown_command(expected, Some(expected)));
+        assert!(!is_update_shutdown_command(
+            "jstremio-internal-update-ready:22222222-2222-4222-8222-222222222222",
+            Some(expected)
+        ));
+        assert!(!is_update_shutdown_command(expected, None));
     }
 }

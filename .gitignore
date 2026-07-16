@@ -7,6 +7,9 @@
 /web/playwright-report
 /resources/extensions
 /artifacts
+/updater/target
+/installer/*.exe
+/installer/SHA256SUMS.txt
 *.log
 .env
 .DS_Store

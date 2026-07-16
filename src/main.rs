@@ -21,6 +21,7 @@ mod reviews;
 mod storage;
 mod stremio_app;
 mod timestamp_notes;
+mod updater;
 use crate::stremio_app::{
     constants::{
         DEV_ENDPOINT, IPC_PATH, SERVER_IPC_KEY, STA_ENDPOINT, STREMIO_SERVER_DEV_MODE, WEB_ENDPOINT,
@@ -74,6 +75,11 @@ struct Opt {
     server_ipc_key: String,
     #[clap(long, hide = true)]
     restart_after_pid: Option<u32>,
+    #[clap(
+        long,
+        help = "Skip the automatic JStremio update check for this launch"
+    )]
+    disable_update_check: bool,
 }
 
 fn main() {
@@ -146,6 +152,12 @@ fn main() {
     };
 
     let paths = AppPaths::discover().expect("JStremio requires LOCALAPPDATA");
+    let update_shutdown_command =
+        format!("jstremio-internal-update-ready:{}", uuid::Uuid::new_v4());
+    let update_launch = (!opt.disable_update_check).then(|| updater::UpdateLaunch {
+        updates_directory: paths.updates.clone(),
+        shutdown_command: update_shutdown_command.clone(),
+    });
     let extensions_dir = if let Some(path) = opt.extensions_dir {
         if cfg!(debug_assertions) {
             path
@@ -214,6 +226,8 @@ fn main() {
         start_hidden: opt.start_hidden,
         extension_host,
         data_directory: paths.data,
+        update_launch,
+        update_shutdown_command: Some(update_shutdown_command),
         server,
         ..Default::default()
     })

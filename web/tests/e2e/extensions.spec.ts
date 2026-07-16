@@ -27,7 +27,7 @@ test.beforeEach(async ({ page }) => {
     </div></main>
   `);
   await page.evaluate(() => {
-    location.hash = "#/player/movie/tt123";
+    location.hash = "#/player/stream/exact-fixture";
     const listeners = new Set<(event: MessageEvent) => void>();
     const reviews: Array<Record<string, unknown>> = [];
     const notes: Array<Record<string, unknown>> = [];
@@ -263,22 +263,46 @@ test("mounts each extension once and remounts after upstream replacement", async
 });
 
 test("LastPlayed resumes and promotes the exact previously selected stream", async ({ page }) => {
+  await emitPlayback(page, 12, 100, false);
   await expect.poll(() => page.evaluate(() => (window as any).__fixture.lastPlayed.length)).toBe(1);
   await page.evaluate(() => {
-    location.hash="#/";
+    const fixture = (window as any).__fixture;
+    fixture.state.selected.stream = {
+      name: "Browsed but not played",
+      description: "This stream must not replace active playback history",
+      url: "https://media.invalid/browsed-only.m3u8",
+      deepLinks: { player: "#/player/stream/browsed-only" },
+    };
+    location.hash="#/detail/movie/tt123/tt123";
     document.querySelector("main")!.insertAdjacentHTML("afterbegin", `
+      <div class="detail-player-decoy"><a href="#/player/stream/exact-fixture">Unrelated player link</a></div>
       <section><h2>Continue watching</h2><article class="continue-card"><a href="#/detail/movie/tt123/tt123"><img alt="Fixture Movie"></a></article></section>
-      <aside class="streams-panel"><div class="streams-list">
-        <div class="stream-row"><a href="#/player/stream/other">Other stream</a></div>
-        <div class="stream-row exact"><a href="#/player/stream/exact-fixture">MediaFusion fixture</a></div>
-      </div></aside>`);
+      <aside class="streams-panel"><div class="streams-list"><div class="streams-container">
+        <a class="stream-row" href="#/player/stream/other">Other stream</a>
+        <a class="stream-row exact" href="#/player/stream/refreshed-fixture">MediaFusion fixture</a>
+      </div></div></aside>`);
   });
+  await page.waitForTimeout(200);
+  await expect.poll(() => page.evaluate(() => (window as any).__fixture.lastPlayed[0].playerDeepLink)).toBe("#/player/stream/exact-fixture");
   await expect(page.getByRole("button", { name: /Resume last played Fixture Movie/ })).toBeVisible();
   await expect(page.locator("[data-jstremio-last-played-badge]")).toHaveText("Last played");
-  await expect(page.locator(".streams-list > :first-child")).toHaveClass(/exact/);
-  await expect(page.locator("[data-jstremio-last-played-resume]")).toContainText("MediaFusion");
-  await page.locator("[data-jstremio-last-played-resume]").click();
-  await expect.poll(() => page.evaluate(() => location.hash)).toBe("#/player/stream/exact-fixture");
+  await expect(page.locator(".streams-container > :first-child")).toHaveClass(/exact/);
+  const resume = page.locator("[data-jstremio-last-played-resume]");
+  await expect(resume).toContainText("MediaFusion");
+  await expect(resume.locator("xpath=ancestor::aside[contains(@class,'streams-panel')]")).toHaveCount(1);
+  await resume.click();
+  await expect.poll(() => page.evaluate(() => location.hash)).toBe("#/player/stream/refreshed-fixture");
+  await page.evaluate(() => {
+    (window as any).__fixture.state.selected.stream = {
+      name: "Fixture 1080p",
+      description: "MediaFusion fixture",
+      infoHash: "ABC123",
+      fileIdx: 2,
+      deepLinks: { player: "#/player/stream/exact-fixture" },
+    };
+  });
+  await emitPlayback(page, 20, 100, false);
+  await expect.poll(() => page.evaluate(() => (window as any).__fixture.lastPlayed[0].playerDeepLink)).toBe("#/player/stream/refreshed-fixture");
 });
 
 test("creates and manages a private review without network leakage", async ({ page }) => {

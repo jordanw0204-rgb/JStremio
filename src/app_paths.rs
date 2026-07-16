@@ -9,6 +9,7 @@ pub struct AppPaths {
     pub server: PathBuf,
     pub webview2: PathBuf,
     pub plugins: PathBuf,
+    pub updates: PathBuf,
 }
 
 impl AppPaths {
@@ -28,6 +29,7 @@ impl AppPaths {
             server: root.join("server"),
             webview2: root.join("webview2"),
             plugins: root.join("plugins"),
+            updates: root.join("updates"),
             root,
         }
     }
@@ -46,5 +48,6 @@ mod tests {
         assert!(paths.server.ends_with(r"JStremio\server"));
         assert!(paths.webview2.ends_with(r"JStremio\webview2"));
         assert!(paths.plugins.ends_with(r"JStremio\plugins"));
+        assert!(paths.updates.ends_with(r"JStremio\updates"));
     }
 }

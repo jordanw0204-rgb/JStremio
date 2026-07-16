@@ -9,6 +9,8 @@ JStremio is a Windows desktop build based on the official `stremio-shell-ng`. It
 
 Both stores are human-readable JSON under `%LOCALAPPDATA%\JStremio\data`. Their content is not synchronized or sent to Stremio. JStremio has its own executable, WebView2 profile, IPC pipe, local data, portable package, installer AppId, and updater policy, so it can coexist with official Stremio.
 
+Installer builds check the latest stable GitHub Release in the background on every launch. A newer installer is downloaded to a local staging directory and accepted only when its exact size and GitHub-provided SHA-256 digest match. JStremio prompts before installation, exits cleanly, upgrades the program files, and reopens without touching account addons, the WebView2 profile, settings, feature data, or custom plugins.
+
 Local plugins are trusted JavaScript running inside Stremio's WebView. They can inspect or change the page, access JStremio's browser runtime and fixed bridges, and use browser networking. Install only reviewed code from authors you trust. JStremio 1.1 does not include a remote marketplace or automatic plugin downloads; newly discovered user plugins always start disabled.
 
 ## Build and run
@@ -28,11 +30,13 @@ Create a portable directory and optional ZIP:
 .\scripts\package-portable.ps1 -Zip
 ```
 
-The optional installer requires Inno Setup 6 and is intentionally unsigned:
+The one-click installer requires Inno Setup 6 to build and is intentionally unsigned. It is emitted under `installer`, creates desktop and Start Menu shortcuts, and launches JStremio when setup finishes:
 
 ```powershell
 .\scripts\package-installer.ps1
 ```
+
+See [versioning and releases](docs/releasing.md) for release tags, updater assets, checksums, and the public-release-channel requirement.
 
 ## Safe mode and independent enablement
 
