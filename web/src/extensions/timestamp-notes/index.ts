@@ -42,7 +42,7 @@ const manifest = {
   schemaVersion: 1,
   id: "timestamp-notes",
   name: "Timestamp Notes",
-  version: "1.4.0",
+  version: "1.4.1",
   entry: "index.js",
   styles: "styles.css",
   enabledByDefault: true,
@@ -63,7 +63,7 @@ function activate(runtime: JStremioRuntime) {
   let isLive = false;
   let remotePlayback = false;
   let loadGeneration = 0;
-  let reconcileGeneration = 0;
+  let playerRoute = "";
   let playerButton: HTMLButtonElement | null = null;
   let timeline: Timeline | null = null;
   let overlayRefresh: (() => void) | null = null;
@@ -105,20 +105,28 @@ function activate(runtime: JStremioRuntime) {
       playerButton = null;
       timeline?.destroy();
       timeline = null;
+      playerRoute = "";
+      target = null;
       return;
+    }
+    const route = location.hash;
+    if (route !== playerRoute) {
+      playerRoute = route;
+      target = null;
+      notes = [];
     }
     playerButton = mountPlayerButton("timestamp-notes", "Add timestamp note", NOTE_ICON, () => {
       void captureNote();
     });
     refreshButton();
-    const generation = ++reconcileGeneration;
     void Promise.all([
       runtime.stremio.getCurrentMediaTarget(),
       runtime.stremio.getPlayerState().catch(() => null),
     ]).then(([nextTarget, state]) => {
-      if (generation !== reconcileGeneration) return;
-      const changed = nextTarget?.key !== target?.key;
-      target = nextTarget;
+      if (route !== location.hash || !isPlayerRoute()) return;
+      const resolvedTarget = nextTarget ?? target;
+      const changed = resolvedTarget?.key !== target?.key;
+      target = resolvedTarget;
       isLive = isLikelyLiveState(state);
       remotePlayback = isRemotePlaybackState(state);
       if (changed) void loadForTarget(target);

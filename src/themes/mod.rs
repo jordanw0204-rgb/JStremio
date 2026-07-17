@@ -67,7 +67,10 @@ impl ThemeSettings {
     set("--outer-glow",`0 0 15px color-mix(in srgb, ${{theme.accent}} 37%, transparent)`);
     let style=document.getElementById("jstremio-theme-runtime-style");
     if(!style){{style=document.createElement("style");style.id="jstremio-theme-runtime-style";root.append(style);}}
-    style.textContent="html body{{background:linear-gradient(var(--jstremio-gradient-angle),var(--jstremio-background-start) 0%,var(--jstremio-background-end) 100%)!important;color:var(--jstremio-text-color)}}";
+    style.textContent="html body{{background:linear-gradient(var(--jstremio-gradient-angle),var(--jstremio-background-start) 0%,var(--jstremio-background-end) 100%)!important;color:var(--jstremio-text-color)}}html[data-jstremio-player-route] body{{background:transparent!important}}";
+    const syncRoute=()=>root.toggleAttribute("data-jstremio-player-route",/^#\/player(?:\/|$)/i.test(location.hash));
+    syncRoute();
+    if(!window.__jstremioThemeRouteSync){{window.addEventListener("hashchange",syncRoute);window.__jstremioThemeRouteSync=true;}}
     root.dataset.jstremioTheme="active";
     return true;
   }};
@@ -211,6 +214,8 @@ mod tests {
         assert!(script.contains("--primary-background-color"));
         assert!(script.contains("--primary-accent-color"));
         assert!(script.contains("--modal-background-color"));
+        assert!(script.contains("data-jstremio-player-route"));
+        assert!(script.contains("background:transparent!important"));
         assert!(script.contains("\"gradientAngle\":41"));
         assert!(script.contains("MutationObserver"));
     }

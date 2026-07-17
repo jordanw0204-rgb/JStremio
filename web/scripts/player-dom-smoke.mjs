@@ -37,18 +37,16 @@ await page.evaluate(() => {
     window.__jstremioSmokeReconciles += 1;
   });
 });
-if (!page.url().includes("#/player/")) {
-  await page.evaluate(() => {
-    location.hash = "#/search";
-  });
-  const input = page.locator('input[type="text"]');
-  await input.waitFor({ state: "visible", timeout: 20_000 });
-  await input.evaluate((element, url) => {
-    const transfer = new DataTransfer();
-    transfer.setData("text/plain", url);
-    element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, clipboardData: transfer }));
-  }, mediaUrl);
-}
+await page.evaluate(() => {
+  location.hash = "#/search";
+});
+const input = page.locator('input[type="text"]');
+await input.waitFor({ state: "visible", timeout: 20_000 });
+await input.evaluate((element, url) => {
+  const transfer = new DataTransfer();
+  transfer.setData("text/plain", url);
+  element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, clipboardData: transfer }));
+}, mediaUrl);
 await page.waitForURL((url) => url.hash.startsWith("#/player/"), { timeout: 30_000 });
 await page.evaluate(() => {
   const stream = location.hash.split("/")[2];
@@ -62,6 +60,27 @@ await page.waitForFunction(
   { timeout: 20_000 },
 );
 await page.waitForFunction(
+  () => {
+    const snapshot = window.JStremio.player.getSnapshot();
+    return Boolean(snapshot && snapshot.durationMs >= 10_000);
+  },
+  undefined,
+  { timeout: 15_000 },
+);
+await page.evaluate(async () => {
+  if (window.JStremio.player.getSnapshot()?.paused === true) {
+    await window.JStremio.player.setPaused(false);
+  }
+});
+await page.waitForFunction(
+  () => {
+    const snapshot = window.JStremio.player.getSnapshot();
+    return Boolean(snapshot && snapshot.positionMs >= 500 && snapshot.paused === false);
+  },
+  undefined,
+  { timeout: 15_000 },
+);
+await page.waitForFunction(
   () =>
     document.querySelectorAll('[data-jstremio-control="player-dock"] [data-jstremio-control="player"]').length === 2,
   undefined,
@@ -71,6 +90,45 @@ await page.waitForSelector('[data-jstremio-testid="timestamp-note-markers"]', { 
 await page.mouse.move(1, 1);
 await page.mouse.move(400, 300);
 await page.waitForTimeout(500);
+const playerThemeState = await page.evaluate(() => {
+  const root = document.documentElement;
+  const bodyStyle = getComputedStyle(document.body);
+  return {
+    routeAttribute: root.hasAttribute("data-jstremio-player-route"),
+    backgroundImage: bodyStyle.backgroundImage,
+    backgroundColor: bodyStyle.backgroundColor,
+  };
+});
+const controlsClickable = await page.evaluate(() => {
+  const buttons = Array.from(
+    document.querySelectorAll('[data-jstremio-control="player-dock"] [data-jstremio-control="player"]'),
+  );
+  return buttons.length === 2 && buttons.every((button) => {
+    const rect = button.getBoundingClientRect();
+    const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    return hit === button || (hit instanceof Node && button.contains(hit));
+  });
+});
+const reviewButton = page.getByRole("button", { name: "Review this title", exact: true });
+await reviewButton.click();
+await page.waitForFunction(
+  () => Boolean(document.querySelector('[data-jstremio-testid="overlay-host"]')?.shadowRoot?.querySelector("form.dialog")),
+  undefined,
+  { timeout: 5_000 },
+);
+await page.evaluate(() => {
+  const cancel = document
+    .querySelector('[data-jstremio-testid="overlay-host"]')
+    ?.shadowRoot?.querySelector('[data-action="cancel"]');
+  if (!(cancel instanceof HTMLButtonElement)) throw new Error("Review dialog cancel button missing");
+  cancel.click();
+});
+await page.waitForFunction(
+  () => !document.querySelector('[data-jstremio-testid="overlay-host"]')?.shadowRoot?.querySelector("form.dialog"),
+  undefined,
+  { timeout: 5_000 },
+);
+const reviewButtonOpenedDialog = true;
 const noteButton = page.locator('[data-jstremio-testid="timestamp-notes-player-button"]');
 await page.waitForFunction(
   () => {
@@ -330,6 +388,12 @@ const result = await page.evaluate((verification) => {
       verification.immersedState.dockOpacity <= 0.01 &&
       verification.immersedState.dockPointerEvents === "auto",
     dockHoverReveal: verification.dockHoverReveal,
+    themeRouteAttribute: verification.playerThemeState.routeAttribute,
+    playerWebViewTransparent:
+      verification.playerThemeState.backgroundImage === "none" &&
+      verification.playerThemeState.backgroundColor === "rgba(0, 0, 0, 0)",
+    controlsClickable: verification.controlsClickable,
+    reviewButtonOpenedDialog: verification.reviewButtonOpenedDialog,
   };
 }, {
   customizationPersisted,
@@ -345,6 +409,34 @@ const result = await page.evaluate((verification) => {
   immersedState,
   popoverClosedWhenImmersed,
   dockHoverReveal,
+  playerThemeState,
+  controlsClickable,
+  reviewButtonOpenedDialog,
+});
+
+const cleanupResult = await page.evaluate(async () => {
+  const smokeTexts = new Set(["real-player customization smoke", "nearby real-player marker smoke"]);
+  const notes = await window.JStremio.bridge.request("timestamp-notes", "listForMedia", {
+    mediaKey: "series:tt2741602:4:22",
+  });
+  let removed = 0;
+  for (const note of Array.isArray(notes) ? notes : []) {
+    if (note && typeof note === "object" && smokeTexts.has(note.text) && typeof note.id === "string") {
+      await window.JStremio.bridge.request("timestamp-notes", "delete", { id: note.id });
+      removed += 1;
+    }
+  }
+  const remaining = await window.JStremio.bridge.request("timestamp-notes", "listForMedia", {
+    mediaKey: "series:tt2741602:4:22",
+  });
+  return {
+    removed,
+    clean: !(Array.isArray(remaining) && remaining.some((note) => note && smokeTexts.has(note.text))),
+  };
+});
+Object.assign(result, {
+  smokeNotesRemoved: cleanupResult.removed,
+  smokeNotesCleanedUp: cleanupResult.clean,
 });
 
 await page.evaluate(() => {
@@ -418,6 +510,8 @@ const failures = [
   [result.buttonsInDock, "buttons inside the player dock"],
   [result.playerButtonsVisible, "visible player buttons"],
   [result.playerButtons.length === expectedButtons.size && result.playerButtons.every((label) => expectedButtons.has(label)), "both extension buttons"],
+  [result.themeRouteAttribute && result.playerWebViewTransparent, "transparent WebView player surface"],
+  [result.controlsClickable && result.reviewButtonOpenedDialog, "clickable extension controls"],
   [result.markerLayerInBody, "body-owned marker layer"],
   [result.markerLayerVisible, "visible marker layer"],
   [result.markerWidthMatchesSlider && result.markerLeftMatchesSlider && result.markerTopMatchesSlider, "marker geometry aligned to the official slider"],
@@ -432,6 +526,7 @@ const failures = [
   [result.dockRemainsInteractiveWhenImmersed && result.dockHoverReveal, "immersed dock hover reveal"],
   [result.navigationMatchesOfficial, "official navigation color and geometry"],
   [result.navigationLabelHiddenUntilHover && result.navigationLabelShowsOnHover && result.navigationTitle === "Reviews", "navigation hover label and title"],
+  [result.smokeNotesCleanedUp, "smoke-note cleanup"],
 ].filter(([passed]) => !passed).map(([, label]) => label);
 if (failures.length) throw new Error(`Real-player DOM smoke failed: ${failures.join(", ")}`);
 await browser.close();

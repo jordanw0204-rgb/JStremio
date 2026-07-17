@@ -10,6 +10,18 @@
 
 `check.ps1` runs Rust formatting/clippy/tests, TypeScript typecheck/unit tests, deterministic bundles, Playwright fixtures in installed Edge, and an optimized x64 compile.
 
+## Automated evidence from 2026-07-17 (v1.5.1)
+
+The v1.5.1 native-player visibility and extension-control regression gate passed on Windows:
+
+- The full `check.ps1` gate passed Rust formatting and clippy with warnings denied, all 48 native tests, strict TypeScript with all 28 unit tests, all nine installed-Edge Playwright scenarios, deterministic extension bundles, all updater tests, and optimized x64 app/updater builds.
+- Theme tests prove the configured gradient remains active outside playback while `#/player/...` routes synchronously mark the document and force the WebView body transparent. The native early-startup injection and normal runtime application both cover initial player launches and later hash-route changes.
+- A new mutation-churn Playwright regression changes upstream player DOM every 5 ms while media-target lookup is asynchronous. Reviews and Timestamp Notes still resolve, enable, remain the center-point hit targets, and open through real pointer clicks.
+- A real WebView2/native-MPV smoke used a local 90-second H.264/AAC fixture from a byte-range-capable server. The native position advanced, a real frame thumbnail was captured, both controls were enabled and pointer-clickable, Reviews opened, Timestamp Notes saved, fullscreen/immersed marker behavior passed, the WebView player surface computed transparent, and both synthetic notes were removed afterward.
+- Inno Setup built `JStremioSetup-v1.5.1_x64-unsigned.exe` at 71,271,483 bytes with local SHA-256 `AAE68872EC0E529105A8FC0E2D2E76E5B529BD3C49D1B6A57D69FD57C27234FE`. The local portable ZIP is 92,731,724 bytes with SHA-256 `EBA27F92109D64BDF80D2110A90AEF8BE40AD034F95EE40C401FA02DEEC5524A`.
+- A real per-user installer run upgraded the existing installation to product/file version 1.5.1 with exit code 0. Before/after SHA-256 comparison found all 11 files under the protected `data` and custom `plugins` trees byte-for-byte identical, both desktop and Start-menu shortcuts remained present, and all 16 installed extension/runtime files matched the verified build byte-for-byte.
+- Production releases intentionally reject remote-debugging ports, so CDP was unavailable on the installed binary by design. The real native-player CDP smoke used the same release-built resources in the debug shell; the subsequent installed-resource hash comparison proved the packaged extension/runtime payload was identical.
+
 ## Automated evidence from 2026-07-17 (v1.5.0)
 
 The v1.5.0 universal LastPlayed, Themes, and in-app branding release gate passed on Windows:

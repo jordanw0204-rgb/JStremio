@@ -284,6 +284,47 @@ test("mounts each extension once and remounts after upstream replacement", async
   await expect(page.locator('[data-jstremio-testid="timestamp-notes-player-button"]')).toHaveCount(1);
 });
 
+test("keeps player controls available during continuous upstream mutation churn", async ({ page }) => {
+  await page.evaluate(() => { location.hash = "#/library"; });
+  await expect(page.locator('[data-jstremio-control="player"]')).toHaveCount(0);
+
+  await page.evaluate(() => {
+    const fixture = (window as any).__fixture;
+    const state = fixture.state;
+    window.core!.getState = () => new Promise((resolve) => window.setTimeout(() => resolve(state), 60));
+    fixture.emitMpv("duration", 2_600);
+    fixture.emitMpv("time-pos", 61);
+    fixture.emitMpv("pause", false);
+    fixture.churn = window.setInterval(() => {
+      const marker = document.createElement("i");
+      marker.hidden = true;
+      document.body.append(marker);
+      queueMicrotask(() => marker.remove());
+    }, 5);
+    location.hash = "#/player/stream/exact-fixture";
+  });
+
+  try {
+    const review = page.locator('[data-jstremio-testid="reviews-player-button"]');
+    const timestamp = page.locator('[data-jstremio-testid="timestamp-notes-player-button"]');
+    await expect(review).toBeVisible();
+    await expect(review).toBeEnabled({ timeout: 2_000 });
+    await expect(timestamp).toBeEnabled({ timeout: 2_000 });
+    for (const control of [review, timestamp]) {
+      await expect.poll(() => control.evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+        return hit === element || element.contains(hit);
+      })).toBe(true);
+    }
+    await review.click();
+    await expect(page.locator('[data-jstremio-testid="dialog"]')).toBeVisible();
+    await page.getByRole("button", { name: "Cancel" }).click();
+  } finally {
+    await page.evaluate(() => window.clearInterval((window as any).__fixture.churn));
+  }
+});
+
 test("records persistent plugin hotkeys and opens the matching player dialogs", async ({ page }) => {
   await page.locator('[data-jstremio-testid="plugin-manager-navigation"]').click();
   await expect(page.getByRole("button", { name: /^Settings for / })).toHaveCount(2);

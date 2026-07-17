@@ -27,7 +27,7 @@ const manifest = {
   schemaVersion: 1,
   id: "reviews",
   name: "Local Reviews",
-  version: "1.2.0",
+  version: "1.2.1",
   entry: "index.js",
   styles: "styles.css",
   enabledByDefault: true,
@@ -40,7 +40,8 @@ requireRuntime().registerExtension(manifest, (runtime) => activate(runtime));
 
 function activate(runtime: JStremioRuntime) {
   let overlayRefresh: (() => void) | null = null;
-  let targetGeneration = 0;
+  let playerRoute = "";
+  let resolvedPlayerTarget: MediaTarget | null = null;
   const openPlayerReview = () => openCurrentReview(runtime, () => overlayRefresh?.());
   const unregisterHotkey = registerPluginHotkey(
     runtime,
@@ -138,23 +139,32 @@ function activate(runtime: JStremioRuntime) {
 
   const reconcile = () => {
     mountNavigationButton("reviews", "Reviews", STAR_ICON, openOverlay);
-    const generation = ++targetGeneration;
     const existing = document.querySelector<HTMLButtonElement>(
       '[data-jstremio-extension="reviews"][data-jstremio-control="player"]',
     );
     if (!isPlayerRoute()) {
       existing?.remove();
+      playerRoute = "";
+      resolvedPlayerTarget = null;
       return;
     }
+    const route = location.hash;
+    if (route !== playerRoute) {
+      playerRoute = route;
+      resolvedPlayerTarget = null;
+    }
+    const button = mountPlayerButton("reviews", "Review this title", STAR_ICON, () => {
+      void openPlayerReview();
+    });
+    setReviewButtonAvailability(button, resolvedPlayerTarget !== null);
     void runtime.stremio.getCurrentMediaTarget().then((target) => {
-      if (generation !== targetGeneration) return;
-      if (!target) {
-        existing?.remove();
-        return;
+      if (route !== location.hash || !isPlayerRoute()) return;
+      if (target) {
+        resolvedPlayerTarget = target;
+        setReviewButtonAvailability(button, true);
+      } else if (!resolvedPlayerTarget) {
+        setReviewButtonAvailability(button, false);
       }
-      mountPlayerButton("reviews", "Review this title", STAR_ICON, () => {
-        void openPlayerReview();
-      });
     });
   };
 
@@ -165,6 +175,16 @@ function activate(runtime: JStremioRuntime) {
     runtime.ui.closeOverlay();
     removeOwned("reviews");
   };
+}
+
+function setReviewButtonAvailability(button: HTMLButtonElement | null, available: boolean) {
+  if (!button) return;
+  button.disabled = !available;
+  const reason = "No stable movie or episode is active.";
+  button.title = available ? "Review this title" : reason;
+  button.setAttribute("aria-label", available ? "Review this title" : `Reviews unavailable: ${reason}`);
+  button.style.opacity = available ? "1" : ".48";
+  button.style.cursor = available ? "pointer" : "not-allowed";
 }
 
 async function openCurrentReview(runtime: JStremioRuntime, changed: () => void) {

@@ -10,6 +10,7 @@ import {
 afterEach(() => {
   document.documentElement.removeAttribute("style");
   document.documentElement.removeAttribute("data-jstremio-theme");
+  document.documentElement.removeAttribute("data-jstremio-player-route");
   document.getElementById("jstremio-theme-runtime-style")?.remove();
 });
 
@@ -52,6 +53,15 @@ describe("theme runtime", () => {
     expect(document.getElementById("jstremio-theme-runtime-style")?.textContent).toContain(
       "linear-gradient(var(--jstremio-gradient-angle)",
     );
+    expect(document.getElementById("jstremio-theme-runtime-style")?.textContent).toContain(
+      "html[data-jstremio-player-route] body{background:transparent!important}",
+    );
+    location.hash = "#/player/fixture";
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+    expect(root.hasAttribute("data-jstremio-player-route")).toBe(true);
+    location.hash = "#/";
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+    expect(root.hasAttribute("data-jstremio-player-route")).toBe(false);
   });
 
   it("compares every persisted theme field", () => {

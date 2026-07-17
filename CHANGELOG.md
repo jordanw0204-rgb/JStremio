@@ -2,6 +2,12 @@
 
 JStremio follows Semantic Versioning. Stable releases are tagged `vMAJOR.MINOR.PATCH` and published through GitHub Releases.
 
+## 1.5.1 - 2026-07-17
+
+- Keep the themed web surface transparent on player routes so native MPV video remains visible while retaining the configured gradient throughout the rest of the app.
+- Make Reviews and Timestamp Notes player-target resolution resilient to the official player's continuous DOM mutation stream, preventing missing or permanently disabled controls.
+- Add a deterministic range-capable native-player smoke fixture and verify both extension controls with real pointer clicks under mutation churn.
+
 ## 1.5.0 - 2026-07-17
 
 - Add a LastPlayed action to every visual movie or series card with saved playback history, including the newest saved episode for series-level cards.

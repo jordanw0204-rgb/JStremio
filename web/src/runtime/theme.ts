@@ -25,6 +25,8 @@ export const THEME_COLOR_KEYS = [
 ] as const;
 
 const STYLE_ID = "jstremio-theme-runtime-style";
+const PLAYER_ROUTE = /^#\/player(?:\/|$)/i;
+let routeSyncInstalled = false;
 
 export function normalizeHexColor(value: string): string | null {
   const normalized = value.trim().toUpperCase();
@@ -80,8 +82,18 @@ export function applyTheme(theme: ThemeSettings): void {
     root.append(style);
   }
   style.textContent =
-    "html body{background:linear-gradient(var(--jstremio-gradient-angle),var(--jstremio-background-start) 0%,var(--jstremio-background-end) 100%)!important;color:var(--jstremio-text-color)}";
+    "html body{background:linear-gradient(var(--jstremio-gradient-angle),var(--jstremio-background-start) 0%,var(--jstremio-background-end) 100%)!important;color:var(--jstremio-text-color)}" +
+    "html[data-jstremio-player-route] body{background:transparent!important}";
+  syncThemeRoute();
+  if (!routeSyncInstalled) {
+    routeSyncInstalled = true;
+    window.addEventListener("hashchange", syncThemeRoute);
+  }
   root.dataset.jstremioTheme = "active";
+}
+
+export function syncThemeRoute(): void {
+  document.documentElement.toggleAttribute("data-jstremio-player-route", PLAYER_ROUTE.test(location.hash));
 }
 
 export function themesEqual(left: ThemeSettings, right: ThemeSettings): boolean {
