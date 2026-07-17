@@ -371,18 +371,18 @@
         "description": "Restore native MPV video visibility when Themes are active and ensure Reviews/Timestamp player controls remain visible and pointer-clickable in the real Stremio player.",
         "details": "Trace theme startup/live-preview painting and official player transparency, plus player control mounting/z-index/pointer-events. Add regression coverage, verify in real WebView2/MPV, package and deploy a corrected release without touching protected data/plugins.",
         "testStrategy": "Focused theme/player unit and Playwright regressions, full scripts/check.ps1, real WebView2 native MPV playback screenshot/position progression and pointer-click checks, installer preservation comparison.",
-        "status": "in-progress",
+        "status": "done",
         "dependencies": [],
         "priority": "high",
         "subtasks": [],
-        "updatedAt": "2026-07-17T20:32:16.773Z"
+        "updatedAt": "2026-07-17T21:09:29.055Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-07-17T20:32:16.773Z",
+      "lastModified": "2026-07-17T21:09:29.055Z",
       "taskCount": 28,
-      "completedCount": 25,
+      "completedCount": 26,
       "tags": [
         "master"
       ]

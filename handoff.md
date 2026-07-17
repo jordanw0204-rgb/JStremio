@@ -26,8 +26,8 @@ Use CodeGraph before structural code exploration. A persistent project overview 
 - Branch: `feature/jstremio-extensions`
 - Upstream: `origin/feature/jstremio-extensions`
 - Public repository: `https://github.com/jordanw0204-rgb/JStremio`
-- Latest release tag: `v1.5.0` (release commit `a9ab019`; use `git log -1` for the current branch commit)
-- Current application version: `1.5.0`
+- Latest release tag: `v1.5.1` (release commit `3275039`; use `git log -1` for the current branch commit)
+- Current application version: `1.5.1`
 - Pinned shell upstream: `Stremio/stremio-shell-ng` release `v5.0.23`
 - Pinned upstream commit: `5b1f341dbd9e1959f824436c70aa7410c159f684`
 - Observed official web build: `b6298c68d27602564ed16edd0f44aa09cd8bacb4` on 2026-07-10
@@ -36,6 +36,7 @@ Use CodeGraph before structural code exploration. A persistent project overview 
 Recent commits:
 
 ```text
+3275039 fix: restore player video and extension controls
 a9ab019 test: stabilize pinned popover assertion
 a7d06db feat: add themes and universal LastPlayed
 9de70bb feat: add configurable plugin hotkeys
@@ -184,6 +185,8 @@ Task 26 is complete. Reviews and Timestamp Notes player controls are click-only,
 
 Task 27 is complete. Universal per-poster LastPlayed actions, saved-source metadata tooltips, the persisted Themes page, and in-web JStremio branding shipped in v1.5.0. The full local gate, current-profile WebView2 smoke, byte-for-byte protected-profile upgrade check, branch CI, corrected tag CI, clean-runner release, public asset/checksum verification, direct installer HTTP check, and zero-open-secret-alert check all passed.
 
+Task 28 is complete. v1.5.1 keeps the themed WebView transparent over native MPV on player routes and makes Reviews/Timestamp Notes target resolution monotonic within a route so continuous official-player DOM mutations cannot starve either control. The full local gate, range-backed real MPV/CDP smoke, exact protected-profile upgrade comparison, branch/tag CI, clean-runner release, public asset/checksum verification, direct installer HTTP check, and zero-open-secret-alert check all passed.
+
 ### Task 11 - Add checks, fixtures, and real-shell regression workflow
 
 The scripts, legal deterministic fixtures, automated WebView2/CDP checks, and regression records exist. The remaining release gate is primarily human playback/audio confirmation on the target Windows device:
@@ -225,7 +228,7 @@ Run from `D:\Dev\JStremio`:
 
 `check.ps1` is the main automated gate. It runs Rust formatting, clippy, tests, strict TypeScript checks/unit tests, deterministic browser bundles, Playwright fixtures in Edge, and an optimized x64 compile.
 
-The most recent documented automated evidence is in `docs/testing.md`. On 2026-07-17 the full v1.5.0 `check.ps1` gate passed 48 native tests, strict TypeScript checking with 28 unit tests, eight Playwright scenarios, deterministic bundles, updater tests, and optimized x64 app/updater builds. A real installer upgrade preserved all 11 protected settings/plugin files byte-for-byte, retained both shortcuts, and installed product/file version 1.5.0. Current-profile WebView2 verification covered the JStremio mark, live theme preview/rollback, and real LastPlayed poster metadata. Earlier real MPV/CDP, IPC restart, safe-mode, server-isolation, and privacy evidence remains dated 2026-07-10/11.
+The most recent documented automated evidence is in `docs/testing.md`. On 2026-07-17 the full v1.5.1 `check.ps1` gate passed 48 native tests, strict TypeScript checking with 28 unit tests, nine Playwright scenarios, deterministic bundles, updater tests, and optimized x64 app/updater builds. A real range-backed MPV/CDP smoke proved video-layer transparency, playback progression, real frame capture, and pointer activation of both player controls. A real installer upgrade preserved all 11 protected settings/plugin files byte-for-byte, retained both shortcuts, installed product/file version 1.5.1, and matched all 16 installed runtime/extension files to the verified build.
 
 Safe-mode commands:
 
@@ -238,18 +241,18 @@ Safe-mode commands:
 ## Current packaged artifacts
 
 ```text
-Path:   installer\JStremioSetup-v1.5.0_x64-unsigned.exe
-Size:   71,263,613 bytes
-SHA256: 6E262794A90B04C3D5DBA4143AD190CF33B494A2DA64198433B44EADA503414E
+Path:   installer\JStremioSetup-v1.5.1_x64-unsigned.exe
+Size:   71,271,483 bytes
+SHA256: AAE68872EC0E529105A8FC0E2D2E76E5B529BD3C49D1B6A57D69FD57C27234FE
 
-Path:   artifacts\JStremio-1.5.0-windows-x64-portable.zip
-Size:   92,730,453 bytes
-SHA256: 0F2E58EE6E43C5B16FF8AD7E271D7207CFE39E3432DA03FDF5F5A5F6794D7984
+Path:   artifacts\JStremio-1.5.1-windows-x64-portable.zip
+Size:   92,731,724 bytes
+SHA256: EBA27F92109D64BDF80D2110A90AEF8BE40AD034F95EE40C401FA02DEEC5524A
 ```
 
 These hashes apply only to the current artifacts. Recompute them after any package rebuild.
 
-The public GitHub release was rebuilt on a clean Actions runner and therefore has different build-timestamp hashes. Its v1.5.0 recommended-installer digest is `BF2A933C82A1B5644262EDA1EA3C34524BF131AD2E05A5031AEDFBDDA3628BE0`; the portable digest is `C4CFB8D847499417556E1065B25D1675ACACA53C1B1DDFC7CC45EB0CDBE9838B`. Use the release's `SHA256SUMS.txt` for published assets.
+The public GitHub release was rebuilt on a clean Actions runner and therefore has different build-timestamp hashes. Its v1.5.1 recommended-installer digest is `4C02A729F4DC82F99D9D5C4804E283E65F008F353E4F0A8912ADB3E5CC2D5DFA`; the portable digest is `3FDDB91E96F6ED13C2E68641F2B815CC20A94230A3AC33DCCFF710C935DFDE4C`. Use the release's `SHA256SUMS.txt` for published assets.
 
 ## Architecture constraints that must not regress
 
@@ -282,7 +285,7 @@ Do not switch the working branch to this archive unless the user explicitly asks
 
 Continue Tasks 11 and 12:
 
-1. Use the current v1.5.0 installer/portable hashes recorded above.
+1. Use the current v1.5.1 installer/portable hashes recorded above.
 2. Complete the enabled-versus-safe-mode real playback and audible-audio checklist on the user's actual Windows output device.
 3. Complete the remaining clean-profile/restart/coexistence acceptance work.
 4. Record objective results in `docs/testing.md` and Task Master.
