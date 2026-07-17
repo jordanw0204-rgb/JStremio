@@ -19,14 +19,14 @@ Start a new chat by reading, in order:
 6. `docs/testing.md`
 7. `.taskmaster/tasks/tasks.json`, or query Task Master directly
 
-Use CodeGraph before structural code exploration. A persistent project overview is available at `.codex/project-overview/project-overview.md`; it was refreshed on 2026-07-16 and indexed 542 files with no source changes detected.
+Use CodeGraph before structural code exploration. A persistent project overview is available at `.codex/project-overview/project-overview.md`; it was refreshed on 2026-07-16 and indexed 613 files.
 
 ## Current Git state
 
 - Branch: `feature/jstremio-extensions`
 - Upstream: `origin/feature/jstremio-extensions`
+- Public repository: `https://github.com/jordanw0204-rgb/JStremio`
 - Latest release tag: `v1.3.0` (use `git log -1` for the current commit)
-- Working tree was clean immediately before this handoff was created. Resumed work on 2026-07-16 added the expected uncommitted handoff/testing/check-script changes plus a dedicated JStremio icon wired into the executable and installer.
 - Current application version: `1.3.0`
 - Pinned shell upstream: `Stremio/stremio-shell-ng` release `v5.0.23`
 - Pinned upstream commit: `5b1f341dbd9e1959f824436c70aa7410c159f684`
@@ -36,6 +36,7 @@ Use CodeGraph before structural code exploration. A persistent project overview 
 Recent commits:
 
 ```text
+522f4af docs: add public installation guide
 f375699 feat: add exact-stream LastPlayed resume
 e7d6f22 feat: add local plugin platform
 0870bd9 feat: group local media entries by title
@@ -148,16 +149,14 @@ Private review/note text must never be added to logs, telemetry, URL parameters,
 Task Master tag: `master`
 
 - Total: 25
-- Done: 22
-- Review: 3
+- Done: 23
+- Review: 2
 - Pending/in progress/blocked: 0
-- Reported completion: 88%
+- Reported completion: 92%
 
-Tasks 1-10 and 13-24 are done. Tasks 11, 12, and 25 remain in review:
+Tasks 1-10 and 13-25 are done. Tasks 11 and 12 remain in review.
 
-### Task 25 - Ship one-click installer, versioned releases, and safe auto-updater
-
-The v1.3.0 code, versioning/release scripts, branded single-EXE installer, updater, local HTTP staging test, final artifacts, clean install, same-version upgrade, shortcut/relaunch proof, and protected-file hash comparison are complete. Production anonymous updates remain gated on a repository visibility decision: the existing GitHub repository is private, so either make it public or point the updater at a new public release-only repository. Never embed a maintainer GitHub token in the app.
+Task 25 is complete. The repository is public, the v1.3.0 release exposes the installer, portable ZIP, and checksums anonymously, and the installer is labeled as the recommended download. The anonymous latest-release endpoint returns the expected installer size and GitHub SHA-256 digest. GitHub secret scanning and push protection are enabled with zero open alerts after a tracked-tree/history credential audit.
 
 ### Task 11 - Add checks, fixtures, and real-shell regression workflow
 
@@ -224,6 +223,8 @@ SHA256: 35DDD49EFE1B9DF88D65D5A8A16CDD94D951F91ABEAAA345058B71B78CBFE882
 
 These hashes apply only to the current artifacts. Recompute them after any package rebuild.
 
+The public GitHub release was rebuilt on a clean Actions runner and therefore has different build-timestamp hashes. Its v1.3.0 installer digest is `C084CC8C74C97851237F3702EEFB79D16892E73AD46DBBEFBF5BF91577185C2B`; use the release's `SHA256SUMS.txt` for all published assets.
+
 ## Architecture constraints that must not regress
 
 - Do not return to maintaining a complete fork of `stremio-web`.
@@ -253,13 +254,12 @@ Do not switch the working branch to this archive unless the user explicitly asks
 
 ## Recommended next action
 
-Resolve Task 25's release-channel visibility, then continue Tasks 11 and 12:
+Continue Tasks 11 and 12:
 
-1. Make the existing release repository public or configure a public release-only repository, then publish v1.3.0 and verify an anonymous latest-release request exposes the installer digest.
-2. Use the current v1.3.0 installer/portable hashes recorded above.
-3. Complete the enabled-versus-safe-mode real playback and audible-audio checklist on the user's actual Windows output device.
-4. Complete the remaining clean-profile/restart/coexistence acceptance work.
-5. Record objective results in `docs/testing.md` and Task Master.
-6. Mark Tasks 11, 12, and 25 done only after every remaining acceptance item is proven.
+1. Use the current v1.3.0 installer/portable hashes recorded above.
+2. Complete the enabled-versus-safe-mode real playback and audible-audio checklist on the user's actual Windows output device.
+3. Complete the remaining clean-profile/restart/coexistence acceptance work.
+4. Record objective results in `docs/testing.md` and Task Master.
+5. Mark Tasks 11 and 12 done only after every remaining acceptance item is proven.
 
 If the user instead asks for a new feature, first query CodeGraph for the relevant runtime/extension/native bridge flow and assess the blast radius before editing. Use Context7 only when current third-party library/API documentation is relevant, and use Playwright plus focused native/unit tests for verification.

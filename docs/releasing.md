@@ -19,9 +19,11 @@ git push origin v1.3.1
 
 The tag workflow rebuilds and verifies the app, portable ZIP, and single-EXE installer; writes `SHA256SUMS.txt`; and attaches all three to a GitHub Release. The application queries only the latest non-draft, non-prerelease release. It requires the exact x64 installer asset name, GitHub's `sha256:` digest, an accepted size, and a trusted GitHub download path.
 
-## Release-channel visibility
+## Public release channel
 
-Anonymous update checks work only when the GitHub repository containing the releases is public. GitHub's latest-release endpoint requires repository read authentication for private resources. Do not embed a maintainer token in JStremio. If development source remains private, use a public release-only repository and update both constants in `updater/src/lib.rs` plus `setup/installed-channel.json` before publishing.
+Stable releases are published from the public [`jordanw0204-rgb/JStremio`](https://github.com/jordanw0204-rgb/JStremio) repository. This lets an installed copy query the latest-release endpoint and download a verified installer without storing a GitHub credential. GitHub secret scanning and push protection are enabled on the repository.
+
+If the repository is ever made private, renamed, or replaced with a release-only repository, update both release constants in `updater/src/lib.rs` and `setup/installed-channel.json` before publishing the next version. Never embed a maintainer token in JStremio.
 
 ## Signing
 
