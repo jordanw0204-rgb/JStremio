@@ -1,6 +1,6 @@
 # JStremio handoff
 
-Updated: 2026-07-16  
+Updated: 2026-07-17
 Repository: `D:\Dev\JStremio`
 
 ## Read this first
@@ -19,15 +19,15 @@ Start a new chat by reading, in order:
 6. `docs/testing.md`
 7. `.taskmaster/tasks/tasks.json`, or query Task Master directly
 
-Use CodeGraph before structural code exploration. A persistent project overview is available at `.codex/project-overview/project-overview.md`; it was refreshed on 2026-07-16 and indexed 613 files.
+Use CodeGraph before structural code exploration. A persistent project overview is available at `.codex/project-overview/project-overview.md`; it was refreshed on 2026-07-17 and indexed 662 files.
 
 ## Current Git state
 
 - Branch: `feature/jstremio-extensions`
 - Upstream: `origin/feature/jstremio-extensions`
 - Public repository: `https://github.com/jordanw0204-rgb/JStremio`
-- Latest release tag: `v1.3.0` (use `git log -1` for the current commit)
-- Current application version: `1.3.0`
+- Latest release tag: `v1.4.0` (release commit `9de70bb`; use `git log -1` for the current branch commit)
+- Current application version: `1.4.0`
 - Pinned shell upstream: `Stremio/stremio-shell-ng` release `v5.0.23`
 - Pinned upstream commit: `5b1f341dbd9e1959f824436c70aa7410c159f684`
 - Observed official web build: `b6298c68d27602564ed16edd0f44aa09cd8bacb4` on 2026-07-10
@@ -36,6 +36,7 @@ Use CodeGraph before structural code exploration. A persistent project overview 
 Recent commits:
 
 ```text
+9de70bb feat: add configurable plugin hotkeys
 522f4af docs: add public installation guide
 f375699 feat: add exact-stream LastPlayed resume
 e7d6f22 feat: add local plugin platform
@@ -71,6 +72,8 @@ d46611c fix: discover current Stremio player controls
 - Collection view grouped by movie/series, then drill-down to movie/episode entries.
 - Search, edit, delete, restart persistence, accessible dialog behavior, and failure isolation.
 - Review actions are designed never to change playback state or stream selection.
+- The player action is pointer-click-only and cannot be selected or activated by Stremio's arrow/Enter/Space keyboard handling.
+- An optional user-recorded hotkey opens the same validated current-media review dialog.
 
 ### Timestamp Notes
 
@@ -83,6 +86,7 @@ d46611c fix: discover current Stremio player controls
 - Create, edit, delete, search, thumbnail replacement/cleanup, enlarged thumbnail viewer, and restart persistence.
 - Marker layout follows WebView/fullscreen/viewport changes, hides with immersed controls, and avoids blocking the official seek bar.
 - Live, external, or insufficiently identified playback is rejected with an explanation.
+- The player action is pointer-click-only; an optional user-recorded hotkey opens the same validated timestamp-note capture flow.
 
 ### Plugins manager
 
@@ -92,6 +96,8 @@ d46611c fix: discover current Stremio player controls
 - User plugins are disabled by default and execute as trusted local code when explicitly enabled.
 - A starter plugin exists at `templates/hello-plugin`.
 - A native restart action applies enablement changes cleanly.
+- Local Reviews and Timestamp Notes cards expose Settings dialogs that record, validate, persist, clear, and apply per-plugin hotkeys immediately without a restart.
+- Hotkeys are suppressed for editable fields, open JStremio dialogs, unavailable player actions, repeats/composition, unsafe navigation/playback keys, and duplicate bindings.
 
 ### LastPlayed
 
@@ -148,15 +154,17 @@ Private review/note text must never be added to logs, telemetry, URL parameters,
 
 Task Master tag: `master`
 
-- Total: 25
-- Done: 23
+- Total: 26
+- Done: 24
 - Review: 2
 - Pending/in progress/blocked: 0
 - Reported completion: 92%
 
-Tasks 1-10 and 13-25 are done. Tasks 11 and 12 remain in review.
+Tasks 1-10 and 13-26 are done. Tasks 11 and 12 remain in review.
 
 Task 25 is complete. The repository is public, the v1.3.0 release exposes the installer, portable ZIP, and checksums anonymously, and the installer is labeled as the recommended download. The anonymous latest-release endpoint returns the expected installer size and GitHub SHA-256 digest. GitHub secret scanning and push protection are enabled with zero open alerts after a tracked-tree/history credential audit.
+
+Task 26 is complete. Reviews and Timestamp Notes player controls are click-only, each plugin has a hotkey recorder in Plugins > Settings, canonical bindings persist through the constrained native bridge, and safe global handlers open the exact same validated dialog flows. The v1.4.0 clean-runner release, branch CI, and tag CI all passed; the public assets and anonymous update metadata were verified after publication.
 
 ### Task 11 - Add checks, fixtures, and real-shell regression workflow
 
@@ -199,7 +207,7 @@ Run from `D:\Dev\JStremio`:
 
 `check.ps1` is the main automated gate. It runs Rust formatting, clippy, tests, strict TypeScript checks/unit tests, deterministic browser bundles, Playwright fixtures in Edge, and an optimized x64 compile.
 
-The most recent documented automated evidence is in `docs/testing.md`. On 2026-07-16 the full `check.ps1` gate passed 40 native tests, strict TypeScript checking with 16 unit tests, four Playwright scenarios, deterministic bundles, and the optimized x64 compile. The gate now calls the existing `test:e2e` package script because pinned `pnpm exec playwright test` did not resolve the installed Windows shim in this environment. Earlier real WebView2, MPV/CDP, IPC restart, safe-mode, server-isolation, and privacy evidence remains dated 2026-07-10/11.
+The most recent documented automated evidence is in `docs/testing.md`. On 2026-07-17 the full `check.ps1` gate passed 44 native tests, strict TypeScript checking with 20 unit tests, five Playwright scenarios, deterministic bundles, updater tests, and optimized x64 app/updater builds. A real v1.4.0 installer upgrade preserved all nine protected settings/plugin files and relaunched the installed app. Earlier real WebView2, MPV/CDP, IPC restart, safe-mode, server-isolation, and privacy evidence remains dated 2026-07-10/11.
 
 Safe-mode commands:
 
@@ -212,18 +220,18 @@ Safe-mode commands:
 ## Current packaged artifacts
 
 ```text
-Path:   installer\JStremioSetup-v1.3.0_x64-unsigned.exe
-Size:   70,667,814 bytes
-SHA256: 7BC87BAD4D21997D520EDD50A32F574703459DEB75EEB732C7A33FC90D13160A
+Path:   installer\JStremioSetup-v1.4.0_x64-unsigned.exe
+Size:   70,676,177 bytes
+SHA256: 58DEE3E0D109CC6FE3BAAA75A793E71EB60041AFC94D32D9A82D1AC3AA6D84FF
 
-Path:   artifacts\JStremio-1.3.0-windows-x64-portable.zip
-Size:   92,107,476 bytes
-SHA256: 35DDD49EFE1B9DF88D65D5A8A16CDD94D951F91ABEAAA345058B71B78CBFE882
+Path:   artifacts\JStremio-1.4.0-windows-x64-portable.zip
+Size:   92,127,754 bytes
+SHA256: 00E375C01892076DB5DC86D9C1CB60BF4367D63E6315919248A55F21C073AD86
 ```
 
 These hashes apply only to the current artifacts. Recompute them after any package rebuild.
 
-The public GitHub release was rebuilt on a clean Actions runner and therefore has different build-timestamp hashes. Its v1.3.0 installer digest is `C084CC8C74C97851237F3702EEFB79D16892E73AD46DBBEFBF5BF91577185C2B`; use the release's `SHA256SUMS.txt` for all published assets.
+The public GitHub release was rebuilt on a clean Actions runner and therefore has different build-timestamp hashes. Its v1.4.0 installer digest is `6D8F9A12C3D29D0CB4E236DFAEF20B5EB5AC066BDF3C7823BD38CFFAFF792A7B`; the portable digest is `D8350D87C6639421D52C27E7ED6C767428D7558708829443D2426A889BA52195`. Use the release's `SHA256SUMS.txt` for published assets.
 
 ## Architecture constraints that must not regress
 
@@ -256,7 +264,7 @@ Do not switch the working branch to this archive unless the user explicitly asks
 
 Continue Tasks 11 and 12:
 
-1. Use the current v1.3.0 installer/portable hashes recorded above.
+1. Use the current v1.4.0 installer/portable hashes recorded above.
 2. Complete the enabled-versus-safe-mode real playback and audible-audio checklist on the user's actual Windows output device.
 3. Complete the remaining clean-profile/restart/coexistence acceptance work.
 4. Record objective results in `docs/testing.md` and Task Master.

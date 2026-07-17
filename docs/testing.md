@@ -21,6 +21,8 @@ The v1.4.0 configurable-plugin-hotkey release gate passed on Windows:
 - Inno Setup built `JStremioSetup-v1.4.0_x64-unsigned.exe` at 70,676,177 bytes with SHA-256 `58DEE3E0D109CC6FE3BAAA75A793E71EB60041AFC94D32D9A82D1AC3AA6D84FF`. The portable ZIP is 92,127,754 bytes with SHA-256 `00E375C01892076DB5DC86D9C1CB60BF4367D63E6315919248A55F21C073AD86`.
 - A real per-user installer run upgraded the installed application to product/file version 1.4.0, returned exit code 0, preserved all nine files already present under the protected `data` and custom `plugins` trees byte-for-byte, and relaunched a responding JStremio process.
 - The public repository remained public, changed-file credential-pattern scanning found no candidate secrets, and GitHub secret scanning reported zero open alerts before publication.
+- Branch CI, tag CI, and the clean-runner release workflow all passed for commit `9de70bb`. The anonymous latest-release API returned v1.4.0 with three labeled assets, and the direct installer download returned HTTP 200.
+- Published clean-runner digests are `6D8F9A12C3D29D0CB4E236DFAEF20B5EB5AC066BDF3C7823BD38CFFAFF792A7B` for the installer and `D8350D87C6639421D52C27E7ED6C767428D7558708829443D2426A889BA52195` for the portable ZIP. The anonymous checksum file matched GitHub's asset digests.
 
 ## Automated evidence from 2026-07-16
 

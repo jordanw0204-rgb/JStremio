@@ -347,18 +347,18 @@
         "description": "Prevent keyboard focus/arrow activation of the Reviews and Timestamp Notes player buttons, add per-plugin Settings dialogs in the Plugins manager, persist configurable key combinations, and open the matching player popout from safe global hotkeys.",
         "details": "Keep mouse click behavior unchanged. Player action controls must not participate in Stremio keyboard navigation or activate from Enter/Space/arrow keys. Add Settings buttons under the Reviews and Timestamp Notes plugin cards. Settings dialogs capture a key or modified key combination, support clearing/canceling, reject reserved/modifier-only/conflicting bindings, and persist through the fixed native plugins bridge. Hotkeys must invoke the exact same validated Review or Timestamp dialog flow as mouse clicks, only when the corresponding plugin is enabled/active and no editable field/dialog/hotkey recorder owns keyboard input.",
         "testStrategy": "Rust settings/schema/IPC persistence and validation tests; TypeScript hotkey normalization/conflict/input-context tests; Playwright click-only focus/keyboard tests, settings dialog recording/persistence, restart/remount behavior, and hotkey-to-dialog flows; full check.ps1, installer build, upgrade preservation, and public release metadata verification.",
-        "status": "review",
+        "status": "done",
         "dependencies": [],
         "priority": "high",
         "subtasks": [],
-        "updatedAt": "2026-07-17T10:31:39.338Z"
+        "updatedAt": "2026-07-17T10:41:56.092Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-07-17T10:31:39.338Z",
+      "lastModified": "2026-07-17T10:41:56.092Z",
       "taskCount": 26,
-      "completedCount": 23,
+      "completedCount": 24,
       "tags": [
         "master"
       ]
