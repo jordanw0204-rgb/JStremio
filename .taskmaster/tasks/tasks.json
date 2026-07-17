@@ -359,18 +359,18 @@
         "description": "Show LastPlayed actions on every movie/series card with saved playback history and expose exact saved stream metadata on hover; add a Themes navigation page for persistent configurable gradient/color theming applied before the app becomes visible; replace the official in-page Stremio mark with the existing blue JStremio icon.",
         "details": "Extend existing LastPlayed storage/bridge only as needed without exposing generic APIs. Reuse stable saved stream description/fingerprint data and refresh routes through official Stremio navigation. Theme settings must be validated, persisted atomically under the JStremio profile, applied early enough to avoid a startup color flash, work across routes/remounts, include reset/default behavior and accessible controls, and avoid breaking official/player/plugin overlays. Brand replacement must use the existing JStremio blue icon asset and survive official DOM remounts. Bump versions, preserve settings/custom plugins across installer upgrade, document, package, release publicly, and verify updater metadata.",
         "testStrategy": "Native storage/schema/bridge validation tests; TypeScript unit tests for saved-media matching, metadata rendering, theme validation/CSS generation, and branding adapter behavior; installed-Edge Playwright coverage for multiple played cards, hover details, exact navigation, themes page live application/persistence/reset/remount/startup behavior, and logo replacement; full scripts/check.ps1; real installer upgrade preservation; clean GitHub Actions release and anonymous asset/update verification.",
-        "status": "review",
+        "status": "done",
         "dependencies": [],
         "priority": "high",
         "subtasks": [],
-        "updatedAt": "2026-07-17T11:32:12.266Z"
+        "updatedAt": "2026-07-17T20:15:06.138Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-07-17T11:32:12.267Z",
+      "lastModified": "2026-07-17T20:15:06.138Z",
       "taskCount": 27,
-      "completedCount": 24,
+      "completedCount": 25,
       "tags": [
         "master"
       ]

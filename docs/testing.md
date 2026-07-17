@@ -10,7 +10,21 @@
 
 `check.ps1` runs Rust formatting/clippy/tests, TypeScript typecheck/unit tests, deterministic bundles, Playwright fixtures in installed Edge, and an optimized x64 compile.
 
-## Automated evidence from 2026-07-17
+## Automated evidence from 2026-07-17 (v1.5.0)
+
+The v1.5.0 universal LastPlayed, Themes, and in-app branding release gate passed on Windows:
+
+- The full `check.ps1` gate passed Rust formatting and clippy with warnings denied, all 48 native tests, strict TypeScript with all 28 unit tests, all eight installed-Edge Playwright scenarios, deterministic extension bundles, all updater tests, and optimized x64 app/updater builds.
+- Native coverage proves validated and atomic theme persistence/reset, official startup CSS-variable generation, the fixed theme bridge contract, and the existing constrained LastPlayed/plugin/storage contracts. Browser coverage proves theme validation, presets, live preview, save/reset, startup restoration, remount resilience, and rollback of an unsaved preview.
+- LastPlayed card coverage proves exact movie/episode matching, newest-episode fallback for series cards, exclusion of navigation/text/player links, per-poster placement for Stremio's direct-child card rows, React-style poster remount survival, body-level unclipped metadata tooltips, and navigation through the exact saved official player route.
+- A real current-profile WebView2 smoke found two played cards, verified a visible viewport-contained tooltip populated from the locally saved provider/stream descriptor, confirmed the embedded blue JStremio mark replaced the official symbol with no duplicate, and proved an unsaved theme preview reverted on close. This smoke also caught and drove the fix for Stremio's wide direct-child poster-row layout before release.
+- Inno Setup built `JStremioSetup-v1.5.0_x64-unsigned.exe` at 71,263,613 bytes with local SHA-256 `6E262794A90B04C3D5DBA4143AD190CF33B494A2DA64198433B44EADA503414E`. The local portable ZIP is 92,730,453 bytes with SHA-256 `0F2E58EE6E43C5B16FF8AD7E271D7207CFE39E3432DA03FDF5F5A5F6794D7984`.
+- A real per-user installer run upgraded the existing installation from v1.4.0 to product/file version 1.5.0 with exit code 0. Before/after SHA-256 comparison found all 11 files under the protected `data` and custom `plugins` trees byte-for-byte identical, and both desktop and Start-menu shortcuts remained present.
+- Branch CI, corrected tag CI, and the clean-runner release workflow all passed for commit `a9ab019`. The initial tag run exposed an asynchronous-thumbnail timing assumption in an older pinned-popover test; the assertion was narrowed to its actual x/y-position contract, the full local Playwright suite passed again, the unpublished run was canceled, and every corrected clean-runner job passed.
+- The public repository is still public and GitHub secret scanning reports zero open alerts. The anonymous latest-release endpoint returns stable v1.5.0, and the direct installer download returns HTTP 200.
+- Published clean-runner digests are `BF2A933C82A1B5644262EDA1EA3C34524BF131AD2E05A5031AEDFBDDA3628BE0` for the recommended installer and `C4CFB8D847499417556E1065B25D1675ACACA53C1B1DDFC7CC45EB0CDBE9838B` for the portable ZIP. The anonymous checksum file matches both GitHub asset digests.
+
+## Automated evidence from 2026-07-17 (v1.4.0)
 
 The v1.4.0 configurable-plugin-hotkey release gate passed on Windows:
 

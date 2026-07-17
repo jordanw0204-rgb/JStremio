@@ -19,15 +19,15 @@ Start a new chat by reading, in order:
 6. `docs/testing.md`
 7. `.taskmaster/tasks/tasks.json`, or query Task Master directly
 
-Use CodeGraph before structural code exploration. A persistent project overview is available at `.codex/project-overview/project-overview.md`; it was refreshed on 2026-07-17 and indexed 662 files.
+Use CodeGraph before structural code exploration. A persistent project overview is available at `.codex/project-overview/project-overview.md`; it was refreshed on 2026-07-17 and indexed 733 files.
 
 ## Current Git state
 
 - Branch: `feature/jstremio-extensions`
 - Upstream: `origin/feature/jstremio-extensions`
 - Public repository: `https://github.com/jordanw0204-rgb/JStremio`
-- Latest release tag: `v1.4.0` (release commit `9de70bb`; use `git log -1` for the current branch commit)
-- Current application version: `1.4.0`
+- Latest release tag: `v1.5.0` (release commit `a9ab019`; use `git log -1` for the current branch commit)
+- Current application version: `1.5.0`
 - Pinned shell upstream: `Stremio/stremio-shell-ng` release `v5.0.23`
 - Pinned upstream commit: `5b1f341dbd9e1959f824436c70aa7410c159f684`
 - Observed official web build: `b6298c68d27602564ed16edd0f44aa09cd8bacb4` on 2026-07-10
@@ -36,6 +36,8 @@ Use CodeGraph before structural code exploration. A persistent project overview 
 Recent commits:
 
 ```text
+a9ab019 test: stabilize pinned popover assertion
+a7d06db feat: add themes and universal LastPlayed
 9de70bb feat: add configurable plugin hotkeys
 522f4af docs: add public installation guide
 f375699 feat: add exact-stream LastPlayed resume
@@ -63,6 +65,7 @@ d46611c fix: discover current Stremio player controls
 - Independent extension enablement is persisted locally.
 - Safe mode can disable all extensions or named extensions.
 - JStremio has an isolated identity, WebView2 profile, server directory, data directory, and installer AppId, so it can coexist with official Stremio.
+- The official in-web Stremio symbol is replaced idempotently with the embedded blue JStremio mark while preserving its existing navigation element and route behavior.
 
 ### Local Reviews
 
@@ -99,10 +102,19 @@ d46611c fix: discover current Stremio player controls
 - Local Reviews and Timestamp Notes cards expose Settings dialogs that record, validate, persist, clear, and apply per-plugin hotkeys immediately without a restart.
 - Hotkeys are suppressed for editable fields, open JStremio dialogs, unavailable player actions, repeats/composition, unsafe navigation/playback keys, and duplicate bindings.
 
+### Themes
+
+- A dedicated Themes navigation page provides live color and gradient preview for the official Stremio interface.
+- Users can configure gradient start/end, angle, accent, surface, and primary text colors or select Stremio, Midnight, Ocean, and Aurora presets.
+- Validated settings persist atomically under JStremio's isolated profile, apply before the web application paints on startup, and survive official React route remounts.
+- Save and Reset are explicit; closing with an unsaved preview restores the last saved palette.
+
 ### LastPlayed
 
 - Stores the exact selected add-on stream for watched media using validated local descriptors/fingerprints.
-- Adds resume behavior to Continue Watching cards.
+- Adds a per-poster Last played action to every movie or series card with saved playback, including Continue Watching and ordinary catalog rows.
+- Hover/focus details show the exact saved movie/episode, provider, stream name, full saved descriptor (including file size/seed information when the add-on supplied it), position, and save time without a network lookup.
+- Card actions survive upstream poster remounts, remain scoped to individual posters in Stremio's wide scrolling rows, and use a body-level viewport-clamped tooltip so global overflow rules cannot clip it.
 - Promotes and labels a matching prior source in stream selection.
 - Re-enters playback through official Stremio navigation/player paths instead of opening its own player.
 - Version 1.0.1 records only a stream proven active by a fresh MPV snapshot on the matching player route, keeps its control compact in the current direct-anchor stream DOM, and resolves renewed debrid URLs by stable saved description lines before using the matched row's fresh official route.
@@ -116,6 +128,7 @@ src/bridge.rs                   Fixed origin-gated native IPC
 src/reviews/                    Reviews model and store
 src/timestamp_notes/            Timestamp-note model and store
 src/last_played/                LastPlayed model and store
+src/themes/                     Validated theme model, persistence, startup CSS
 src/stremio_app/                Pinned official shell integration
 
 web/src/runtime/                Browser runtime, lifecycle, adapters, bridge
@@ -125,6 +138,8 @@ web/src/extensions/timestamp-notes/
 web/src/extensions/plugin-manager/
                                 Plugins manager UI
 web/src/extensions/last-played/ LastPlayed browser integration
+web/src/extensions/themes/      Themes page and live-preview controls
+web/src/runtime/branding.ts     Idempotent in-web JStremio mark replacement
 
 web/tests/                      Vitest and Playwright coverage
 scripts/                        Check, development, E2E, and packaging commands
@@ -142,6 +157,7 @@ data\reviews.json
 data\timestamp-notes.json
 data\last-played.json
 data\plugins.json
+data\themes.json
 data\timestamp-thumbnails\
 plugins\
 webview2\
@@ -154,17 +170,19 @@ Private review/note text must never be added to logs, telemetry, URL parameters,
 
 Task Master tag: `master`
 
-- Total: 26
-- Done: 24
+- Total: 27
+- Done: 25
 - Review: 2
 - Pending/in progress/blocked: 0
 - Reported completion: 92%
 
-Tasks 1-10 and 13-26 are done. Tasks 11 and 12 remain in review.
+Tasks 1-10 and 13-27 are done. Tasks 11 and 12 remain in review.
 
 Task 25 is complete. The repository is public, the v1.3.0 release exposes the installer, portable ZIP, and checksums anonymously, and the installer is labeled as the recommended download. The anonymous latest-release endpoint returns the expected installer size and GitHub SHA-256 digest. GitHub secret scanning and push protection are enabled with zero open alerts after a tracked-tree/history credential audit.
 
 Task 26 is complete. Reviews and Timestamp Notes player controls are click-only, each plugin has a hotkey recorder in Plugins > Settings, canonical bindings persist through the constrained native bridge, and safe global handlers open the exact same validated dialog flows. The v1.4.0 clean-runner release, branch CI, and tag CI all passed; the public assets and anonymous update metadata were verified after publication.
+
+Task 27 is complete. Universal per-poster LastPlayed actions, saved-source metadata tooltips, the persisted Themes page, and in-web JStremio branding shipped in v1.5.0. The full local gate, current-profile WebView2 smoke, byte-for-byte protected-profile upgrade check, branch CI, corrected tag CI, clean-runner release, public asset/checksum verification, direct installer HTTP check, and zero-open-secret-alert check all passed.
 
 ### Task 11 - Add checks, fixtures, and real-shell regression workflow
 
@@ -207,7 +225,7 @@ Run from `D:\Dev\JStremio`:
 
 `check.ps1` is the main automated gate. It runs Rust formatting, clippy, tests, strict TypeScript checks/unit tests, deterministic browser bundles, Playwright fixtures in Edge, and an optimized x64 compile.
 
-The most recent documented automated evidence is in `docs/testing.md`. On 2026-07-17 the full `check.ps1` gate passed 44 native tests, strict TypeScript checking with 20 unit tests, five Playwright scenarios, deterministic bundles, updater tests, and optimized x64 app/updater builds. A real v1.4.0 installer upgrade preserved all nine protected settings/plugin files and relaunched the installed app. Earlier real WebView2, MPV/CDP, IPC restart, safe-mode, server-isolation, and privacy evidence remains dated 2026-07-10/11.
+The most recent documented automated evidence is in `docs/testing.md`. On 2026-07-17 the full v1.5.0 `check.ps1` gate passed 48 native tests, strict TypeScript checking with 28 unit tests, eight Playwright scenarios, deterministic bundles, updater tests, and optimized x64 app/updater builds. A real installer upgrade preserved all 11 protected settings/plugin files byte-for-byte, retained both shortcuts, and installed product/file version 1.5.0. Current-profile WebView2 verification covered the JStremio mark, live theme preview/rollback, and real LastPlayed poster metadata. Earlier real MPV/CDP, IPC restart, safe-mode, server-isolation, and privacy evidence remains dated 2026-07-10/11.
 
 Safe-mode commands:
 
@@ -220,18 +238,18 @@ Safe-mode commands:
 ## Current packaged artifacts
 
 ```text
-Path:   installer\JStremioSetup-v1.4.0_x64-unsigned.exe
-Size:   70,676,177 bytes
-SHA256: 58DEE3E0D109CC6FE3BAAA75A793E71EB60041AFC94D32D9A82D1AC3AA6D84FF
+Path:   installer\JStremioSetup-v1.5.0_x64-unsigned.exe
+Size:   71,263,613 bytes
+SHA256: 6E262794A90B04C3D5DBA4143AD190CF33B494A2DA64198433B44EADA503414E
 
-Path:   artifacts\JStremio-1.4.0-windows-x64-portable.zip
-Size:   92,127,754 bytes
-SHA256: 00E375C01892076DB5DC86D9C1CB60BF4367D63E6315919248A55F21C073AD86
+Path:   artifacts\JStremio-1.5.0-windows-x64-portable.zip
+Size:   92,730,453 bytes
+SHA256: 0F2E58EE6E43C5B16FF8AD7E271D7207CFE39E3432DA03FDF5F5A5F6794D7984
 ```
 
 These hashes apply only to the current artifacts. Recompute them after any package rebuild.
 
-The public GitHub release was rebuilt on a clean Actions runner and therefore has different build-timestamp hashes. Its v1.4.0 installer digest is `6D8F9A12C3D29D0CB4E236DFAEF20B5EB5AC066BDF3C7823BD38CFFAFF792A7B`; the portable digest is `D8350D87C6639421D52C27E7ED6C767428D7558708829443D2426A889BA52195`. Use the release's `SHA256SUMS.txt` for published assets.
+The public GitHub release was rebuilt on a clean Actions runner and therefore has different build-timestamp hashes. Its v1.5.0 recommended-installer digest is `BF2A933C82A1B5644262EDA1EA3C34524BF131AD2E05A5031AEDFBDDA3628BE0`; the portable digest is `C4CFB8D847499417556E1065B25D1675ACACA53C1B1DDFC7CC45EB0CDBE9838B`. Use the release's `SHA256SUMS.txt` for published assets.
 
 ## Architecture constraints that must not regress
 
@@ -264,7 +282,7 @@ Do not switch the working branch to this archive unless the user explicitly asks
 
 Continue Tasks 11 and 12:
 
-1. Use the current v1.4.0 installer/portable hashes recorded above.
+1. Use the current v1.5.0 installer/portable hashes recorded above.
 2. Complete the enabled-versus-safe-mode real playback and audible-audio checklist on the user's actual Windows output device.
 3. Complete the remaining clean-profile/restart/coexistence acceptance work.
 4. Record objective results in `docs/testing.md` and Task Master.
