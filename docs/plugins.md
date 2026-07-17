@@ -24,6 +24,8 @@ Local Reviews and Timestamp Notes expose a **Settings** button on their cards in
 
 Bindings must be unique. Modifier-only, Windows-key, Alt-only, navigation, playback, and unsafe system combinations are rejected. A configured hotkey works only while that plugin's matching player action is available, and it is ignored while typing or while a JStremio overlay/dialog is open. Use **Clear hotkey** and save to remove a binding.
 
+Themes is a protected built-in surface rather than a downloadable theme plugin. Its fixed native operations persist only the validated palette described in [Themes](themes.md). Use the Themes sidebar button to customize the app; do not install custom JavaScript merely to change basic colors.
+
 ## Plugin structure
 
 ```text

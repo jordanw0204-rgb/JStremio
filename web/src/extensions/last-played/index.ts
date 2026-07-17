@@ -3,6 +3,7 @@ import type { JStremioRuntime, MediaTarget } from "../../runtime/types";
 import { extractLastPlayedInput } from "../../runtime/lastPlayedAdapter";
 import { isRecord } from "../../runtime/nativeEvents";
 import { requireRuntime } from "../shared";
+import { mountMediaCardButtons, removeMediaCardButtons } from "./cards";
 
 export type LastPlayedEntry = MediaTarget & {
   id: string;
@@ -15,7 +16,7 @@ export type LastPlayedEntry = MediaTarget & {
   updatedAt: string;
 };
 
-const manifest = { schemaVersion:1,id:"last-played",name:"LastPlayed",version:"1.0.1",entry:"index.js",styles:"styles.css",enabledByDefault:true,loadOrder:120 } as const;
+const manifest = { schemaVersion:1,id:"last-played",name:"LastPlayed",version:"1.1.0",entry:"index.js",styles:"styles.css",enabledByDefault:true,loadOrder:120 } as const;
 const OWNER = "last-played";
 
 requireRuntime().registerExtension(manifest, (runtime) => activate(runtime));
@@ -52,13 +53,14 @@ function activate(runtime: JStremioRuntime) {
       if (entry) {
         lastSavedSignature = signature;
         entries = [entry, ...entries.filter((item) => item.id !== entry.id)];
+        reconcile();
       }
     } catch (error) { runtime.diagnostics.report(OWNER, error); }
     finally { captureRunning = false; }
   };
   const reconcile = () => {
     if (disposed) return;
-    mountContinueWatchingButtons(entries);
+    mountMediaCardButtons(entries, play);
     mountStreamMenu(entries);
   };
   const unsubscribe = runtime.lifecycle.onReconcile(reconcile);
@@ -68,6 +70,7 @@ function activate(runtime: JStremioRuntime) {
   void refresh(); void capture();
   return () => {
     disposed = true; unsubscribe(); routeUnsubscribe(); playerUnsubscribe(); clearInterval(timer);
+    removeMediaCardButtons();
     document.querySelectorAll(`[data-jstremio-extension="${OWNER}"]`).forEach((node) => node.remove());
     document.querySelectorAll("[data-jstremio-last-played-host]").forEach((node) => node.removeAttribute("data-jstremio-last-played-host"));
     document.querySelectorAll("[data-jstremio-last-played-badge]").forEach((node) => node.remove());
@@ -75,31 +78,6 @@ function activate(runtime: JStremioRuntime) {
 }
 
 function play(entry: LastPlayedEntry) { location.hash = entry.playerDeepLink.slice(1); }
-
-function mountContinueWatchingButtons(entries: LastPlayedEntry[]) {
-  if (!entries.length) { removeContinueWatchingButtons(); return; }
-  const headings = Array.from(document.querySelectorAll<HTMLElement>("h1,h2,h3,[role=heading]"));
-  const heading = headings.find((node) => /continue watching/i.test(node.textContent || ""));
-  if (!heading) { removeContinueWatchingButtons(); return; }
-  const scope = findContinueWatchingScope(heading, entries);
-  if (!scope) { removeContinueWatchingButtons(); return; }
-  const links = Array.from(scope.querySelectorAll<HTMLAnchorElement>("a[href]"));
-  for (const link of links) {
-    if (link.closest(`[data-jstremio-extension="${OWNER}"]`)) continue;
-    const href = decodeURIComponent(link.getAttribute("href") || "");
-    const entry = entries.find((item) => href.includes(item.videoId) || href.includes(item.metaId));
-    if (!entry) continue;
-    const host = (link.closest<HTMLElement>("li,article") ?? link.parentElement) as HTMLElement | null;
-    if (!host || host.querySelector(`[data-jstremio-last-played-card][data-media-id="${cssEscape(entry.id)}"]`)) continue;
-    host.dataset.jstremioLastPlayedHost = "";
-    if (getComputedStyle(host).position === "static") host.style.position = "relative";
-    const wrapper = document.createElement("div");
-    wrapper.dataset.jstremioExtension = OWNER; wrapper.dataset.jstremioLastPlayedCard = ""; wrapper.dataset.mediaId = entry.id;
-    const button = makeButton("Resume last played", () => play(entry));
-    button.setAttribute("aria-label", `Resume last played ${entry.name || entry.title || "video"}`);
-    wrapper.append(button); host.append(wrapper);
-  }
-}
 
 function mountStreamMenu(entries: LastPlayedEntry[]) {
   const entry = entryForDetailRoute(entries);
@@ -197,28 +175,6 @@ function cleanupStreamMenu(owner?: HTMLElement, exact?: HTMLAnchorElement) {
   });
 }
 
-function findContinueWatchingScope(heading: HTMLElement, entries: LastPlayedEntry[]): HTMLElement | null {
-  let scope = heading.parentElement;
-  for (let depth = 0; scope && depth < 5; depth += 1) {
-    const hasMatchingCard = Array.from(scope.querySelectorAll<HTMLAnchorElement>("a[href]")).some((link) => {
-      const href = decodedHref(link);
-      return entries.some((entry) => href.includes(entry.videoId));
-    });
-    if (hasMatchingCard) return scope;
-    scope = scope.parentElement;
-  }
-  return null;
-}
-
-function removeContinueWatchingButtons() {
-  document.querySelectorAll<HTMLElement>("[data-jstremio-last-played-card]").forEach((node) => node.remove());
-}
-
-function decodedHref(link: HTMLAnchorElement) {
-  try { return decodeURIComponent(link.getAttribute("href") || ""); }
-  catch { return link.getAttribute("href") || ""; }
-}
-
 function isPlayerRoute(route: string) {
   try { return decodeURIComponent(route).startsWith("#/player/"); }
   catch { return false; }
@@ -236,4 +192,3 @@ function makeButton(label: string, action: () => void) {
 }
 function asEntries(value: unknown): LastPlayedEntry[] { return Array.isArray(value) ? value.map(asEntry).filter((v):v is LastPlayedEntry => Boolean(v)) : []; }
 function asEntry(value: unknown): LastPlayedEntry | null { return isRecord(value) && typeof value.id === "string" && typeof value.playerDeepLink === "string" ? value as LastPlayedEntry : null; }
-function cssEscape(value: string) { return value.replace(/["\\]/g, "\\$&"); }

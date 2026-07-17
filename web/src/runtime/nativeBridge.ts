@@ -5,6 +5,7 @@ const METHODS = {
   "timestamp-notes": "jstremio-timestamp-notes",
   plugins: "jstremio-plugins",
   "last-played": "jstremio-last-played",
+  themes: "jstremio-themes",
 } as const;
 const MAX_REQUEST_BYTES = 60 * 1024;
 const DEFAULT_TIMEOUT_MS = 7_500;

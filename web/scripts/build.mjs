@@ -24,10 +24,11 @@ const common = {
 await build({
   ...common,
   entryPoints: [resolve(webRoot, "src", "runtime", "bootstrap.ts")],
+  loader: { ".png": "dataurl" },
   outfile: resolve(outputRoot, "runtime.js"),
 });
 
-for (const id of ["plugin-manager", "reviews", "timestamp-notes", "last-played"]) {
+for (const id of ["plugin-manager", "themes", "reviews", "timestamp-notes", "last-played"]) {
   const source = resolve(webRoot, "src", "extensions", id);
   const output = resolve(outputRoot, id);
   await mkdir(output, { recursive: true });

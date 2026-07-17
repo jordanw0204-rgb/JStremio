@@ -5,6 +5,7 @@ pub use manifest::{ExtensionLoader, ManifestError, PluginDescriptor};
 pub use settings::PluginSettingsStore;
 
 use crate::bridge::{BridgeResponse, NativeBridge};
+use crate::themes::ThemeStore;
 use serde_json::Value;
 use std::{collections::HashSet, path::Path, sync::Arc};
 use url::Url;
@@ -50,6 +51,7 @@ pub struct ExtensionHost {
     loader: ExtensionLoader,
     bridge: NativeBridge,
     origins: OriginPolicy,
+    injection_script: Arc<str>,
 }
 
 impl ExtensionHost {
@@ -69,6 +71,13 @@ impl ExtensionHost {
             disabled_ids,
             &overrides,
         )?;
+        let early_theme = ThemeStore::new(data_directory)
+            .get()
+            .unwrap_or_default()
+            .startup_script()
+            .unwrap_or_default();
+        let injection_script =
+            Arc::<str>::from(format!("{early_theme}{}", loader.injection_script()));
         let bridge = NativeBridge::new_with_plugins(
             data_directory,
             user_plugins_directory,
@@ -78,6 +87,7 @@ impl ExtensionHost {
             loader,
             bridge,
             origins,
+            injection_script,
         })
     }
 
@@ -88,7 +98,7 @@ impl ExtensionHost {
     pub fn injection_script_for(&self, top_level_source: &str) -> Option<&str> {
         self.origins
             .allows_top_level(top_level_source)
-            .then(|| self.loader.injection_script())
+            .then(|| self.injection_script.as_ref())
     }
 
     pub fn handle_bridge_message(

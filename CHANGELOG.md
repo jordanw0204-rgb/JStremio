@@ -2,6 +2,14 @@
 
 JStremio follows Semantic Versioning. Stable releases are tagged `vMAJOR.MINOR.PATCH` and published through GitHub Releases.
 
+## 1.5.0 - 2026-07-17
+
+- Add a LastPlayed action to every visual movie or series card with saved playback history, including the newest saved episode for series-level cards.
+- Add an accessible LastPlayed hover/focus panel that displays the exact saved episode, provider, stream name, full add-on description, file size/seeder details when supplied by the add-on, resume position, and save time.
+- Add a required Themes page with live editing for both gradient colors, gradient angle, accent, surface, and text colors; include four presets plus validated Save and Reset actions.
+- Persist themes atomically and inject the saved palette before the Stremio application root paints so route changes and restarts do not flash back to the default palette.
+- Replace Stremio's upper-left web mark with the existing blue JStremio icon while preserving its original link, dimensions, and remount behavior.
+
 ## 1.4.0 - 2026-07-17
 
 - Make the Reviews and Timestamp Notes player actions mouse-click-only so Stremio arrow-key navigation cannot select or activate them.

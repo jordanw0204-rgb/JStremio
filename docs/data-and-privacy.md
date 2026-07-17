@@ -8,6 +8,8 @@ Review text is optional and limited to 5,000 Unicode characters. Timestamp-note 
 
 LastPlayed uses `last-played.json`. It stores the selected video's metadata, playback position, add-on label, stream fingerprint, and official Stremio player deep link. A deep link can contain a direct-stream URL or torrent identity supplied by an installed add-on. It remains local and is used only to reopen the exact source through Stremio's normal player route.
 
+Themes use `themes.json`. The document stores five validated opaque `#RRGGBB` colors and a whole-number gradient angle from 0 through 360. It contains no account, playback, add-on, or media information. Theme settings are injected only into the local Stremio WebView and are never sent to an add-on or remote theme service.
+
 ## File safety
 
 Each store owns a mutex. A mutation reads and validates the primary file, writes a UUID-named temporary file in the same directory, flushes it, creates a known-good `.bak` from the previous validated primary, and uses Windows `ReplaceFileW` with write-through semantics. The first write uses a same-volume rename. Abandoned temp files are ignored.

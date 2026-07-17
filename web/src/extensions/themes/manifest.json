@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "themes",
+  "name": "Themes",
+  "version": "1.0.0",
+  "entry": "index.js",
+  "styles": "styles.css",
+  "enabledByDefault": true,
+  "loadOrder": 15,
+  "description": "Customize JStremio's colors and background gradient.",
+  "author": "JStremio",
+  "core": true
+}

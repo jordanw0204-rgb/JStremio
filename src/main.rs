@@ -20,6 +20,7 @@ mod media;
 mod reviews;
 mod storage;
 mod stremio_app;
+mod themes;
 mod timestamp_notes;
 mod updater;
 use crate::stremio_app::{

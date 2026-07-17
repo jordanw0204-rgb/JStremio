@@ -3,6 +3,7 @@ use crate::{
     last_played::{LastPlayedInput, LastPlayedStore},
     reviews::{ReviewInput, ReviewStore},
     storage::StorageError,
+    themes::{ThemeSettings, ThemeStore},
     timestamp_notes::{CreateNoteInput, TimestampNoteStore, UpdateNoteInput},
 };
 use base64::{engine::general_purpose::STANDARD, Engine as _};
@@ -18,6 +19,7 @@ pub const REVIEWS_METHOD: &str = "jstremio-reviews";
 pub const TIMESTAMP_NOTES_METHOD: &str = "jstremio-timestamp-notes";
 pub const PLUGINS_METHOD: &str = "jstremio-plugins";
 pub const LAST_PLAYED_METHOD: &str = "jstremio-last-played";
+pub const THEMES_METHOD: &str = "jstremio-themes";
 
 pub struct NativeBridge {
     reviews: ReviewStore,
@@ -27,6 +29,7 @@ pub struct NativeBridge {
     plugins: Mutex<Vec<PluginDescriptor>>,
     plugin_settings: PluginSettingsStore,
     last_played: LastPlayedStore,
+    themes: ThemeStore,
 }
 
 #[derive(Debug, Deserialize)]
@@ -110,13 +113,18 @@ impl NativeBridge {
             plugins: Mutex::new(plugins),
             plugin_settings: PluginSettingsStore::new(data_directory),
             last_played: LastPlayedStore::new(data_directory),
+            themes: ThemeStore::new(data_directory),
         }
     }
 
     pub fn supports(method: &str) -> bool {
         matches!(
             method,
-            REVIEWS_METHOD | TIMESTAMP_NOTES_METHOD | PLUGINS_METHOD | LAST_PLAYED_METHOD
+            REVIEWS_METHOD
+                | TIMESTAMP_NOTES_METHOD
+                | PLUGINS_METHOD
+                | LAST_PLAYED_METHOD
+                | THEMES_METHOD
         )
     }
 
@@ -142,6 +150,7 @@ impl NativeBridge {
             Ok(request) if method == TIMESTAMP_NOTES_METHOD => self.handle_notes(request),
             Ok(request) if method == PLUGINS_METHOD => self.handle_plugins(request),
             Ok(request) if method == LAST_PLAYED_METHOD => self.handle_last_played(request),
+            Ok(request) if method == THEMES_METHOD => self.handle_themes(request),
             Ok(_) => Err(validation_error("unsupported bridge namespace")),
             Err(error) => Err(error),
         };
@@ -390,6 +399,29 @@ impl NativeBridge {
         }
     }
 
+    fn handle_themes(&self, request: BridgeRequest) -> Result<Value, ErrorPayload> {
+        match request.operation.as_str() {
+            "get" => self
+                .themes
+                .get()
+                .map(|theme| json!(theme))
+                .map_err(storage_error),
+            "set" => {
+                let settings: ThemeSettings = parse_value(request.payload)?;
+                self.themes
+                    .set(settings)
+                    .map(|theme| json!(theme))
+                    .map_err(storage_error)
+            }
+            "reset" => self
+                .themes
+                .reset()
+                .map(|theme| json!(theme))
+                .map_err(storage_error),
+            _ => Err(operation_error()),
+        }
+    }
+
     fn open_data_folder(&self) -> Result<Value, ErrorPayload> {
         fs::create_dir_all(&self.data_directory).map_err(|_| ErrorPayload {
             code: "storage_io".into(),
@@ -564,7 +596,8 @@ fn response(method: &str, request_id: u64, result: Result<Value, ErrorPayload>) 
 #[cfg(test)]
 mod tests {
     use super::{
-        NativeBridge, LAST_PLAYED_METHOD, PLUGINS_METHOD, REVIEWS_METHOD, TIMESTAMP_NOTES_METHOD,
+        NativeBridge, LAST_PLAYED_METHOD, PLUGINS_METHOD, REVIEWS_METHOD, THEMES_METHOD,
+        TIMESTAMP_NOTES_METHOD,
     };
     use crate::extensions::{PluginDescriptor, PluginSettingsStore};
     use serde_json::json;
@@ -592,7 +625,63 @@ mod tests {
         assert!(NativeBridge::supports(TIMESTAMP_NOTES_METHOD));
         assert!(NativeBridge::supports(PLUGINS_METHOD));
         assert!(NativeBridge::supports(LAST_PLAYED_METHOD));
+        assert!(NativeBridge::supports(THEMES_METHOD));
         assert!(!NativeBridge::supports("jstremio-filesystem"));
+    }
+
+    #[test]
+    fn theme_bridge_accepts_only_fixed_validated_palette_operations() {
+        let directory = tempdir().unwrap();
+        let bridge = NativeBridge::new(directory.path());
+        let custom = json!({
+            "backgroundStart":"#001122",
+            "backgroundEnd":"#223344",
+            "accent":"#55AAFF",
+            "surface":"#101820",
+            "text":"#F4F8FF",
+            "gradientAngle":125
+        });
+        let saved = bridge
+            .handle(
+                THEMES_METHOD,
+                70,
+                Some(&json!({"operation":"set","payload":custom})),
+            )
+            .into_event();
+        assert_eq!(saved[1]["ok"], true);
+        assert_eq!(saved[1]["result"]["accent"], "#55AAFF");
+        let loaded = bridge
+            .handle(
+                THEMES_METHOD,
+                71,
+                Some(&json!({"operation":"get","payload":{}})),
+            )
+            .into_event();
+        assert_eq!(loaded[1]["result"]["gradientAngle"], 125);
+
+        let rejected = bridge
+            .handle(
+                THEMES_METHOD,
+                72,
+                Some(&json!({
+                    "operation":"set",
+                    "payload":{
+                        "backgroundStart":"red","backgroundEnd":"#223344","accent":"#55AAFF",
+                        "surface":"#101820","text":"#F4F8FF","gradientAngle":361
+                    }
+                })),
+            )
+            .into_event();
+        assert_eq!(rejected[1]["ok"], false);
+        assert_eq!(rejected[1]["error"]["code"], "validation_failed");
+        let still_loaded = bridge
+            .handle(
+                THEMES_METHOD,
+                73,
+                Some(&json!({"operation":"get","payload":{}})),
+            )
+            .into_event();
+        assert_eq!(still_loaded[1]["result"]["backgroundStart"], "#001122");
     }
 
     #[test]

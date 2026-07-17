@@ -55,7 +55,8 @@ Release checksums are published beside every installer as `SHA256SUMS.txt`.
 
 | Feature | What it does |
 | --- | --- |
-| **LastPlayed** | Reopens the previously selected add-on stream and promotes the matching source when possible. |
+| **LastPlayed** | Adds exact-stream resume to every played movie/series card and shows the saved provider, episode, stream description, size, and seeders when available. |
+| **Themes** | Customizes the app gradient, accent, surfaces, and text with live preview, presets, and restart-persistent settings. |
 | **Local Reviews** | Saves private 1-5 star ratings and optional review text for movies and series. |
 | **Timestamp Notes** | Adds private, color-coded notes and optional thumbnails at exact playback positions. |
 | **Plugins** | Lets you enable built-in features and trusted local plugins independently. |
@@ -68,6 +69,13 @@ Local Reviews and Timestamp Notes also have a **Settings** button in the Plugins
 screen. Use it to record an optional hotkey that opens the same player popout as
 clicking that plugin's player action. Hotkeys are ignored while typing or while
 a JStremio overlay or dialog is open.
+
+Open **Themes** from the palette button in the sidebar to adjust both background
+gradient colors, the gradient angle, accent color, elevated surfaces, and
+primary text. Preview changes live, then choose **Save theme** to keep them or
+**Reset to defaults** to restore Stremio's palette. Theme data stays local and
+is applied before the normal interface renders on later launches. See
+[Themes](docs/themes.md) for details.
 
 > [!WARNING]
 > A custom plugin is trusted JavaScript running inside the Stremio page. Install
@@ -88,8 +96,8 @@ and verifies its GitHub-provided SHA-256 digest, declared size, trusted download
 path, and Windows executable signature before it can run.
 
 Updates replace only program files. Your Stremio login, account add-ons,
-settings, server data, reviews, notes, thumbnails, LastPlayed history, plugin
-settings, and custom plugins remain untouched under `%LOCALAPPDATA%\JStremio`.
+settings, server data, reviews, notes, thumbnails, LastPlayed history, themes,
+plugin settings, and custom plugins remain untouched under `%LOCALAPPDATA%\JStremio`.
 
 ## Portable version
 
@@ -114,7 +122,7 @@ JStremio-specific data stays on your computer:
 
 | Data | Location |
 | --- | --- |
-| Reviews, notes, LastPlayed, and plugin settings | `%LOCALAPPDATA%\JStremio\data` |
+| Reviews, notes, LastPlayed, themes, and plugin settings | `%LOCALAPPDATA%\JStremio\data` |
 | Custom local plugins | `%LOCALAPPDATA%\JStremio\plugins` |
 | Stremio login/profile data | `%LOCALAPPDATA%\JStremio\webview2` |
 | Bundled server cache and settings | `%LOCALAPPDATA%\JStremio\server` |

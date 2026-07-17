@@ -1,3 +1,4 @@
+import { createBrandingAdapter } from "./branding";
 import { createLifecycle } from "./lifecycle";
 import { createNativeBridge } from "./nativeBridge";
 import { createOverlayHost } from "./overlayHost";
@@ -14,6 +15,7 @@ function bootstrap() {
 
   const bridge = createNativeBridge();
   const lifecycle = createLifecycle();
+  const branding = createBrandingAdapter(lifecycle.publicApi.onReconcile);
   const overlays = createOverlayHost();
   const player = createPlayerAdapter(getCurrentMediaTarget, bridge.request);
   const cleanups = new Map<string, () => void>();
@@ -93,6 +95,7 @@ function bootstrap() {
           // Teardown is best-effort and content-free.
         }
       }
+      branding.destroy();
       bridge.destroy();
       player.destroy();
       lifecycle.destroy();
