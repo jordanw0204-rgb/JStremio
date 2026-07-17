@@ -38,6 +38,7 @@ test.beforeEach(async ({ page }) => {
       { id: "timestamp-notes", name: "Timestamp Notes", version: "1.3.0", description: "Playback notes", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
       { id: "last-played", name: "LastPlayed", version: "1.0.0", description: "Exact stream resume", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
     ];
+    const hotkeys: Record<string, string> = {};
     const shortcutKeys: string[] = [];
     const lastPlayed: Array<Record<string, unknown>> = [];
     let revision = 0;
@@ -84,6 +85,12 @@ test.beforeEach(async ({ page }) => {
       const payload = params.payload ?? {};
       if (method === "jstremio-plugins") {
         if (operation === "list") return respond(method, request.id, plugins);
+        if (operation === "getHotkeys") return respond(method, request.id, hotkeys);
+        if (operation === "setHotkey") {
+          if (typeof payload.hotkey === "string") hotkeys[String(payload.id)] = payload.hotkey;
+          else delete hotkeys[String(payload.id)];
+          return respond(method, request.id, { id: payload.id, hotkey: payload.hotkey ?? null, restartRequired: false });
+        }
         if (operation === "setEnabled") {
           const plugin = plugins.find((item) => item.id === payload.id);
           if (plugin) plugin.enabled = payload.enabled === true;
@@ -171,6 +178,7 @@ test.beforeEach(async ({ page }) => {
         notes,
         commands,
         plugins,
+        hotkeys,
         shortcutKeys,
         lastPlayed,
         state,
@@ -196,6 +204,20 @@ test("mounts each extension once and remounts after upstream replacement", async
   await expect(page.locator('[data-jstremio-testid="timestamp-notes-navigation"]')).toHaveCount(1);
   await expect(page.locator('[data-jstremio-testid="reviews-player-button"]')).toHaveCount(1);
   await expect(page.locator('[data-jstremio-testid="timestamp-notes-player-button"]')).toHaveCount(1);
+  const playerActions = page.locator('[data-jstremio-click-only]');
+  await expect(playerActions).toHaveCount(2);
+  for (const action of await playerActions.all()) {
+    await expect(action).toHaveAttribute("tabindex", "-1");
+    await expect.poll(() => action.evaluate((element) => {
+      (element as HTMLElement).focus();
+      return document.activeElement === element;
+    })).toBe(false);
+  }
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Space");
+  await playerActions.first().evaluate((element) => (element as HTMLButtonElement).click());
+  await expect(page.locator('[data-jstremio-testid="dialog"]')).toHaveCount(0);
   const pluginNavigation = page.locator('[data-jstremio-testid="plugin-manager-navigation"]');
   await expect(pluginNavigation).toHaveAttribute("title", "Plugins");
   await pluginNavigation.click();
@@ -260,6 +282,56 @@ test("mounts each extension once and remounts after upstream replacement", async
   });
   await expect(page.locator('[data-jstremio-testid="reviews-player-button"]')).toHaveCount(1);
   await expect(page.locator('[data-jstremio-testid="timestamp-notes-player-button"]')).toHaveCount(1);
+});
+
+test("records persistent plugin hotkeys and opens the matching player dialogs", async ({ page }) => {
+  await page.locator('[data-jstremio-testid="plugin-manager-navigation"]').click();
+  await expect(page.getByRole("button", { name: /^Settings for / })).toHaveCount(2);
+  await expect(page.locator(".plugin-card").filter({ hasText: "LastPlayed" }).getByRole("button", { name: /Settings/ })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Settings for Local Reviews" }).click();
+  const reviewInput = page.getByLabel("Hotkey for Local Reviews");
+  await reviewInput.click();
+  await page.keyboard.press("Control+Shift+R");
+  await expect(reviewInput).toHaveValue("Ctrl + Shift + R");
+  await page.getByRole("dialog", { name: "Local Reviews settings" }).getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Hotkey: Ctrl + Shift + R")).toBeVisible();
+
+  await page.getByRole("button", { name: "Settings for Timestamp Notes" }).click();
+  const timestampInput = page.getByLabel("Hotkey for Timestamp Notes");
+  await timestampInput.click();
+  await page.keyboard.press("Control+Shift+R");
+  await expect(page.getByText("That hotkey is already assigned to Local Reviews.")).toBeVisible();
+  await page.keyboard.press("Control+Alt+N");
+  await expect(timestampInput).toHaveValue("Ctrl + Alt + N");
+  await page.getByRole("dialog", { name: "Timestamp Notes settings" }).getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Hotkey: Ctrl + Alt + N")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => (window as any).__fixture.hotkeys)).toEqual({
+    reviews: "Ctrl+Shift+KeyR",
+    "timestamp-notes": "Ctrl+Alt+KeyN",
+  });
+  await page.getByRole("button", { name: "Close Plugins" }).click();
+  await page.waitForTimeout(50);
+
+  await page.evaluate(() => {
+    const input = document.createElement("input");
+    input.setAttribute("aria-label", "Official search fixture");
+    document.body.append(input);
+    input.focus();
+  });
+  await page.keyboard.press("Control+Shift+R");
+  await expect(page.getByRole("dialog", { name: "Add review" })).toHaveCount(0);
+  await page.getByLabel("Official search fixture").evaluate((element) => element.remove());
+
+  await page.keyboard.press("Control+Shift+R");
+  await expect(page.getByRole("dialog", { name: "Add review" })).toBeVisible();
+  await page.getByRole("dialog", { name: "Add review" }).getByRole("button", { name: "Cancel" }).click();
+
+  await emitPlayback(page, 18, 100, false);
+  await expect(page.locator('[data-jstremio-testid="timestamp-notes-player-button"]')).toBeEnabled();
+  await page.keyboard.press("Control+Alt+N");
+  await expect(page.getByRole("dialog", { name: "Add timestamp note" })).toBeVisible();
+  await page.getByRole("dialog", { name: "Add timestamp note" }).getByRole("button", { name: "Cancel" }).click();
 });
 
 test("LastPlayed resumes and promotes the exact previously selected stream", async ({ page }) => {

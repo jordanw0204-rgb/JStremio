@@ -1,5 +1,6 @@
 import styles from "./styles.css";
 import { isPlayerRoute } from "../../runtime/compatibility";
+import { registerPluginHotkey } from "../../runtime/hotkeys";
 import type { JStremioRuntime, MediaTarget } from "../../runtime/types";
 import {
   addStyles,
@@ -26,7 +27,7 @@ const manifest = {
   schemaVersion: 1,
   id: "reviews",
   name: "Local Reviews",
-  version: "1.1.0",
+  version: "1.2.0",
   entry: "index.js",
   styles: "styles.css",
   enabledByDefault: true,
@@ -40,6 +41,15 @@ requireRuntime().registerExtension(manifest, (runtime) => activate(runtime));
 function activate(runtime: JStremioRuntime) {
   let overlayRefresh: (() => void) | null = null;
   let targetGeneration = 0;
+  const openPlayerReview = () => openCurrentReview(runtime, () => overlayRefresh?.());
+  const unregisterHotkey = registerPluginHotkey(
+    runtime,
+    "reviews",
+    openPlayerReview,
+    () => isPlayerRoute() && Boolean(document.querySelector(
+      '[data-jstremio-extension="reviews"][data-jstremio-control="player"]:not([disabled])',
+    )),
+  );
 
   const openOverlay = () => {
     runtime.ui.openOverlay((container, close) => {
@@ -143,7 +153,7 @@ function activate(runtime: JStremioRuntime) {
         return;
       }
       mountPlayerButton("reviews", "Review this title", STAR_ICON, () => {
-        void openCurrentReview(runtime, () => overlayRefresh?.());
+        void openPlayerReview();
       });
     });
   };
@@ -151,6 +161,7 @@ function activate(runtime: JStremioRuntime) {
   const unsubscribe = runtime.lifecycle.onReconcile(reconcile);
   return () => {
     unsubscribe();
+    unregisterHotkey();
     runtime.ui.closeOverlay();
     removeOwned("reviews");
   };

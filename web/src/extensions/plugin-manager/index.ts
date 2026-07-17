@@ -1,4 +1,12 @@
 import styles from "./styles.css";
+import {
+  asPluginHotkeys,
+  captureHotkey,
+  displayHotkey,
+  notifyHotkeysChanged,
+  type ConfigurablePluginId,
+  type PluginHotkeys,
+} from "../../runtime/hotkeys";
 import type { JStremioRuntime } from "../../runtime/types";
 import { addStyles, mountNavigationButton, removeOwned, requireRuntime } from "../shared";
 
@@ -18,7 +26,7 @@ const manifest = {
   schemaVersion: 1,
   id: "plugin-manager",
   name: "Plugins",
-  version: "1.1.0",
+  version: "1.2.0",
   entry: "index.js",
   styles: "styles.css",
   enabledByDefault: true,
@@ -52,8 +60,12 @@ function activate(runtime: JStremioRuntime) {
         grid.hidden = true;
         status.textContent = "Loading plugins…";
         try {
-          const plugins = asPlugins(await runtime.bridge.request("plugins", "list"));
-          renderPlugins(runtime, grid, plugins, restart);
+          const [pluginValue, hotkeyValue] = await Promise.all([
+            runtime.bridge.request("plugins", "list"),
+            runtime.bridge.request("plugins", "getHotkeys"),
+          ]);
+          const plugins = asPlugins(pluginValue);
+          renderPlugins(runtime, grid, plugins, asPluginHotkeys(hotkeyValue), restart);
           status.hidden = plugins.length > 0;
           grid.hidden = plugins.length === 0;
           status.textContent = plugins.length ? "" : "No plugins were discovered.";
@@ -96,6 +108,7 @@ function renderPlugins(
   runtime: JStremioRuntime,
   grid: HTMLElement,
   plugins: Plugin[],
+  hotkeys: PluginHotkeys,
   restart: HTMLElement,
 ) {
   grid.replaceChildren();
@@ -140,8 +153,128 @@ function renderPlugins(
     });
     toggleLabel.append(toggle, toggleText);
     card.append(heading, meta, description, toggleLabel);
+    if (isConfigurablePluginId(plugin.id) && plugin.builtIn && !plugin.error) {
+      const pluginId = plugin.id;
+      const actions = document.createElement("div");
+      actions.className = "plugin-actions";
+      const settings = document.createElement("button");
+      settings.type = "button";
+      settings.className = "button settings-button";
+      settings.textContent = "Settings";
+      settings.setAttribute("aria-label", `Settings for ${plugin.name}`);
+      const summary = document.createElement("span");
+      summary.className = "hotkey-summary";
+      const renderSummary = () => {
+        summary.textContent = `Hotkey: ${displayHotkey(hotkeys[pluginId])}`;
+      };
+      renderSummary();
+      settings.addEventListener("click", () => {
+        openPluginSettings(runtime, plugin, hotkeys, renderSummary);
+      });
+      actions.append(settings, summary);
+      card.append(actions);
+    }
     grid.append(card);
   }
+}
+
+function openPluginSettings(
+  runtime: JStremioRuntime,
+  plugin: Plugin,
+  hotkeys: PluginHotkeys,
+  saved: () => void,
+) {
+  if (!isConfigurablePluginId(plugin.id)) return;
+  const pluginId = plugin.id;
+  runtime.ui.openDialog((container, close) => {
+    addStyles(container, styles);
+    const dialog = document.createElement("section");
+    dialog.className = "plugin-settings-dialog";
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+    dialog.setAttribute("aria-labelledby", "jstremio-plugin-settings-title");
+    dialog.innerHTML = `
+      <h2 id="jstremio-plugin-settings-title"></h2>
+      <p class="settings-description">Choose a hotkey that opens this plugin's player popout. It works only while the matching player action is available.</p>
+      <label class="hotkey-field">Hotkey<input class="hotkey-input" type="text" readonly spellcheck="false" autocomplete="off"></label>
+      <p class="hotkey-help">Select the field, then press a letter, number, function key, or a combination using Ctrl, Alt, and Shift.</p>
+      <div class="settings-status" role="status" aria-live="polite"></div>
+      <div class="settings-actions"><button type="button" class="button" data-action="clear">Clear hotkey</button><span></span><button type="button" class="button" data-action="cancel">Cancel</button><button type="button" class="button primary" data-action="save">Save</button></div>`;
+    dialog.querySelector<HTMLHeadingElement>("h2")!.textContent = `${plugin.name} settings`;
+    const input = dialog.querySelector<HTMLInputElement>(".hotkey-input")!;
+    input.setAttribute("aria-label", `Hotkey for ${plugin.name}`);
+    const status = dialog.querySelector<HTMLElement>(".settings-status")!;
+    const save = dialog.querySelector<HTMLButtonElement>('[data-action="save"]')!;
+    let candidate = hotkeys[pluginId] ?? null;
+    const showCandidate = () => {
+      input.value = displayHotkey(candidate);
+      delete input.dataset.recording;
+    };
+    const beginRecording = () => {
+      input.dataset.recording = "true";
+      input.value = "Press a key combination…";
+      status.textContent = "Recording. Modifier keys must be followed by another key.";
+    };
+    input.addEventListener("focus", beginRecording);
+    input.addEventListener("click", beginRecording);
+    input.addEventListener("blur", showCandidate);
+    input.addEventListener("keydown", (event) => {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      const captured = captureHotkey(event);
+      if (captured.kind === "modifier") {
+        input.value = "Now press another key…";
+        status.textContent = "Keep holding the modifier, then press another key.";
+        return;
+      }
+      if (captured.kind === "rejected") {
+        status.textContent = captured.message;
+        return;
+      }
+      const conflict = Object.entries(hotkeys).find(
+        ([id, hotkey]) => id !== pluginId && hotkey === captured.value,
+      );
+      if (conflict) {
+        status.textContent = `That hotkey is already assigned to ${pluginName(conflict[0])}.`;
+        return;
+      }
+      candidate = captured.value;
+      status.textContent = `${displayHotkey(candidate)} recorded. Choose Save to apply it.`;
+      input.blur();
+    });
+    dialog.querySelector('[data-action="clear"]')?.addEventListener("click", () => {
+      candidate = null;
+      status.textContent = "The hotkey will be cleared when you choose Save.";
+      showCandidate();
+    });
+    dialog.querySelector('[data-action="cancel"]')?.addEventListener("click", close);
+    save.addEventListener("click", () => {
+      save.disabled = true;
+      status.textContent = "Saving…";
+      void runtime.bridge.request("plugins", "setHotkey", { id: pluginId, hotkey: candidate })
+        .then(() => {
+          if (candidate) hotkeys[pluginId] = candidate;
+          else delete hotkeys[pluginId];
+          notifyHotkeysChanged();
+          saved();
+          close();
+        })
+        .catch((error) => {
+          save.disabled = false;
+          status.textContent = error instanceof Error ? error.message : "The hotkey could not be saved.";
+        });
+    });
+    showCandidate();
+    container.append(dialog);
+  });
+}
+
+function isConfigurablePluginId(id: string): id is ConfigurablePluginId {
+  return id === "reviews" || id === "timestamp-notes";
+}
+
+function pluginName(id: string): string {
+  return id === "reviews" ? "Local Reviews" : id === "timestamp-notes" ? "Timestamp Notes" : id;
 }
 
 function asPlugins(value: unknown): Plugin[] {

@@ -2,6 +2,13 @@
 
 JStremio follows Semantic Versioning. Stable releases are tagged `vMAJOR.MINOR.PATCH` and published through GitHub Releases.
 
+## 1.4.0 - 2026-07-17
+
+- Make the Reviews and Timestamp Notes player actions mouse-click-only so Stremio arrow-key navigation cannot select or activate them.
+- Add Settings buttons for Local Reviews and Timestamp Notes in the Plugins manager.
+- Add validated, persistent per-plugin hotkey recording with conflict detection, safe input/dialog suppression, and immediate application without a restart.
+- Preserve older `plugins.json` files while storing hotkeys alongside existing plugin enablement settings.
+
 ## 1.3.0 - 2026-07-16
 
 - Add a one-click, per-user Windows installer with JStremio branding, desktop and Start Menu shortcuts, built-in plugins, WebView2 bootstrap support, and post-install launch.

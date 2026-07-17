@@ -64,6 +64,11 @@ Built-in features can be managed from **Plugins** inside JStremio. Custom local
 plugins are discovered from `%LOCALAPPDATA%\JStremio\plugins` and start disabled
 until you explicitly enable them.
 
+Local Reviews and Timestamp Notes also have a **Settings** button in the Plugins
+screen. Use it to record an optional hotkey that opens the same player popout as
+clicking that plugin's player action. Hotkeys are ignored while typing or while
+a JStremio overlay or dialog is open.
+
 > [!WARNING]
 > A custom plugin is trusted JavaScript running inside the Stremio page. Install
 > local plugins only when you have reviewed the code and trust its author.

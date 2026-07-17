@@ -18,6 +18,12 @@ Local plugins are trusted JavaScript. They execute inside the official Stremio W
 
 Removing a user plugin means closing JStremio and deleting its folder. Its saved enablement override is harmless and is ignored while the plugin is absent.
 
+## Built-in plugin settings
+
+Local Reviews and Timestamp Notes expose a **Settings** button on their cards in the Plugins screen. Select the hotkey field and press a supported letter, number, function key, or combination using Ctrl, Alt, and Shift. Choose **Save** to apply it immediately; a restart is not required.
+
+Bindings must be unique. Modifier-only, Windows-key, Alt-only, navigation, playback, and unsafe system combinations are rejected. A configured hotkey works only while that plugin's matching player action is available, and it is ignored while typing or while a JStremio overlay/dialog is open. Use **Clear hotkey** and save to remove a binding.
+
 ## Plugin structure
 
 ```text

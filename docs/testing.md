@@ -10,6 +10,18 @@
 
 `check.ps1` runs Rust formatting/clippy/tests, TypeScript typecheck/unit tests, deterministic bundles, Playwright fixtures in installed Edge, and an optimized x64 compile.
 
+## Automated evidence from 2026-07-17
+
+The v1.4.0 configurable-plugin-hotkey release gate passed on Windows:
+
+- The full `check.ps1` gate passed Rust formatting and clippy with warnings denied, all 44 native tests, strict TypeScript with all 20 unit tests, all five installed-Edge Playwright scenarios, deterministic extension bundles, all updater tests, and the optimized x64 app/updater builds.
+- Native tests prove backward-compatible loading of the existing plugin settings document, canonical hotkey persistence, clearing, duplicate-binding rejection, unsafe-key rejection, and the fixed `plugins/getHotkeys` / `plugins/setHotkey` bridge contract.
+- Browser unit tests cover physical-key-code normalization, display labels, validation, and safe context suppression. Playwright proves the Reviews and Timestamp Notes controls cannot retain focus or activate from Arrow, Enter, Space, or programmatic keyboard-style clicks while real pointer clicks still work.
+- The Plugins manager exposes Settings only for Local Reviews and Timestamp Notes. Playwright records `Ctrl+Shift+R` and `Ctrl+Alt+N`, rejects a cross-plugin conflict, suppresses configured hotkeys while an editable field owns input, and proves each binding opens the same corresponding player dialog as a pointer click.
+- Inno Setup built `JStremioSetup-v1.4.0_x64-unsigned.exe` at 70,676,177 bytes with SHA-256 `58DEE3E0D109CC6FE3BAAA75A793E71EB60041AFC94D32D9A82D1AC3AA6D84FF`. The portable ZIP is 92,127,754 bytes with SHA-256 `00E375C01892076DB5DC86D9C1CB60BF4367D63E6315919248A55F21C073AD86`.
+- A real per-user installer run upgraded the installed application to product/file version 1.4.0, returned exit code 0, preserved all nine files already present under the protected `data` and custom `plugins` trees byte-for-byte, and relaunched a responding JStremio process.
+- The public repository remained public, changed-file credential-pattern scanning found no candidate secrets, and GitHub secret scanning reported zero open alerts before publication.
+
 ## Automated evidence from 2026-07-16
 
 The v1.3.0 installer/updater gate passed on Windows:
@@ -20,7 +32,7 @@ The v1.3.0 installer/updater gate passed on Windows:
 - A real clean per-user install created both shortcuts, installed JStremio and its updater under `%LOCALAPPDATA%\Programs\JStremio`, bundled four plugin directories, and launched installed v1.3.0.
 - A real same-version `/JSTREMIOUPDATE=1` upgrade completed successfully and relaunched v1.3.0. Before/after SHA-256 comparison found zero changes and zero additions across all nine existing files under the protected `data` and custom `plugins` trees.
 - Final artifacts: `JStremioSetup-v1.3.0_x64-unsigned.exe`, 70,667,814 bytes, SHA-256 `7BC87BAD4D21997D520EDD50A32F574703459DEB75EEB732C7A33FC90D13160A`; `JStremio-1.3.0-windows-x64-portable.zip`, 92,107,476 bytes, SHA-256 `35DDD49EFE1B9DF88D65D5A8A16CDD94D951F91ABEAAA345058B71B78CBFE882`.
-- The installed app's anonymous update check currently records a private-repository 404. Production update delivery remains gated on making the existing release repository public or selecting a public release-only repository; no GitHub credential is embedded.
+- The repository was subsequently made public and its anonymous latest-release endpoint became the production update source; no GitHub credential is embedded.
 
 Earlier v1.2.0 evidence follows for the LastPlayed/icon work included in this release.
 

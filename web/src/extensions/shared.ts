@@ -84,12 +84,29 @@ export function mountPlayerButton(
   button.dataset.jstremioExtension = extensionId;
   button.dataset.jstremioControl = "player";
   button.dataset.jstremioTestid = `${extensionId}-player-button`;
+  button.dataset.jstremioClickOnly = "";
+  button.tabIndex = -1;
   button.setAttribute("aria-label", label);
   button.title = label;
   copyIntegrationClasses(button, template);
   button.style.cssText = "border:1px solid rgba(255,255,255,.22);border-radius:10px;background:rgba(19,14,45,.9);color:#fff;cursor:pointer;display:grid;place-items:center;width:44px;height:44px;min-width:44px;min-height:44px;padding:0;box-shadow:0 6px 20px rgba(0,0,0,.35);";
   button.innerHTML = icon;
-  button.addEventListener("click", onClick);
+  button.addEventListener("pointerdown", (event) => {
+    if (event.isPrimary) event.preventDefault();
+  });
+  button.addEventListener("focus", () => button.blur());
+  button.addEventListener("keydown", (event) => {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  });
+  button.addEventListener("click", (event) => {
+    if (event.detail === 0) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
+    onClick();
+  });
   dock.append(button);
   return button;
 }

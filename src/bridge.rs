@@ -62,6 +62,13 @@ struct SetPluginEnabledPayload {
     enabled: bool,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SetPluginHotkeyPayload {
+    id: String,
+    hotkey: Option<String>,
+}
+
 const MAX_THUMBNAIL_BYTES: u64 = 2 * 1024 * 1024;
 
 #[derive(Debug, Serialize)]
@@ -304,6 +311,39 @@ impl NativeBridge {
                     .map_err(storage_error)?;
                 plugin.enabled = payload.enabled;
                 Ok(json!({ "enabled": payload.enabled, "restartRequired": true }))
+            }
+            "getHotkeys" => self
+                .plugin_settings
+                .hotkeys()
+                .map(|hotkeys| json!(hotkeys))
+                .map_err(storage_error),
+            "setHotkey" => {
+                let payload: SetPluginHotkeyPayload = parse_value(request.payload)?;
+                validate_lookup_id(&payload.id)?;
+                let configurable = self
+                    .plugins
+                    .lock()
+                    .map_err(|_| validation_error("plugin state is unavailable"))?
+                    .iter()
+                    .any(|plugin| {
+                        plugin.id == payload.id
+                            && plugin.built_in
+                            && !plugin.core
+                            && plugin.error.is_none()
+                    });
+                if !configurable {
+                    return Err(validation_error(
+                        "this plugin does not expose configurable hotkeys",
+                    ));
+                }
+                self.plugin_settings
+                    .set_hotkey(&payload.id, payload.hotkey.clone())
+                    .map_err(storage_error)?;
+                Ok(json!({
+                    "id": payload.id,
+                    "hotkey": payload.hotkey,
+                    "restartRequired": false
+                }))
             }
             "openPluginsFolder" => {
                 fs::create_dir_all(&self.plugin_directory)
@@ -621,6 +661,65 @@ mod tests {
                 .unwrap()
                 .get("reviews"),
             Some(&false)
+        );
+    }
+
+    #[test]
+    fn plugin_hotkeys_are_fixed_validated_and_immediately_persisted() {
+        let directory = tempdir().unwrap();
+        let bridge = NativeBridge::new_with_plugins(
+            directory.path(),
+            &directory.path().join("plugins"),
+            vec![PluginDescriptor {
+                id: "reviews".into(),
+                name: "Local Reviews".into(),
+                version: "1.0.0".into(),
+                description: "Private reviews".into(),
+                author: "JStremio".into(),
+                built_in: true,
+                enabled: true,
+                core: false,
+                error: None,
+            }],
+        );
+        let saved = bridge
+            .handle(
+                PLUGINS_METHOD,
+                51,
+                Some(&json!({
+                    "operation": "setHotkey",
+                    "payload": { "id": "reviews", "hotkey": "Ctrl+Shift+KeyR" }
+                })),
+            )
+            .into_event();
+        assert_eq!(saved[1]["result"]["restartRequired"], false);
+        let listed = bridge
+            .handle(
+                PLUGINS_METHOD,
+                52,
+                Some(&json!({"operation": "getHotkeys", "payload": {}})),
+            )
+            .into_event();
+        assert_eq!(listed[1]["result"]["reviews"], "Ctrl+Shift+KeyR");
+
+        let rejected = bridge
+            .handle(
+                PLUGINS_METHOD,
+                53,
+                Some(&json!({
+                    "operation": "setHotkey",
+                    "payload": { "id": "reviews", "hotkey": "ArrowLeft" }
+                })),
+            )
+            .into_event();
+        assert_eq!(rejected[1]["ok"], false);
+        assert_eq!(
+            PluginSettingsStore::new(directory.path())
+                .hotkeys()
+                .unwrap()
+                .get("reviews")
+                .map(String::as_str),
+            Some("Ctrl+Shift+KeyR")
         );
     }
 

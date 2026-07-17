@@ -5,6 +5,7 @@ import {
   isPlayerRoute,
   PLAYER_OVERLAY_HIDDEN_SELECTOR,
 } from "../../runtime/compatibility";
+import { registerPluginHotkey } from "../../runtime/hotkeys";
 import { unwrapNativeEvent } from "../../runtime/nativeEvents";
 import { isLikelyLiveState } from "../../runtime/stremioAdapter";
 import type { JStremioRuntime, MediaTarget, PlaybackSnapshot } from "../../runtime/types";
@@ -41,7 +42,7 @@ const manifest = {
   schemaVersion: 1,
   id: "timestamp-notes",
   name: "Timestamp Notes",
-  version: "1.3.0",
+  version: "1.4.0",
   entry: "index.js",
   styles: "styles.css",
   enabledByDefault: true,
@@ -280,6 +281,12 @@ function activate(runtime: JStremioRuntime) {
     });
   };
 
+  const unregisterHotkey = registerPluginHotkey(
+    runtime,
+    "timestamp-notes",
+    captureNote,
+    () => isPlayerRoute() && Boolean(playerButton && !playerButton.disabled),
+  );
   const unsubscribeLifecycle = runtime.lifecycle.onReconcile(reconcile);
   const unsubscribePlayer = runtime.player.subscribe((next) => {
     snapshot = next;
@@ -289,6 +296,7 @@ function activate(runtime: JStremioRuntime) {
   return () => {
     unsubscribeLifecycle();
     unsubscribePlayer();
+    unregisterHotkey();
     timeline?.destroy();
     runtime.ui.closeOverlay();
     removeOwned("timestamp-notes");
