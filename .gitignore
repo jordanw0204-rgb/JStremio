@@ -12,6 +12,16 @@
 /installer/SHA256SUMS.txt
 *.log
 .env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+credentials.json
+secrets.json
 .DS_Store
 .idea/
 .vscode/

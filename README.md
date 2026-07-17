@@ -1,77 +1,173 @@
-# JStremio
+<div align="center">
+  <img src="images/jstremio.png" alt="JStremio logo" width="112">
+  <h1>JStremio</h1>
+  <p><strong>Stremio for Windows, with useful local plugins built in.</strong></p>
 
-JStremio is a Windows desktop build based on the official `stremio-shell-ng`. It still loads `https://web.stremio.com/`, starts Stremio's bundled streaming server, and uses native MPV for playback. An origin-gated plugin loader customizes the unchanged Stremio Web application:
+  <p>
+    <a href="https://github.com/jordanw0204-rgb/JStremio/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/jordanw0204-rgb/JStremio?display_name=tag&sort=semver&style=flat-square&color=1687ff"></a>
+    <a href="https://github.com/jordanw0204-rgb/JStremio/actions/workflows/test.yml"><img alt="Build status" src="https://img.shields.io/github/actions/workflow/status/jordanw0204-rgb/JStremio/test.yml?branch=feature%2Fjstremio-extensions&style=flat-square"></a>
+    <a href="LICENSE.md"><img alt="GPL-2.0 license" src="https://img.shields.io/badge/license-GPL--2.0-1687ff?style=flat-square"></a>
+  </p>
 
-- **Local Reviews** — private 1–5 ratings and optional review text, organized into movie and TV-series collections.
-- **Timestamp Notes** — private notes organized by movie or TV series, captured at an on-demand playback position, with customizable marker colors, optional 1–5 ratings, replaceable native-video frame thumbnails with an enlarged viewer, clustering, and click-to-seek.
-- **Plugins** — manage built-in features and explicitly enable trusted local plugins installed under `%LOCALAPPDATA%\JStremio\plugins`.
-- **LastPlayed** — resume the exact previously selected add-on stream from Continue Watching or the episode stream list, with the matching source promoted and labeled.
+  <p><a href="https://github.com/jordanw0204-rgb/JStremio/releases/latest"><strong>Download JStremio for Windows</strong></a></p>
+</div>
 
-Both stores are human-readable JSON under `%LOCALAPPDATA%\JStremio\data`. Their content is not synchronized or sent to Stremio. JStremio has its own executable, WebView2 profile, IPC pipe, local data, portable package, installer AppId, and updater policy, so it can coexist with official Stremio.
+JStremio is a Windows desktop build based on the official
+[`stremio-shell-ng`](https://github.com/Stremio/stremio-shell-ng). It keeps
+Stremio's account, library, add-on, streaming-server, and native MPV playback
+experience while adding optional features that store their data locally.
 
-Installer builds check the latest stable GitHub Release in the background on every launch. A newer installer is downloaded to a local staging directory and accepted only when its exact size and GitHub-provided SHA-256 digest match. JStremio prompts before installation, exits cleanly, upgrades the program files, and reopens without touching account addons, the WebView2 profile, settings, feature data, or custom plugins.
+> [!IMPORTANT]
+> JStremio is an unofficial community project and is not affiliated with or
+> endorsed by Stremio. It installs separately and does not replace or modify
+> the official Stremio app.
 
-Local plugins are trusted JavaScript running inside Stremio's WebView. They can inspect or change the page, access JStremio's browser runtime and fixed bridges, and use browser networking. Install only reviewed code from authors you trust. JStremio 1.1 does not include a remote marketplace or automatic plugin downloads; newly discovered user plugins always start disabled.
+## Install JStremio
 
-## Build and run
+JStremio currently supports 64-bit Windows 10 (version 1809 or newer) and
+Windows 11.
 
-Prerequisites are Windows 10/11, WebView2 Runtime, stable Rust with the `x86_64-pc-windows-msvc` target, Node.js 22 or newer, and Corepack.
+1. Open the [latest JStremio release](https://github.com/jordanw0204-rgb/JStremio/releases/latest).
+2. Expand **Assets** and download **`JStremioSetup-vX.Y.Z_x64-unsigned.exe`**.
+   This is the recommended one-click installer. You do not need the files named
+   "Source code."
+3. Open the downloaded installer. It installs JStremio for your Windows user,
+   creates Desktop and Start Menu shortcuts, and opens the app when setup is
+   finished.
+4. Sign in with your Stremio account to restore your library and account
+   add-ons. JStremio uses a separate local profile, so the first sign-in is
+   independent from the official desktop app.
+
+The installer includes the native player, streaming server, built-in JStremio
+plugins, and a WebView2 bootstrapper for systems that need it. It does not
+require users to copy files or run terminal commands.
+
+### Windows SmartScreen notice
+
+The current installer is not code-signed, so Windows may display **Windows
+protected your PC** or identify the publisher as unknown. If you downloaded the
+installer from this repository's Releases page, select **More info**, verify the
+app name is JStremio, and select **Run anyway**.
+
+Release checksums are published beside every installer as `SHA256SUMS.txt`.
+
+## Built-in features
+
+| Feature | What it does |
+| --- | --- |
+| **LastPlayed** | Reopens the previously selected add-on stream and promotes the matching source when possible. |
+| **Local Reviews** | Saves private 1-5 star ratings and optional review text for movies and series. |
+| **Timestamp Notes** | Adds private, color-coded notes and optional thumbnails at exact playback positions. |
+| **Plugins** | Lets you enable built-in features and trusted local plugins independently. |
+
+Built-in features can be managed from **Plugins** inside JStremio. Custom local
+plugins are discovered from `%LOCALAPPDATA%\JStremio\plugins` and start disabled
+until you explicitly enable them.
+
+> [!WARNING]
+> A custom plugin is trusted JavaScript running inside the Stremio page. Install
+> local plugins only when you have reviewed the code and trust its author.
+
+## Automatic updates
+
+Installer builds check the latest stable GitHub Release in the background when
+JStremio starts. When a newer version is available, JStremio shows an **Update
+JStremio** prompt:
+
+- Choose **Update** to install the verified release and reopen JStremio.
+- Choose **No** to keep the current version. You can continue using the app and
+  will be offered the update again on a later launch.
+
+The updater accepts only the expected Windows installer from this repository
+and verifies its GitHub-provided SHA-256 digest, declared size, trusted download
+path, and Windows executable signature before it can run.
+
+Updates replace only program files. Your Stremio login, account add-ons,
+settings, server data, reviews, notes, thumbnails, LastPlayed history, plugin
+settings, and custom plugins remain untouched under `%LOCALAPPDATA%\JStremio`.
+
+## Portable version
+
+Every release also includes
+`JStremio-X.Y.Z-windows-x64-portable.zip`. Extract the entire ZIP to a writable
+folder and run `JStremio.exe` from that folder.
+
+The portable package is useful when you do not want shortcuts or an installed
+application. It intentionally does not perform automatic updates because a
+portable folder has no reliable installation boundary. Download and extract a
+new portable release to update it; your profile and feature data remain in
+`%LOCALAPPDATA%\JStremio`.
+
+## Add-ons and local data
+
+JStremio continues to use Stremio's normal account add-on system. Sign in and
+manage catalog and streaming add-ons through Stremio as usual. JStremio does
+not silently edit your account or install account add-ons without Stremio's
+confirmation.
+
+JStremio-specific data stays on your computer:
+
+| Data | Location |
+| --- | --- |
+| Reviews, notes, LastPlayed, and plugin settings | `%LOCALAPPDATA%\JStremio\data` |
+| Custom local plugins | `%LOCALAPPDATA%\JStremio\plugins` |
+| Stremio login/profile data | `%LOCALAPPDATA%\JStremio\webview2` |
+| Bundled server cache and settings | `%LOCALAPPDATA%\JStremio\server` |
+
+Read [Data, recovery, and privacy](docs/data-and-privacy.md) for the complete
+privacy and backup model.
+
+## Uninstall
+
+Open **Windows Settings > Apps > Installed apps**, find **JStremio**, and choose
+**Uninstall**. The uninstaller removes the app and shortcuts but leaves
+`%LOCALAPPDATA%\JStremio` in place so an uninstall or reinstall cannot erase
+your profile and feature data. Delete that folder manually only if you also
+want to permanently remove all JStremio data.
+
+## Troubleshooting
+
+- **The app will not start:** install or repair the
+  [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/).
+- **A plugin breaks the interface:** run `JStremio.exe --disable-extensions`,
+  then disable the problem plugin from the Plugins screen.
+- **You need to roll back:** use the portable ZIP from an older release. Do not
+  delete `%LOCALAPPDATA%\JStremio`.
+- **Playback or an account add-on fails:** check whether the same media and
+  add-on work in official Stremio before opening an issue.
+
+More detail is available in [Installation, safe mode, and rollback](docs/installation.md)
+and [Plugin installation and development](docs/plugins.md).
+
+## Build from source
+
+Building is optional; ordinary users should use the installer above. Development
+requires Windows 10/11, Git, Node.js 22 or newer with Corepack, stable Rust with
+the `x86_64-pc-windows-msvc` target, and Inno Setup 6 for installer builds. No
+API key or credential is required to build or run JStremio.
 
 ```powershell
+git clone https://github.com/jordanw0204-rgb/JStremio.git
+Set-Location JStremio
+corepack enable
+pnpm --dir web install --frozen-lockfile
 .\scripts\check.ps1
 .\scripts\run-dev.ps1
 ```
 
-The development command builds the trusted extension bundles, then launches a debug shell with the local extension directory. Production uses packaged resources beside `JStremio.exe` and does not accept a development directory.
-
-Create a portable directory and optional ZIP:
+Create distributable packages with:
 
 ```powershell
 .\scripts\package-portable.ps1 -Zip
-```
-
-The one-click installer requires Inno Setup 6 to build and is intentionally unsigned. It is emitted under `installer`, creates desktop and Start Menu shortcuts, and launches JStremio when setup finishes:
-
-```powershell
 .\scripts\package-installer.ps1
 ```
 
-See [versioning and releases](docs/releasing.md) for release tags, updater assets, checksums, and the public-release-channel requirement.
+See [Architecture](docs/architecture.md), [Testing](docs/testing.md), and
+[Versioning and releases](docs/releasing.md) before contributing a change.
 
-## Safe mode and independent enablement
+## License and upstream
 
-```powershell
-.\JStremio.exe --disable-extensions
-.\JStremio.exe --disable-extension reviews
-.\JStremio.exe --disable-extension timestamp-notes
-```
-
-Safe mode does not load the runtime or extension code and leaves the official UI/shell behavior in place. Debug-only CDP and development extension flags are rejected by release builds.
-
-## Local data
-
-- Reviews: `%LOCALAPPDATA%\JStremio\data\reviews.json`
-- Timestamp notes: `%LOCALAPPDATA%\JStremio\data\timestamp-notes.json`
-- Timestamp thumbnails: `%LOCALAPPDATA%\JStremio\data\timestamp-thumbnails`
-- Plugin enablement: `%LOCALAPPDATA%\JStremio\data\plugins.json`
-- Last played streams: `%LOCALAPPDATA%\JStremio\data\last-played.json`
-- User plugins: `%LOCALAPPDATA%\JStremio\plugins`
-- Backups: the matching `.bak` file after replacement
-- Bundled server cache/settings: `%LOCALAPPDATA%\JStremio\server`
-- WebView2 profile: `%LOCALAPPDATA%\JStremio\webview2`
-
-Back up the JSON files while JStremio is closed. A malformed or unsupported file is preserved and reported rather than overwritten. To validate and import the earlier Web UI prototype's reviews:
-
-```powershell
-.\scripts\import-legacy-reviews.ps1 -Source D:\path\to\reviews.json
-```
-
-See [plugin installation and development](docs/plugins.md), [installation and rollback](docs/installation.md), [data and privacy](docs/data-and-privacy.md), [testing](docs/testing.md), and [architecture](docs/architecture.md).
-
-## Verification status
-
-Automated native, TypeScript, Playwright, real WebView2 injection, safe-mode, IPC, privacy-sentinel, and restart-persistence checks are documented in [testing](docs/testing.md). Final sign-off still requires a person to confirm account login, real native MPV video, and audible output on the target Windows audio device.
-
-## Upstream and license
-
-The pinned upstream release and exact commits are in `upstream.lock.json`. JStremio is GPL-2.0, matching the upstream shell. Distributed builds must include the license and make the corresponding modified source/build instructions available. Stremio and its upstream source remain owned by their respective copyright holders.
+JStremio is distributed under [GPL-2.0](LICENSE.md), matching the upstream
+shell. The pinned upstream release and commit are recorded in
+[`upstream.lock.json`](upstream.lock.json). Stremio and its trademarks remain
+the property of their respective owners.

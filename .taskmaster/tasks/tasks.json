@@ -335,16 +335,16 @@
         "description": "Build a polished per-user single-EXE installer, add semantic version/release automation, and check GitHub Releases on every app launch with verified, settings-preserving updates.",
         "details": "Keep JStremio data, WebView2/server state, official account addons, and user plugins under %LOCALAPPDATA%\\JStremio untouched. Bundle built-in plugins in the install image. Add an empty versioned default-addon provisioning manifest ready for the user's later addon list. Use the GitHub latest stable release API, select the matching x64 setup asset, require a GitHub-provided SHA-256 digest and expected size, download to a staged local updates directory, prompt before updating, gracefully exit JStremio, silently run the Inno upgrade, and relaunch. Produce the installer under D:\\Dev\\JStremio\\installer, create desktop and Start Menu shortcuts by default, and launch after setup. Document that an anonymous release channel requires a public repository or public release-only repo.",
         "testStrategy": "Rust unit tests for release selection/version/digest/size/URL policy; local HTTP end-to-end updater check/download; full check.ps1; installer compile; clean isolated install/uninstall smoke; shortcut and post-install launch verification; update from prior version while sentinel settings/user-plugin files remain byte-identical; final artifact hashes and GitHub deployment audit.",
-        "status": "review",
+        "status": "in-progress",
         "dependencies": [],
         "priority": "high",
         "subtasks": [],
-        "updatedAt": "2026-07-16T11:28:59.903Z"
+        "updatedAt": "2026-07-17T01:19:33.354Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-07-16T11:28:59.904Z",
+      "lastModified": "2026-07-17T01:19:33.354Z",
       "taskCount": 25,
       "completedCount": 22,
       "tags": [
