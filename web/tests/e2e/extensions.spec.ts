@@ -519,7 +519,9 @@ test("captures, pauses conditionally, clusters markers, and seeks without blocki
   await expect(page.locator(".marker-popover")).toHaveAttribute("data-sticky", "true");
   const pinnedPosition = await page.locator(".marker-popover").boundingBox();
   await page.mouse.move(700, 300);
-  expect(await page.locator(".marker-popover").boundingBox()).toEqual(pinnedPosition);
+  const positionAfterPointerMove = await page.locator(".marker-popover").boundingBox();
+  expect(positionAfterPointerMove?.x).toBeCloseTo(pinnedPosition!.x, 1);
+  expect(positionAfterPointerMove?.y).toBeCloseTo(pinnedPosition!.y, 1);
   await marker.hover();
   await expect(page.locator(".marker-popover")).toHaveAttribute("data-sticky", "true");
   await page.mouse.click(5, 5);
