@@ -10,6 +10,17 @@
 
 `check.ps1` runs Rust formatting/clippy/tests, TypeScript typecheck/unit tests, deterministic bundles, Playwright fixtures in installed Edge, and an optimized x64 compile.
 
+## Automated evidence from 2026-07-18 (v1.5.2)
+
+The v1.5.2 native-player surface lifecycle and automatic-recovery gate passed on Windows:
+
+- The full `check.ps1` gate passed Rust formatting and clippy with warnings denied, all 49 native tests, strict TypeScript with all 30 unit tests, all nine installed-Edge Playwright scenarios, deterministic extension bundles, all updater tests, and optimized x64 app/updater builds.
+- WebView2 now consumes the parent window's real `WM_SIZE`, move, DPI, and display messages, updates visibility across minimize/restore, and is also synchronously refit after fullscreen, maximize, resize-end, focus restore, tray restore, and splash removal.
+- The player watchdog recovers only active, visible, unpaused player routes after 15 seconds without position progress. It is bounded to one video-track reselection until progress resumes and retains a 30-second cooldown; focused fake-timer tests cover recovery, pause suppression, route suppression, and teardown.
+- A real WebView2/native-MPV stress ran 20 fullscreen/restore cycles (40 viewport transitions) against a local byte-range H.264/AAC stream. Every transition filled the current client viewport, both player extension controls stayed visible, page-navigation controls stayed hidden, native video-track recovery logged no error, playback advanced afterward, and an OS-level capture showed a decoded frame filling the client area with no gray bands or leaked sidebar.
+- Inno Setup built `JStremioSetup-v1.5.2_x64-unsigned.exe` at 71,274,175 bytes with local SHA-256 `592F03F52D5CD776C4EF77D291A3E11F39707B330DB8ACD1CD22149B89FE305F`. The local portable ZIP is 92,733,553 bytes with SHA-256 `54B84B6E85E42971CB0FDE620B51F11382127B6D9E1FBFFBBBD34D947EC95E96`.
+- A real per-user installer upgrade returned exit code 0, installed product/file version 1.5.2, matched the installed executable to the optimized release build, matched all 16 installed extension/runtime files to the verified resources, retained both shortcuts, and preserved all 12 existing settings/data/custom-plugin files byte-for-byte.
+
 ## Automated evidence from 2026-07-17 (v1.5.1)
 
 The v1.5.1 native-player visibility and extension-control regression gate passed on Windows:

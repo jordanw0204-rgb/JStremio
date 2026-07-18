@@ -56,6 +56,9 @@ describe("theme runtime", () => {
     expect(document.getElementById("jstremio-theme-runtime-style")?.textContent).toContain(
       "html[data-jstremio-player-route] body{background:transparent!important}",
     );
+    expect(document.getElementById("jstremio-theme-runtime-style")?.textContent).toContain(
+      'html[data-jstremio-player-route] [data-jstremio-control="navigation"]{display:none!important}',
+    );
     location.hash = "#/player/fixture";
     window.dispatchEvent(new HashChangeEvent("hashchange"));
     expect(root.hasAttribute("data-jstremio-player-route")).toBe(true);

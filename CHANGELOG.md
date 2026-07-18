@@ -2,6 +2,13 @@
 
 JStremio follows Semantic Versioning. Stable releases are tagged `vMAJOR.MINOR.PATCH` and published through GitHub Releases.
 
+## 1.5.2 - 2026-07-18
+
+- Keep WebView2 and native MPV surfaces synchronized through fullscreen, restore, maximize, minimize, resize, move, display, and DPI transitions.
+- Detect genuinely stalled active playback and perform one bounded MPV video-pipeline recovery without changing the stream, position, pause state, or display/HDR configuration.
+- Hide JStremio page-navigation actions explicitly on player routes so stale upstream layouts cannot leak the sidebar over video.
+- Add deterministic player-stall unit coverage and a real-shell 20-cycle fullscreen/restore surface stress test.
+
 ## 1.5.1 - 2026-07-17
 
 - Keep the themed web surface transparent on player routes so native MPV video remains visible while retaining the configured gradient throughout the rest of the app.

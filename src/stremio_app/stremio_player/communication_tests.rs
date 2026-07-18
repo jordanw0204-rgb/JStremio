@@ -182,6 +182,22 @@ fn set_gpu_video_processing_tokens() {
 }
 
 #[test]
+fn recover_playback_tokens() {
+    assert_tokens(
+        &InMsg(InMsgFn::MpvRecoverPlayback, InMsgArgs::Flag(true)),
+        &[
+            Token::TupleStruct {
+                name: "InMsg",
+                len: 2,
+            },
+            Token::Str("mpv-recover-playback"),
+            Token::Bool(true),
+            Token::TupleStructEnd,
+        ],
+    );
+}
+
+#[test]
 fn command_stop_tokens() {
     assert_tokens(
         &InMsg(

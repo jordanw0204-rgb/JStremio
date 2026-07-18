@@ -224,44 +224,71 @@ await page.waitForSelector(".marker-popover", { state: "detached" });
 const viewportBeforeFullscreen = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
 await page.evaluate(async () => {
   await window.JStremio.player.setPaused(true);
-  window.chrome.webview.postMessage(JSON.stringify({
-    id: 0,
-    type: 6,
-    args: ["win-set-visibility", { fullscreen: true }],
-  }));
 });
-await page.waitForFunction(
-  ({ width, height }) => innerWidth !== width || innerHeight !== height,
-  viewportBeforeFullscreen,
-  { timeout: 10_000 },
-);
-await page.waitForFunction(() => {
-  const layer = document.querySelector('[data-jstremio-testid="timestamp-note-markers"]');
-  const mask = document.querySelector('[style*="--mask-width"]');
-  const slider = mask?.parentElement?.parentElement ?? null;
-  const layerRect = layer?.getBoundingClientRect();
-  const sliderRect = slider?.getBoundingClientRect();
-  return Boolean(
-    window.JStremio.player.getSnapshot()?.paused === true &&
-    layerRect && sliderRect &&
-    Math.abs(layerRect.left - sliderRect.left) < 1 &&
-    Math.abs(layerRect.top - sliderRect.top) < 1 &&
-    Math.abs(layerRect.width - sliderRect.width) < 1
+let playerNavigationHidden = true;
+for (let cycle = 0; cycle < 12; cycle += 1) {
+  await page.evaluate(() => {
+    window.chrome.webview.postMessage(JSON.stringify({
+      id: 0,
+      type: 6,
+      args: ["win-set-visibility", { fullscreen: true }],
+    }));
+  });
+  await page.waitForFunction(
+    ({ width, height }) => innerWidth !== width || innerHeight !== height,
+    viewportBeforeFullscreen,
+    { timeout: 10_000 },
   );
-}, undefined, { timeout: 10_000 });
+  await page.waitForFunction(() => {
+    const layer = document.querySelector('[data-jstremio-testid="timestamp-note-markers"]');
+    const mask = document.querySelector('[style*="--mask-width"]');
+    const slider = mask?.parentElement?.parentElement ?? null;
+    const layerRect = layer?.getBoundingClientRect();
+    const sliderRect = slider?.getBoundingClientRect();
+    return Boolean(
+      window.JStremio.player.getSnapshot()?.paused === true &&
+      layerRect && sliderRect &&
+      Math.abs(layerRect.left - sliderRect.left) < 1 &&
+      Math.abs(layerRect.top - sliderRect.top) < 1 &&
+      Math.abs(layerRect.width - sliderRect.width) < 1
+    );
+  }, undefined, { timeout: 10_000 });
+  playerNavigationHidden &&= await page.evaluate(() =>
+    Array.from(document.querySelectorAll('[data-jstremio-control="navigation"]')).every((element) => {
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return style.display === "none" && rect.width === 0 && rect.height === 0;
+    }),
+  );
+  await page.evaluate(() => {
+    window.chrome.webview.postMessage(JSON.stringify({
+      id: 0,
+      type: 6,
+      args: ["win-set-visibility", { fullscreen: false }],
+    }));
+  });
+  await page.waitForFunction(
+    ({ width, height }) => Math.abs(innerWidth - width) < 4 && Math.abs(innerHeight - height) < 4,
+    viewportBeforeFullscreen,
+    { timeout: 10_000 },
+  );
+}
 const pausedFullscreenMarkerAligned = true;
-await page.evaluate(() => {
+const positionBeforeRecovery = await page.evaluate(() => window.JStremio.player.getSnapshot()?.positionMs ?? 0);
+await page.evaluate(async () => {
   window.chrome.webview.postMessage(JSON.stringify({
-    id: 0,
-    type: 6,
-    args: ["win-set-visibility", { fullscreen: false }],
+    id: 2_900_000,
+    args: ["mpv-recover-playback", true],
   }));
+  await window.JStremio.player.setPaused(false);
 });
 await page.waitForFunction(
-  ({ width, height }) => Math.abs(innerWidth - width) < 4 && Math.abs(innerHeight - height) < 4,
-  viewportBeforeFullscreen,
-  { timeout: 10_000 },
+  (position) => (window.JStremio.player.getSnapshot()?.positionMs ?? 0) >= position + 800,
+  positionBeforeRecovery,
+  { timeout: 15_000 },
 );
+await page.evaluate(async () => window.JStremio.player.setPaused(true));
+const playbackAdvancedAfterRecovery = true;
 
 await marker.click();
 await page.waitForSelector(".marker-popover");
@@ -380,6 +407,9 @@ const result = await page.evaluate((verification) => {
     markerThumbnailVisible: verification.markerThumbnailVisible,
     dialogTypingKeptPaused: verification.dialogTypingKeptPaused,
     pausedFullscreenMarkerAligned: verification.pausedFullscreenMarkerAligned,
+    fullscreenStressCycles: verification.fullscreenStressCycles,
+    playerNavigationHidden: verification.playerNavigationHidden,
+    playbackAdvancedAfterRecovery: verification.playbackAdvancedAfterRecovery,
     outsideDismissed: verification.outsideDismissed,
     closeButtonDismissed: verification.closeButtonDismissed,
     markerHiddenWhenImmersed: verification.immersedState.markerVisibility === "hidden",
@@ -404,6 +434,9 @@ const result = await page.evaluate((verification) => {
   markerThumbnailVisible,
   dialogTypingKeptPaused,
   pausedFullscreenMarkerAligned,
+  fullscreenStressCycles: 12,
+  playerNavigationHidden,
+  playbackAdvancedAfterRecovery,
   outsideDismissed,
   closeButtonDismissed,
   immersedState,
@@ -521,6 +554,8 @@ const failures = [
   [result.markerThumbnailVisible, "captured frame thumbnail in marker popover"],
   [result.dialogTypingKeptPaused, "dialog typing isolated from Stremio shortcuts"],
   [result.pausedFullscreenMarkerAligned, "paused fullscreen marker alignment"],
+  [result.fullscreenStressCycles === 12 && result.playerNavigationHidden, "fullscreen/restore surface stress and hidden player navigation"],
+  [result.playbackAdvancedAfterRecovery, "native MPV surface recovery"],
   [result.outsideDismissed && result.closeButtonDismissed, "popover outside and close-button dismissal"],
   [result.markerHiddenWhenImmersed && result.popoverClosedWhenImmersed, "immersed marker and popover hiding"],
   [result.dockRemainsInteractiveWhenImmersed && result.dockHoverReveal, "immersed dock hover reveal"],

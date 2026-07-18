@@ -18,7 +18,10 @@ use url::Url;
 use urlencoding::decode;
 use webview2::Controller;
 use winapi::shared::windef::HWND;
-use winapi::um::winuser::{GetClientRect, VK_F7, WM_APPCOMMAND, WM_SETFOCUS};
+use winapi::um::winuser::{
+    GetClientRect, SIZE_MINIMIZED, VK_F7, WM_APPCOMMAND, WM_DISPLAYCHANGE, WM_DPICHANGED, WM_MOVE,
+    WM_MOVING, WM_SETFOCUS, WM_SIZE,
+};
 
 const APPCOMMAND_MEDIA_NEXTTRACK: u32 = 11;
 const APPCOMMAND_MEDIA_PREVIOUSTRACK: u32 = 12;
@@ -292,8 +295,22 @@ impl PartialUi for WebView {
         // handler ids equal or smaller than 0xFFFF are reserved by NWG
         let handler_id = 0x10000;
         let controller_clone = data.controller.clone();
-        nwg::bind_raw_event_handler(&parent, handler_id, move |_hwnd, msg, _w, l| {
-            if msg == WM_SETFOCUS {
+        nwg::bind_raw_event_handler(&parent, handler_id, move |hwnd, msg, w, l| {
+            if msg == WM_SIZE {
+                if let Some(controller) = controller_clone.get() {
+                    let visible = w != SIZE_MINIMIZED;
+                    controller.put_is_visible(visible).ok();
+                    if visible {
+                        WebView::resize_to_window_bounds(Some(controller), Some(hwnd));
+                    }
+                }
+            } else if msg == WM_MOVE || msg == WM_MOVING {
+                controller_clone
+                    .get()
+                    .and_then(|controller| controller.notify_parent_window_position_changed().ok());
+            } else if msg == WM_DPICHANGED || msg == WM_DISPLAYCHANGE {
+                WebView::resize_to_window_bounds(controller_clone.get(), Some(hwnd));
+            } else if msg == WM_SETFOCUS {
                 controller_clone.get().and_then(|controller| {
                     controller
                         .move_focus(webview2::MoveFocusReason::Programmatic)

@@ -14,7 +14,7 @@ const manifest = {
   schemaVersion: 1,
   id: "themes",
   name: "Themes",
-  version: "1.0.1",
+  version: "1.0.2",
   entry: "index.js",
   styles: "styles.css",
   enabledByDefault: true,

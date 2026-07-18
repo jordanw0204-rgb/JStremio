@@ -83,7 +83,8 @@ export function applyTheme(theme: ThemeSettings): void {
   }
   style.textContent =
     "html body{background:linear-gradient(var(--jstremio-gradient-angle),var(--jstremio-background-start) 0%,var(--jstremio-background-end) 100%)!important;color:var(--jstremio-text-color)}" +
-    "html[data-jstremio-player-route] body{background:transparent!important}";
+    "html[data-jstremio-player-route] body{background:transparent!important}" +
+    'html[data-jstremio-player-route] [data-jstremio-control="navigation"]{display:none!important}';
   syncThemeRoute();
   if (!routeSyncInstalled) {
     routeSyncInstalled = true;

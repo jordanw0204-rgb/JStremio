@@ -555,6 +555,30 @@ fn create_message_thread(
                         enabled,
                     );
                 }
+                InMsg(InMsgFn::MpvRecoverPlayback, InMsgArgs::Flag(true)) => {
+                    match mpv.get_property::<i64>("vid") {
+                        Ok(video_track) if video_track > 0 => {
+                            if let Err(error) = mpv.set_property("vid", "no") {
+                                eprintln!(
+                                    "failed to detach the stalled MPV video track: '{error:#}'"
+                                );
+                            } else if let Err(error) = mpv.set_property("vid", video_track) {
+                                eprintln!("failed to restore the MPV video track: '{error:#}'");
+                            }
+                        }
+                        Ok(_) => {
+                            eprintln!("cannot recover MPV playback without an active video track")
+                        }
+                        Err(error) => {
+                            eprintln!("failed to inspect the active MPV video track: '{error:#}'")
+                        }
+                    }
+                    apply_display_output_mode(
+                        &mpv,
+                        current_display_output_state(&mpv, window_handle as HWND),
+                        gpu_video_processing.load(Ordering::Relaxed),
+                    );
+                }
                 InMsg(InMsgFn::MpvCommand, InMsgArgs::Cmd(cmd)) => {
                     send_command(cmd);
                 }

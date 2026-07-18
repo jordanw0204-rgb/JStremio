@@ -599,7 +599,7 @@ dependencies = [
 
 [[package]]
 name = "jstremio"
-version = "1.5.1"
+version = "1.5.2"
 dependencies = [
  "anyhow",
  "base64",

@@ -63,7 +63,7 @@ pub struct MainWindow {
         OnWindowMinimize: [Self::transmit_window_state_change],
         OnWindowMaximize: [Self::on_window_state_changed],
         OnWindowFocus: [Self::transmit_window_state_change],
-        OnResizeEnd: [Self::save_window_settings],
+        OnResizeEnd: [Self::on_resize_end],
     )]
     pub window: nwg::Window,
     #[nwg_partial(parent: window)]
@@ -433,10 +433,18 @@ impl MainWindow {
     }
     fn on_paint(&self) {
         if !self.splash_screen.visible() {
-            self.webview.fit_to_window(self.window.handle.hwnd());
+            self.refresh_webview_bounds();
         }
     }
+    fn refresh_webview_bounds(&self) {
+        self.webview.fit_to_window(self.window.handle.hwnd());
+    }
+    fn on_resize_end(&self) {
+        self.refresh_webview_bounds();
+        self.save_window_settings();
+    }
     fn on_window_state_changed(&self) {
+        self.refresh_webview_bounds();
         self.save_window_settings();
         self.transmit_window_state_change();
     }
@@ -471,10 +479,12 @@ impl MainWindow {
                     .set_checked((saved_style.ex_style as u32 & WS_EX_TOPMOST) == WS_EX_TOPMOST);
             }
         }
+        self.refresh_webview_bounds();
         self.transmit_window_visibility_change();
     }
     fn on_hide_splash_notice(&self) {
         self.splash_screen.hide();
+        self.refresh_webview_bounds();
     }
     fn on_focus_notice(&self) {
         self.window.set_visible(true);
@@ -483,6 +493,7 @@ impl MainWindow {
                 saved_style.set_active(hwnd);
             }
         }
+        self.refresh_webview_bounds();
     }
     fn on_toggle_topmost(&self) {
         if let Some(hwnd) = self.window.handle.hwnd() {
@@ -505,6 +516,7 @@ impl MainWindow {
             }
             saved_style.set_active(hwnd);
         }
+        self.refresh_webview_bounds();
         self.tray.tray_show_hide.set_checked(self.window.visible());
         self.transmit_window_state_change();
         self.transmit_window_visibility_change();

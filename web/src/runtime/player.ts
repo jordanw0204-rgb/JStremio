@@ -10,6 +10,11 @@ type BridgeRequest = (
   options?: { timeoutMs?: number },
 ) => Promise<unknown>;
 
+const PLAYER_WATCHDOG_INTERVAL_MS = 1_000;
+const PLAYER_STALL_RECOVERY_MS = 15_000;
+const PLAYER_RECOVERY_COOLDOWN_MS = 30_000;
+const PLAYER_PROGRESS_EPSILON_MS = 250;
+
 export function parseMpvPropertyEvent(input: unknown): Partial<PlaybackSnapshot> | null {
   const nativeEvent = unwrapNativeEvent(input);
   if (!nativeEvent || nativeEvent[0] !== "mpv-prop-change" || !isRecord(nativeEvent[1])) {
@@ -33,6 +38,10 @@ export function createPlayerAdapter(getTarget: TargetProvider, bridgeRequest?: B
   let mediaKey: string | null = null;
   let notifyScheduled = false;
   let commandId = 2_000_000;
+  let observedPositionMs: number | null = null;
+  let lastProgressAt = Date.now();
+  let lastRecoveryAt = Number.NEGATIVE_INFINITY;
+  let recoveredSinceProgress = false;
   const listeners = new Set<Listener>();
   const channel = window.chrome?.webview;
 
@@ -70,6 +79,9 @@ export function createPlayerAdapter(getTarget: TargetProvider, bridgeRequest?: B
       snapshot = null;
       notify();
     }
+    observedPositionMs = snapshot?.positionMs ?? null;
+    lastProgressAt = Date.now();
+    recoveredSinceProgress = false;
   };
 
   const postProperty = (name: "time-pos" | "pause", value: number | boolean) => {
@@ -81,6 +93,45 @@ export function createPlayerAdapter(getTarget: TargetProvider, bridgeRequest?: B
     if (!channel) throw new Error("The local MPV channel is unavailable.");
     channel.postMessage(JSON.stringify({ id: commandId++, args: ["mpv-command", args] }));
   };
+
+  const watchdog = window.setInterval(() => {
+    const now = Date.now();
+    const positionMs = snapshot?.positionMs;
+    const active =
+      Boolean(channel && mediaKey && isPlayerRoute(location.hash)) &&
+      document.visibilityState !== "hidden" &&
+      snapshot?.paused === false &&
+      snapshot.seeking !== true &&
+      positionMs !== null &&
+      positionMs !== undefined;
+    if (!active) {
+      observedPositionMs = positionMs ?? null;
+      lastProgressAt = now;
+      return;
+    }
+    if (
+      observedPositionMs === null ||
+      positionMs > observedPositionMs + PLAYER_PROGRESS_EPSILON_MS ||
+      positionMs < observedPositionMs - PLAYER_PROGRESS_EPSILON_MS
+    ) {
+      observedPositionMs = positionMs;
+      lastProgressAt = now;
+      recoveredSinceProgress = false;
+      return;
+    }
+    if (
+      !recoveredSinceProgress &&
+      now - lastProgressAt >= PLAYER_STALL_RECOVERY_MS &&
+      now - lastRecoveryAt >= PLAYER_RECOVERY_COOLDOWN_MS
+    ) {
+      channel!.postMessage(
+        JSON.stringify({ id: commandId++, args: ["mpv-recover-playback", true] }),
+      );
+      recoveredSinceProgress = true;
+      lastRecoveryAt = now;
+      lastProgressAt = now;
+    }
+  }, PLAYER_WATCHDOG_INTERVAL_MS);
 
   const seekTo = async (positionMs: number) => {
     const activation = (navigator as Navigator & { userActivation?: { isActive: boolean } }).userActivation;
@@ -131,6 +182,7 @@ export function createPlayerAdapter(getTarget: TargetProvider, bridgeRequest?: B
 
   const destroy = () => {
     channel?.removeEventListener("message", onMessage);
+    window.clearInterval(watchdog);
     listeners.clear();
   };
 
@@ -145,6 +197,14 @@ export function createPlayerAdapter(getTarget: TargetProvider, bridgeRequest?: B
     setMediaKey,
     destroy,
   };
+}
+
+function isPlayerRoute(route: string): boolean {
+  try {
+    return /^#\/player(?:\/|$)/i.test(decodeURIComponent(route));
+  } catch {
+    return false;
+  }
 }
 
 function cloneSnapshot(snapshot: PlaybackSnapshot | null): PlaybackSnapshot | null {
