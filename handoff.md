@@ -26,8 +26,8 @@ Use CodeGraph before structural code exploration. A persistent project overview 
 - Branch: `feature/jstremio-extensions`
 - Upstream: `origin/feature/jstremio-extensions`
 - Public repository: `https://github.com/jordanw0204-rgb/JStremio`
-- Latest release tag: `v1.5.1` (release commit `3275039`; use `git log -1` for the current branch commit)
-- Current application version: `1.5.1`
+- Latest release tag: `v1.5.2` (release commit `cf7cf12`; use `git log -1` for the current branch commit)
+- Current application version: `1.5.2`
 - Pinned shell upstream: `Stremio/stremio-shell-ng` release `v5.0.23`
 - Pinned upstream commit: `5b1f341dbd9e1959f824436c70aa7410c159f684`
 - Observed official web build: `b6298c68d27602564ed16edd0f44aa09cd8bacb4` on 2026-07-10
@@ -36,6 +36,7 @@ Use CodeGraph before structural code exploration. A persistent project overview 
 Recent commits:
 
 ```text
+cf7cf12 fix: recover native player surface stalls
 3275039 fix: restore player video and extension controls
 a9ab019 test: stabilize pinned popover assertion
 a7d06db feat: add themes and universal LastPlayed
@@ -177,7 +178,7 @@ Task Master tag: `master`
 - Pending/in progress/blocked: 0
 - Reported completion: 92%
 
-Tasks 1-10 and 13-27 are done. Tasks 11 and 12 remain in review.
+Tasks 1-10 and 13-29 are done. Tasks 11 and 12 remain in review.
 
 Task 25 is complete. The repository is public, the v1.3.0 release exposes the installer, portable ZIP, and checksums anonymously, and the installer is labeled as the recommended download. The anonymous latest-release endpoint returns the expected installer size and GitHub SHA-256 digest. GitHub secret scanning and push protection are enabled with zero open alerts after a tracked-tree/history credential audit.
 
@@ -186,6 +187,8 @@ Task 26 is complete. Reviews and Timestamp Notes player controls are click-only,
 Task 27 is complete. Universal per-poster LastPlayed actions, saved-source metadata tooltips, the persisted Themes page, and in-web JStremio branding shipped in v1.5.0. The full local gate, current-profile WebView2 smoke, byte-for-byte protected-profile upgrade check, branch CI, corrected tag CI, clean-runner release, public asset/checksum verification, direct installer HTTP check, and zero-open-secret-alert check all passed.
 
 Task 28 is complete. v1.5.1 keeps the themed WebView transparent over native MPV on player routes and makes Reviews/Timestamp Notes target resolution monotonic within a route so continuous official-player DOM mutations cannot starve either control. The full local gate, range-backed real MPV/CDP smoke, exact protected-profile upgrade comparison, branch/tag CI, clean-runner release, public asset/checksum verification, direct installer HTTP check, and zero-open-secret-alert check all passed.
+
+Task 29 is complete. v1.5.2 keeps WebView2/native MPV bounds synchronized through the real Win32 size/move/fullscreen lifecycle, hides page navigation explicitly during playback, and adds a bounded 15-second stall watchdog that reselects the active video track without changing the logical stream or playback position. The full local gate, error-free 20-cycle real MPV/fullscreen stress, OS-level decoded-frame capture, 12-file protected-profile comparison, branch/tag CI, clean-runner release, public asset/checksum verification, direct installer HTTP check, and zero-open-secret-alert check all passed.
 
 ### Task 11 - Add checks, fixtures, and real-shell regression workflow
 
@@ -228,7 +231,7 @@ Run from `D:\Dev\JStremio`:
 
 `check.ps1` is the main automated gate. It runs Rust formatting, clippy, tests, strict TypeScript checks/unit tests, deterministic browser bundles, Playwright fixtures in Edge, and an optimized x64 compile.
 
-The most recent documented automated evidence is in `docs/testing.md`. On 2026-07-17 the full v1.5.1 `check.ps1` gate passed 48 native tests, strict TypeScript checking with 28 unit tests, nine Playwright scenarios, deterministic bundles, updater tests, and optimized x64 app/updater builds. A real range-backed MPV/CDP smoke proved video-layer transparency, playback progression, real frame capture, and pointer activation of both player controls. A real installer upgrade preserved all 11 protected settings/plugin files byte-for-byte, retained both shortcuts, installed product/file version 1.5.1, and matched all 16 installed runtime/extension files to the verified build.
+The most recent documented automated evidence is in `docs/testing.md`. On 2026-07-18 the full v1.5.2 `check.ps1` gate passed 49 native tests, strict TypeScript checking with 30 unit tests, nine Playwright scenarios, deterministic bundles, updater tests, and optimized x64 app/updater builds. A real range-backed MPV/CDP stress passed 20 fullscreen/restore cycles, verified current viewport bounds and hidden player-route navigation on all 40 transitions, exercised the native recovery path without MPV errors, and captured a decoded post-recovery frame filling the client area. A real installer upgrade preserved all 12 protected settings/plugin files byte-for-byte, retained both shortcuts, installed product/file version 1.5.2, matched the installed executable to the release build, and matched all 16 installed runtime/extension files to the verified build.
 
 Safe-mode commands:
 
@@ -241,18 +244,18 @@ Safe-mode commands:
 ## Current packaged artifacts
 
 ```text
-Path:   installer\JStremioSetup-v1.5.1_x64-unsigned.exe
-Size:   71,271,483 bytes
-SHA256: AAE68872EC0E529105A8FC0E2D2E76E5B529BD3C49D1B6A57D69FD57C27234FE
+Path:   installer\JStremioSetup-v1.5.2_x64-unsigned.exe
+Size:   71,274,175 bytes
+SHA256: 592F03F52D5CD776C4EF77D291A3E11F39707B330DB8ACD1CD22149B89FE305F
 
-Path:   artifacts\JStremio-1.5.1-windows-x64-portable.zip
-Size:   92,731,724 bytes
-SHA256: EBA27F92109D64BDF80D2110A90AEF8BE40AD034F95EE40C401FA02DEEC5524A
+Path:   artifacts\JStremio-1.5.2-windows-x64-portable.zip
+Size:   92,733,553 bytes
+SHA256: 54B84B6E85E42971CB0FDE620B51F11382127B6D9E1FBFFBBBD34D947EC95E96
 ```
 
 These hashes apply only to the current artifacts. Recompute them after any package rebuild.
 
-The public GitHub release was rebuilt on a clean Actions runner and therefore has different build-timestamp hashes. Its v1.5.1 recommended-installer digest is `4C02A729F4DC82F99D9D5C4804E283E65F008F353E4F0A8912ADB3E5CC2D5DFA`; the portable digest is `3FDDB91E96F6ED13C2E68641F2B815CC20A94230A3AC33DCCFF710C935DFDE4C`. Use the release's `SHA256SUMS.txt` for published assets.
+The public GitHub release was rebuilt on a clean Actions runner and therefore has different build-timestamp hashes. Its v1.5.2 installer digest is `841404D5E470B6699AA1E27D70A93D04E878F31887D7587228F98B4EA9ED017F`; the portable digest is `3F6625FC3771F132C155AE841AF157B02D3830BAC4992DA0A58724165FB446B9`. Use the release's `SHA256SUMS.txt` for published assets.
 
 ## Architecture constraints that must not regress
 
@@ -285,7 +288,7 @@ Do not switch the working branch to this archive unless the user explicitly asks
 
 Continue Tasks 11 and 12:
 
-1. Use the current v1.5.1 installer/portable hashes recorded above.
+1. Use the current v1.5.2 installer/portable hashes recorded above.
 2. Complete the enabled-versus-safe-mode real playback and audible-audio checklist on the user's actual Windows output device.
 3. Complete the remaining clean-profile/restart/coexistence acceptance work.
 4. Record objective results in `docs/testing.md` and Task Master.

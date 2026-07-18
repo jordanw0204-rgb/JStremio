@@ -383,18 +383,18 @@
         "description": "Diagnose and eliminate the intermittent state where native MPV playback turns black/stops and JStremio window bounds or fullscreen presentation become desynchronized until the entire app is restarted.",
         "details": "Trace native MPV surface lifecycle, player IPC freshness/ended/restart flow, WebView/controller/window resize and fullscreen transitions. Add bounded automatic recovery that preserves the active stream and playback position, plus focused native/browser regressions and real-shell stress verification. Package and deploy a patch release without altering protected settings or custom plugins.",
         "testStrategy": "Native lifecycle/unit tests, fullscreen/resize/restart stress test, full check.ps1, real WebView2/MPV repeated transition smoke, installer protected-profile comparison.",
-        "status": "in-progress",
+        "status": "done",
         "dependencies": [],
         "priority": "high",
         "subtasks": [],
-        "updatedAt": "2026-07-18T08:41:15.193Z"
+        "updatedAt": "2026-07-18T09:35:01.953Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-07-18T08:41:15.193Z",
+      "lastModified": "2026-07-18T09:35:01.954Z",
       "taskCount": 29,
-      "completedCount": 26,
+      "completedCount": 27,
       "tags": [
         "master"
       ]
