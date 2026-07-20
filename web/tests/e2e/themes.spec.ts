@@ -38,7 +38,8 @@ test.beforeEach(async ({ page }) => {
       if (method !== "jstremio-themes") return;
       if (params.operation === "set") theme = { ...params.payload } as typeof theme;
       if (params.operation === "reset") theme = { ...defaults };
-      queueMicrotask(() => emit({ args: [`${method}-response`, { requestId: request.id, ok: true, result: { ...theme } }] }));
+      const result = params.operation === "getPresets" ? [] : { ...theme };
+      queueMicrotask(() => emit({ args: [`${method}-response`, { requestId: request.id, ok: true, result }] }));
     };
     Object.assign(window, {
       core: { getState: () => null },
@@ -63,13 +64,21 @@ test("previews, validates, saves, remounts, and resets themes", async ({ page })
   await navigation.click();
 
   await expect(page.getByRole("heading", { name: "Themes" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Close Themes" })).toHaveCount(0);
+  await expect(page.locator('a[href="#/library"]')).toBeVisible();
+  await expect.poll(async () => {
+    const rail = await page.locator("nav").boundingBox();
+    const surface = await page.locator('[data-jstremio-testid="page"]').boundingBox();
+    return rail && surface ? surface.x - (rail.x + rail.width) : -999;
+  }).toBeGreaterThanOrEqual(0);
   await expect(page.getByRole("button", { name: "Save theme" })).toBeDisabled();
   await expect(page.getByRole("button", { name: /Stremio/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /Ocean/ })).toBeVisible();
 
   await page.getByRole("button", { name: /Ocean/ }).click();
   await expect.poll(() => page.evaluate(() => document.documentElement.style.getPropertyValue("--primary-accent-color"))).toBe("#38BDF8");
-  await page.getByRole("button", { name: "Close Themes" }).click();
+  await page.locator('a[href="#/library"]').click();
+  await expect(page.locator('[data-jstremio-testid="page"]')).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => document.documentElement.style.getPropertyValue("--primary-accent-color"))).toBe("#7B5BF5");
   await navigation.click();
   await expect(page.getByLabel("Accent hex color")).toHaveValue("#7B5BF5");
@@ -93,7 +102,8 @@ test("previews, validates, saves, remounts, and resets themes", async ({ page })
     gradientAngle: 132,
   });
 
-  await page.getByRole("button", { name: "Close Themes" }).click();
+  await page.locator('a[href="#/calendar"]').click();
+  await expect(page.locator('[data-jstremio-testid="page"]')).toHaveCount(0);
   await page.evaluate(() => {
     document.querySelector("nav")!.outerHTML = '<nav class="nav_fixture"><a class="nav-tab_fixture" href="#/library" title="Library"><svg viewBox="0 0 24 24"></svg><div class="label_fixture">Library</div></a><a class="nav-tab_fixture" href="#/calendar" title="Calendar"><svg viewBox="0 0 24 24"></svg><div class="label_fixture">Calendar</div></a></nav>';
   });

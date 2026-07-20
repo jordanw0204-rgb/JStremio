@@ -159,13 +159,13 @@ mod tests {
                 timestamp_ms: 12_000,
                 text: "updated".into(),
                 color: Some("#ff3366".into()),
-                rating: Some(5),
+                rating: Some(10),
                 thumbnail_id: None,
             })
             .unwrap();
         assert_eq!(updated.created_at, first.created_at);
         assert_eq!(updated.color.as_deref(), Some("#FF3366"));
-        assert_eq!(updated.rating, Some(5));
+        assert_eq!(updated.rating, Some(10));
         assert!(store.delete(&second.id).unwrap());
 
         let restarted = TimestampNoteStore::new(directory.path());
@@ -184,7 +184,7 @@ mod tests {
         bad_color.color = Some("red".into());
         assert!(store.create(bad_color).is_err());
         let mut bad_rating = input(10_000);
-        bad_rating.rating = Some(6);
+        bad_rating.rating = Some(11);
         assert!(store.create(bad_rating).is_err());
     }
 }

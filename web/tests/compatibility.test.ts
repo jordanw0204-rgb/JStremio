@@ -54,10 +54,35 @@ describe("central DOM compatibility adapter", () => {
     expect(findSeekContainer()?.className).toBe("new-hash");
   });
 
+  it("uses the route-link container instead of a broader branded sidebar wrapper", () => {
+    document.body.innerHTML = `
+      <aside id="sidebar"><a href="#/" title="JStremio">J</a>
+        <nav id="route-items"><a href="#/board">Board</a><a href="#/library">Library</a><a href="#/calendar">Calendar</a></nav>
+      </aside>`;
+    expect(findPrimaryNavigation()?.id).toBe("route-items");
+  });
+
   it("retains semantic toolbar and slider support", () => {
     document.body.innerHTML = '<div class="toolbar" role="toolbar"><button>One</button></div><div class="seek"><input type="range" aria-label="Seek position"></div>';
     expect(findPlayerControls()?.className).toBe("toolbar");
     expect(findSeekContainer()?.className).toBe("seek");
+  });
+
+  it("finds the left application rail when a Settings layout has no route anchors", () => {
+    document.body.innerHTML = `
+      <aside id="app-rail">
+        <button aria-label="Home"></button><button aria-label="Discover"></button>
+        <button aria-label="Library"></button><button aria-label="Calendar"></button>
+        <button aria-label="Addons"></button><button aria-label="Settings"></button>
+      </aside>
+      <nav id="settings-tabs"><button>General</button><button>Interface</button><button>Player</button></nav>`;
+    const rail = document.querySelector<HTMLElement>("#app-rail")!;
+    rail.getBoundingClientRect = () => ({ left: 0, right: 82, top: 0, bottom: 720, width: 82, height: 720, x: 0, y: 0, toJSON() {} });
+    const tabs = document.querySelector<HTMLElement>("#settings-tabs")!;
+    tabs.getBoundingClientRect = () => ({ left: 100, right: 300, top: 80, bottom: 500, width: 200, height: 420, x: 100, y: 80, toJSON() {} });
+
+    expect(findPrimaryNavigation()).toBe(rail);
+    expect(navigationTemplate(rail)?.getAttribute("aria-label")).toBe("Home");
   });
 
   it("detects the current official immersed-player class without a complete hash", () => {

@@ -105,10 +105,10 @@ mod tests {
     fn create_update_delete_persists() {
         let directory = tempdir().unwrap();
         let store = ReviewStore::new(directory.path());
-        let created = store.upsert(input(5)).unwrap();
+        let created = store.upsert(input(10)).unwrap();
         assert_eq!(created.id, "series:tt123:1:2");
         assert_eq!(created.text, "private review");
-        let updated = store.upsert(input(4)).unwrap();
+        let updated = store.upsert(input(9)).unwrap();
         assert_eq!(updated.created_at, created.created_at);
         assert_eq!(store.list().unwrap().len(), 1);
         assert!(store.delete(&created.id).unwrap());
@@ -122,6 +122,6 @@ mod tests {
         let directory = tempdir().unwrap();
         let store = ReviewStore::new(directory.path());
         assert!(store.upsert(input(0)).is_err());
-        assert!(store.upsert(input(6)).is_err());
+        assert!(store.upsert(input(11)).is_err());
     }
 }

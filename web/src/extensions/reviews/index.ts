@@ -14,6 +14,7 @@ import {
   targetPayload,
   viewInStremio,
 } from "../shared";
+import { MAX_RATING, normalizeRating, ratingAriaLabel, ratingStars } from "../ratings";
 
 type Review = ReturnType<typeof targetPayload> & {
   id: string;
@@ -27,14 +28,12 @@ const manifest = {
   schemaVersion: 1,
   id: "reviews",
   name: "Local Reviews",
-  version: "1.2.1",
+  version: "1.4.0",
   entry: "index.js",
   styles: "styles.css",
   enabledByDefault: true,
   loadOrder: 100,
 } as const;
-
-const CLOSE_ICON = '<svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>';
 
 requireRuntime().registerExtension(manifest, (runtime) => activate(runtime));
 
@@ -42,7 +41,31 @@ function activate(runtime: JStremioRuntime) {
   let overlayRefresh: (() => void) | null = null;
   let playerRoute = "";
   let resolvedPlayerTarget: MediaTarget | null = null;
-  const openPlayerReview = () => openCurrentReview(runtime, () => overlayRefresh?.());
+  const reviewCache = new Map<string, Review | null>();
+  const reviewLoads = new Map<string, Promise<Review | null>>();
+  const loadReview = (target: MediaTarget): Promise<Review | null> => {
+    if (reviewCache.has(target.key)) return Promise.resolve(reviewCache.get(target.key)!);
+    const active = reviewLoads.get(target.key);
+    if (active) return active;
+    const pending = runtime.bridge.request("reviews", "get", { id: target.key })
+      .then((value) => {
+        const review = asReview(value);
+        reviewCache.set(target.key, review);
+        return review;
+      })
+      .finally(() => reviewLoads.delete(target.key));
+    reviewLoads.set(target.key, pending);
+    return pending;
+  };
+  const openPlayerReview = () => {
+    const target = resolvedPlayerTarget;
+    if (!target) return;
+    const source = reviewCache.has(target.key) ? reviewCache.get(target.key)! : loadReview(target);
+    openReviewDialog(runtime, target, source, () => {
+      reviewCache.delete(target.key);
+      overlayRefresh?.();
+    });
+  };
   const unregisterHotkey = registerPluginHotkey(
     runtime,
     "reviews",
@@ -52,13 +75,13 @@ function activate(runtime: JStremioRuntime) {
     )),
   );
 
-  const openOverlay = () => {
-    runtime.ui.openOverlay((container, close) => {
+  const openPage = () => {
+    runtime.ui.openPage("reviews", (container) => {
       addStyles(container, styles);
       const shell = document.createElement("main");
       shell.className = "reviews-shell";
       shell.innerHTML = `
-        <header class="reviews-header"><div><h1 tabindex="-1">Local Reviews</h1><p>Private ratings and notes stored only on this computer.</p></div><button class="button icon-button" data-action="close" aria-label="Close Reviews">${CLOSE_ICON}</button></header>
+        <header class="reviews-header"><div><h1 tabindex="-1">Local Reviews</h1><p>Private ratings and notes stored only on this computer.</p></div></header>
         <div class="toolbar"><button class="button" data-action="back" hidden>← Back to titles</button><input class="search" type="search" placeholder="Search titles or review text" aria-label="Search local reviews"><button class="button" data-action="refresh">Refresh</button><button class="button" data-action="folder">Open data folder</button></div>
         <section class="status" role="status">Loading reviews…</section><section class="review-grid" hidden></section>`;
       container.append(shell);
@@ -105,7 +128,6 @@ function activate(runtime: JStremioRuntime) {
             : "No reviews match this search."
           : "No reviews yet. Open a movie or episode and use the star button.";
       };
-      shell.querySelector('[data-action="close"]')?.addEventListener("click", close);
       back.addEventListener("click", () => {
         selectedCollection = null;
         search.value = "";
@@ -138,7 +160,7 @@ function activate(runtime: JStremioRuntime) {
   };
 
   const reconcile = () => {
-    mountNavigationButton("reviews", "Reviews", STAR_ICON, openOverlay);
+    mountNavigationButton("reviews", "Reviews", STAR_ICON, openPage);
     const existing = document.querySelector<HTMLButtonElement>(
       '[data-jstremio-extension="reviews"][data-jstremio-control="player"]',
     );
@@ -162,6 +184,7 @@ function activate(runtime: JStremioRuntime) {
       if (target) {
         resolvedPlayerTarget = target;
         setReviewButtonAvailability(button, true);
+        void loadReview(target).catch((error) => runtime.diagnostics.report("reviews", error));
       } else if (!resolvedPlayerTarget) {
         setReviewButtonAvailability(button, false);
       }
@@ -172,7 +195,7 @@ function activate(runtime: JStremioRuntime) {
   return () => {
     unsubscribe();
     unregisterHotkey();
-    runtime.ui.closeOverlay();
+    runtime.ui.closePage();
     removeOwned("reviews");
   };
 }
@@ -187,17 +210,10 @@ function setReviewButtonAvailability(button: HTMLButtonElement | null, available
   button.style.cursor = available ? "pointer" : "not-allowed";
 }
 
-async function openCurrentReview(runtime: JStremioRuntime, changed: () => void) {
-  const target = await runtime.stremio.getCurrentMediaTarget();
-  if (!target) return;
-  const existing = asReview(await runtime.bridge.request("reviews", "get", { id: target.key }));
-  openReviewDialog(runtime, target, existing, changed);
-}
-
 function openReviewDialog(
   runtime: JStremioRuntime,
   target: MediaTarget,
-  existing: Review | null,
+  source: Review | null | Promise<Review | null>,
   changed: () => void,
 ) {
   runtime.ui.openDialog((container, close) => {
@@ -207,59 +223,97 @@ function openReviewDialog(
     form.setAttribute("role", "dialog");
     form.setAttribute("aria-modal", "true");
     form.setAttribute("aria-labelledby", "jstremio-review-title");
-    form.innerHTML = `
-      <h2 id="jstremio-review-title">${existing ? "Update review" : "Add review"}</h2>
-      <p class="subtitle"></p>
-      <fieldset class="field"><legend>Rating (required)</legend><div class="stars" role="radiogroup"></div></fieldset>
-      <label class="field">Private review<textarea maxlength="5000"></textarea><span class="count">0 / 5000</span></label>
-      <div class="alert" role="alert" aria-live="polite"></div>
-      <div class="dialog-actions">${existing ? '<button type="button" class="button danger" data-action="delete">Delete</button>' : ""}<button type="button" class="button" data-action="cancel">Cancel</button><button class="button primary" type="submit">${existing ? "Update" : "Save"}</button></div>`;
-    form.querySelector<HTMLElement>(".subtitle")!.textContent = mediaLabel(target);
-    const stars = form.querySelector<HTMLElement>(".stars")!;
-    for (let rating = 1; rating <= 5; rating += 1) {
-      const label = document.createElement("label");
-      label.className = "star-option";
-      label.innerHTML = `<input type="radio" name="rating" value="${rating}" aria-label="${rating} star${rating === 1 ? "" : "s"}"><span aria-hidden="true">★</span>`;
-      stars.append(label);
-    }
-    if (existing) {
-      const radio = form.querySelector<HTMLInputElement>(`input[value="${existing.rating}"]`);
-      if (radio) radio.checked = true;
-    }
-    const textarea = form.querySelector<HTMLTextAreaElement>("textarea")!;
-    const count = form.querySelector<HTMLElement>(".count")!;
-    const alert = form.querySelector<HTMLElement>(".alert")!;
-    textarea.value = existing?.text ?? "";
-    const updateCount = () => {
-      count.textContent = `${Array.from(textarea.value).length} / 5000`;
-    };
-    textarea.addEventListener("input", updateCount);
-    updateCount();
-    form.querySelector('[data-action="cancel"]')?.addEventListener("click", close);
-    form.querySelector('[data-action="delete"]')?.addEventListener("click", () => {
-      if (!existing) return;
-      void runtime.bridge.request("reviews", "delete", { id: existing.id }).then(() => {
-        changed();
-        close();
-      }).catch((error) => showError(alert, error));
-    });
-    form.addEventListener("submit", (event) => {
-      event.preventDefault();
-      const rating = Number(new FormData(form).get("rating"));
-      if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
-        alert.textContent = "Choose a rating from 1 to 5.";
-        return;
+    container.append(form);
+
+    const renderEditor = (existing: Review | null) => {
+      if (!form.isConnected) return;
+      form.removeAttribute("aria-busy");
+      form.innerHTML = `
+        <h2 id="jstremio-review-title">${existing ? "Update review" : "Add review"}</h2>
+        <p class="subtitle"></p>
+        <fieldset class="field"><legend>Rating (required)</legend><div class="stars" role="radiogroup"></div></fieldset>
+        <label class="field">Private review<textarea maxlength="5000"></textarea><span class="count">0 / 5000</span></label>
+        <div class="alert" role="alert" aria-live="polite"></div>
+        <div class="dialog-actions">${existing ? '<button type="button" class="button danger" data-action="delete">Delete</button>' : ""}<button type="button" class="button" data-action="cancel">Cancel</button><button class="button primary" type="submit">${existing ? "Update" : "Save"}</button></div>`;
+      form.querySelector<HTMLElement>(".subtitle")!.textContent = mediaLabel(target);
+      const stars = form.querySelector<HTMLElement>(".stars")!;
+      for (let rating = 1; rating <= MAX_RATING; rating += 1) {
+        const label = document.createElement("label");
+        label.className = "star-option";
+        label.innerHTML = `<input type="radio" name="rating" value="${rating}" aria-label="${rating} star${rating === 1 ? "" : "s"}"><span aria-hidden="true">★</span>`;
+        stars.append(label);
       }
-      alert.textContent = "";
-      void runtime.bridge
-        .request("reviews", "upsert", { ...targetPayload(target), rating, text: textarea.value })
-        .then(() => {
+      if (existing) {
+        const radio = form.querySelector<HTMLInputElement>(`input[value="${existing.rating}"]`);
+        if (radio) radio.checked = true;
+      }
+      const syncStars = () => {
+        const selected = normalizeRating(Number(new FormData(form).get("rating"))) ?? 0;
+        stars.querySelectorAll<HTMLElement>(".star-option").forEach((option, index) => {
+          option.classList.toggle("selected", index < selected);
+        });
+      };
+      stars.addEventListener("change", syncStars);
+      syncStars();
+      const textarea = form.querySelector<HTMLTextAreaElement>("textarea")!;
+      const count = form.querySelector<HTMLElement>(".count")!;
+      const alert = form.querySelector<HTMLElement>(".alert")!;
+      textarea.value = existing?.text ?? "";
+      const updateCount = () => {
+        count.textContent = `${Array.from(textarea.value).length} / 5000`;
+      };
+      textarea.addEventListener("input", updateCount);
+      updateCount();
+      form.querySelector('[data-action="cancel"]')?.addEventListener("click", close);
+      form.querySelector('[data-action="delete"]')?.addEventListener("click", () => {
+        if (!existing) return;
+        void runtime.bridge.request("reviews", "delete", { id: existing.id }).then(() => {
           changed();
           close();
-        })
-        .catch((error) => showError(alert, error));
-    });
-    container.append(form);
+        }).catch((error) => showError(alert, error));
+      });
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const rating = normalizeRating(Number(new FormData(form).get("rating")));
+        if (rating === null) {
+          alert.textContent = `Choose a rating from 1 to ${MAX_RATING}.`;
+          return;
+        }
+        alert.textContent = "";
+        void runtime.bridge
+          .request("reviews", "upsert", { ...targetPayload(target), rating, text: textarea.value })
+          .then(() => {
+            changed();
+            close();
+          })
+          .catch((error) => showError(alert, error));
+      });
+    };
+
+    if (source instanceof Promise) {
+      form.setAttribute("aria-busy", "true");
+      form.innerHTML = `
+        <div class="dialog-loading" role="status">
+          <span class="loading-indicator" aria-hidden="true"></span>
+          <strong id="jstremio-review-title">Loading your review…</strong>
+          <button type="button" class="button" data-action="cancel">Cancel</button>
+        </div>`;
+      form.querySelector('[data-action="cancel"]')?.addEventListener("click", close);
+      void source.then(renderEditor).catch((error) => {
+        if (!form.isConnected) return;
+        form.removeAttribute("aria-busy");
+        form.innerHTML = `
+          <div class="dialog-loading">
+            <strong id="jstremio-review-title">Review unavailable</strong>
+            <div class="alert" role="alert"></div>
+            <button type="button" class="button" data-action="cancel">Close</button>
+          </div>`;
+        showError(form.querySelector<HTMLElement>(".alert")!, error);
+        form.querySelector('[data-action="cancel"]')?.addEventListener("click", close);
+      });
+    } else {
+      renderEditor(source);
+    }
   });
 }
 
@@ -335,8 +389,8 @@ function renderReviews(runtime: JStremioRuntime, grid: HTMLElement, reviews: Rev
       : "Movie";
     const rating = document.createElement("div");
     rating.className = "rating";
-    rating.setAttribute("aria-label", `${review.rating} out of 5 stars`);
-    rating.textContent = "★".repeat(review.rating) + "☆".repeat(5 - review.rating);
+    rating.setAttribute("aria-label", ratingAriaLabel(review.rating));
+    rating.textContent = ratingStars(review.rating);
     const text = document.createElement("p");
     text.className = "review-text";
     text.textContent = review.text || "No written review.";
@@ -385,7 +439,7 @@ function asReviews(value: unknown): Review[] {
 function asReview(value: unknown): Review | null {
   if (!value || typeof value !== "object") return null;
   const review = value as Partial<Review>;
-  return typeof review.id === "string" && typeof review.rating === "number" ? (review as Review) : null;
+  return typeof review.id === "string" && normalizeRating(review.rating) !== null ? (review as Review) : null;
 }
 
 function showError(target: HTMLElement, error: unknown) {

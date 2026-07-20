@@ -2,6 +2,15 @@
 
 JStremio follows Semantic Versioning. Stable releases are tagged `vMAJOR.MINOR.PATCH` and published through GitHub Releases.
 
+## 1.6.0 - 2026-07-20
+
+- Move Plugins, Themes, Local Reviews, and Timestamp Notes into a shared in-shell page surface that keeps Stremio's official sidebar visible and hands every official navigation click back to Stremio.
+- Keep all custom navigation and player controls mounted, themed, immediately responsive, and reliably clickable across upstream route and DOM remounts.
+- Apply the active theme to every plugin page, dialog, card, frame, input, marker popover, and player control; add the Crimson preset plus reusable custom theme presets.
+- Redesign timestamp marker-color selection with coordinated swatches, hexadecimal entry, and a full custom color picker while keeping marker and rating fields visually uniform.
+- Expand Local Reviews and Timestamp Notes ratings from five to ten stars with backward-compatible native validation and persistence.
+- Prevent the Windows console window from opening alongside JStremio and expand browser regression coverage for page hosting, official/custom navigation, color selection, ratings, and delayed upstream player state.
+
 ## 1.5.2 - 2026-07-18
 
 - Keep WebView2 and native MPV surfaces synchronized through fullscreen, restore, maximize, minimize, resize, move, display, and DPI transitions.

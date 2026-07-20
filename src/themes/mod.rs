@@ -1,6 +1,8 @@
 use crate::storage::{JsonStore, StorageError, StoredDocument};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::path::Path;
+use uuid::Uuid;
 
 const THEME_FILE: &str = "themes.json";
 
@@ -96,12 +98,38 @@ impl Default for ThemeSettings {
     }
 }
 
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ThemePreset {
+    pub id: String,
+    pub name: String,
+    pub theme: ThemeSettings,
+}
+
+impl ThemePreset {
+    fn validate(&self) -> Result<(), StorageError> {
+        if Uuid::parse_str(&self.id).is_err() {
+            return Err(StorageError::invalid("preset", "id must be a UUID"));
+        }
+        let name = self.name.trim();
+        if name.is_empty() || name.chars().count() > 48 {
+            return Err(StorageError::invalid(
+                "preset",
+                "name must contain between 1 and 48 characters",
+            ));
+        }
+        self.theme.validate()
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ThemeDocument {
     schema_version: u32,
     revision: u64,
     settings: ThemeSettings,
+    #[serde(default)]
+    presets: Vec<ThemePreset>,
 }
 
 impl Default for ThemeDocument {
@@ -110,6 +138,7 @@ impl Default for ThemeDocument {
             schema_version: Self::SCHEMA_VERSION,
             revision: 0,
             settings: ThemeSettings::default(),
+            presets: Vec::new(),
         }
     }
 }
@@ -128,7 +157,24 @@ impl StoredDocument for ThemeDocument {
                 expected: Self::SCHEMA_VERSION,
             });
         }
-        self.settings.validate()
+        self.settings.validate()?;
+        if self.presets.len() > 50 {
+            return Err(StorageError::invalid(
+                "presets",
+                "no more than 50 custom presets can be saved",
+            ));
+        }
+        let mut ids = HashSet::with_capacity(self.presets.len());
+        for preset in &self.presets {
+            preset.validate()?;
+            if !ids.insert(&preset.id) {
+                return Err(StorageError::invalid(
+                    "presets",
+                    "preset ids must be unique",
+                ));
+            }
+        }
+        Ok(())
     }
 }
 
@@ -159,6 +205,53 @@ impl ThemeStore {
     pub fn reset(&self) -> Result<ThemeSettings, StorageError> {
         self.set(ThemeSettings::default())
     }
+
+    pub fn presets(&self) -> Result<Vec<ThemePreset>, StorageError> {
+        self.store.read().map(|document| document.presets)
+    }
+
+    pub fn create_preset(&self, theme: ThemeSettings) -> Result<ThemePreset, StorageError> {
+        theme.validate()?;
+        self.store.mutate(|document| {
+            if document.presets.len() >= 50 {
+                return Err(StorageError::invalid(
+                    "presets",
+                    "no more than 50 custom presets can be saved",
+                ));
+            }
+            let name = next_custom_name(&document.presets);
+            let preset = ThemePreset {
+                id: Uuid::new_v4().to_string(),
+                name,
+                theme,
+            };
+            document.presets.push(preset.clone());
+            document.revision = document.revision.saturating_add(1);
+            Ok(preset)
+        })
+    }
+
+    pub fn delete_preset(&self, id: &str) -> Result<bool, StorageError> {
+        self.store.mutate(|document| {
+            let original_len = document.presets.len();
+            document.presets.retain(|preset| preset.id != id);
+            let deleted = document.presets.len() != original_len;
+            if deleted {
+                document.revision = document.revision.saturating_add(1);
+            }
+            Ok(deleted)
+        })
+    }
+}
+
+fn next_custom_name(presets: &[ThemePreset]) -> String {
+    let used = presets
+        .iter()
+        .filter_map(|preset| preset.name.strip_prefix("Custom "))
+        .filter_map(|suffix| suffix.parse::<usize>().ok())
+        .collect::<HashSet<_>>();
+    let number = (1..).find(|number| !used.contains(number)).unwrap_or(1);
+    format!("Custom {number}")
 }
 
 fn valid_hex_color(value: &str) -> bool {
@@ -206,6 +299,32 @@ mod tests {
         };
         assert!(store.set(invalid).is_err());
         assert_eq!(fs::read(directory.path().join(THEME_FILE)).unwrap(), before);
+    }
+
+    #[test]
+    fn custom_presets_persist_use_stable_names_and_can_be_deleted() {
+        let directory = tempdir().unwrap();
+        let store = ThemeStore::new(directory.path());
+        let first_theme = ThemeSettings {
+            accent: "#AA2233".into(),
+            ..ThemeSettings::default()
+        };
+        let first = store.create_preset(first_theme.clone()).unwrap();
+        let second = store.create_preset(ThemeSettings::default()).unwrap();
+        assert_eq!(first.name, "Custom 1");
+        assert_eq!(second.name, "Custom 2");
+        assert_eq!(
+            ThemeStore::new(directory.path()).presets().unwrap().len(),
+            2
+        );
+        assert_eq!(store.presets().unwrap()[0].theme, first_theme);
+
+        assert!(store.delete_preset(&first.id).unwrap());
+        assert!(!store.delete_preset(&first.id).unwrap());
+        assert_eq!(
+            store.create_preset(ThemeSettings::default()).unwrap().name,
+            "Custom 1"
+        );
     }
 
     #[test]

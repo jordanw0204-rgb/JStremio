@@ -57,7 +57,7 @@ Release checksums are published beside every installer as `SHA256SUMS.txt`.
 | --- | --- |
 | **LastPlayed** | Adds exact-stream resume to every played movie/series card and shows the saved provider, episode, stream description, size, and seeders when available. |
 | **Themes** | Customizes the app gradient, accent, surfaces, and text with live preview, presets, and restart-persistent settings. |
-| **Local Reviews** | Saves private 1-5 star ratings and optional review text for movies and series. |
+| **Local Reviews** | Saves private 1-10 star ratings and optional review text for movies and series. |
 | **Timestamp Notes** | Adds private, color-coded notes and optional thumbnails at exact playback positions. |
 | **Plugins** | Lets you enable built-in features and trusted local plugins independently. |
 

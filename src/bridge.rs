@@ -418,6 +418,26 @@ impl NativeBridge {
                 .reset()
                 .map(|theme| json!(theme))
                 .map_err(storage_error),
+            "getPresets" => self
+                .themes
+                .presets()
+                .map(|presets| json!(presets))
+                .map_err(storage_error),
+            "createPreset" => {
+                let settings: ThemeSettings = parse_value(request.payload)?;
+                self.themes
+                    .create_preset(settings)
+                    .map(|preset| json!(preset))
+                    .map_err(storage_error)
+            }
+            "deletePreset" => {
+                let payload: IdPayload = parse_value(request.payload)?;
+                validate_lookup_id(&payload.id)?;
+                self.themes
+                    .delete_preset(&payload.id)
+                    .map(|deleted| json!({ "deleted": deleted }))
+                    .map_err(storage_error)
+            }
             _ => Err(operation_error()),
         }
     }
@@ -658,6 +678,33 @@ mod tests {
             )
             .into_event();
         assert_eq!(loaded[1]["result"]["gradientAngle"], 125);
+
+        let created_preset = bridge
+            .handle(
+                THEMES_METHOD,
+                74,
+                Some(&json!({"operation":"createPreset","payload":custom})),
+            )
+            .into_event();
+        assert_eq!(created_preset[1]["ok"], true);
+        assert_eq!(created_preset[1]["result"]["name"], "Custom 1");
+        let preset_id = created_preset[1]["result"]["id"].as_str().unwrap();
+        let presets = bridge
+            .handle(
+                THEMES_METHOD,
+                75,
+                Some(&json!({"operation":"getPresets","payload":{}})),
+            )
+            .into_event();
+        assert_eq!(presets[1]["result"].as_array().unwrap().len(), 1);
+        let deleted_preset = bridge
+            .handle(
+                THEMES_METHOD,
+                76,
+                Some(&json!({"operation":"deletePreset","payload":{"id":preset_id}})),
+            )
+            .into_event();
+        assert_eq!(deleted_preset[1]["result"]["deleted"], true);
 
         let rejected = bridge
             .handle(

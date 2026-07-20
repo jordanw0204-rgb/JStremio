@@ -193,8 +193,8 @@ fn validate_customization(color: Option<&str>, rating: Option<u8>) -> Result<(),
             return Err(StorageError::invalid("color", "must be a #RRGGBB color"));
         }
     }
-    if rating.is_some_and(|value| !(1..=5).contains(&value)) {
-        return Err(StorageError::invalid("rating", "must be between 1 and 5"));
+    if rating.is_some_and(|value| !(1..=10).contains(&value)) {
+        return Err(StorageError::invalid("rating", "must be between 1 and 10"));
     }
     Ok(())
 }

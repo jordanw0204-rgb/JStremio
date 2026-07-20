@@ -22,8 +22,16 @@ import {
   targetPayload,
   viewInStremio,
 } from "../shared";
+import { MAX_RATING, normalizeRating, ratingAriaLabel, ratingStars } from "../ratings";
+import {
+  createMarkerColorPicker,
+  DEFAULT_MARKER_COLOR,
+  isMarkerColor,
+  normalizeMarkerColor,
+} from "./colorPicker";
 import { clusterMarkers } from "./markers";
 import { shouldResumePlayback } from "./playbackResume";
+import { timestampNotesDisabledReason } from "./availability";
 
 type Note = ReturnType<typeof targetPayload> & {
   id: string;
@@ -42,14 +50,13 @@ const manifest = {
   schemaVersion: 1,
   id: "timestamp-notes",
   name: "Timestamp Notes",
-  version: "1.4.1",
+  version: "1.6.0",
   entry: "index.js",
   styles: "styles.css",
   enabledByDefault: true,
   loadOrder: 110,
 } as const;
 
-const DEFAULT_MARKER_COLOR = "#56E0CF";
 const POPOVER_CLOSE_EVENT = "jstremio-close-marker-popover";
 const CLOSE_ICON = '<svg aria-hidden="true" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>';
 const thumbnailCache = new Map<string, Promise<string | null>>();
@@ -70,7 +77,7 @@ function activate(runtime: JStremioRuntime) {
 
   const refreshButton = () => {
     if (!playerButton) return;
-    const reason = disabledReason(target, snapshot, isLive, remotePlayback);
+    const reason = timestampNotesDisabledReason(target, snapshot, isLive, remotePlayback);
     playerButton.disabled = reason !== null;
     playerButton.title = reason ?? "Add timestamp note";
     playerButton.setAttribute("aria-label", reason ? `Timestamp Notes unavailable: ${reason}` : "Add timestamp note");
@@ -143,15 +150,14 @@ function activate(runtime: JStremioRuntime) {
     });
   };
 
-  const captureNote = async () => {
-    const capturedTarget = await runtime.stremio.getCurrentMediaTarget();
-    const capturedSnapshot = runtime.player.getSnapshot();
-    const state = await runtime.stremio.getPlayerState().catch(() => null);
-    const reason = disabledReason(
+  const captureNote = () => {
+    const capturedTarget = target;
+    const capturedSnapshot = snapshot;
+    const reason = timestampNotesDisabledReason(
       capturedTarget,
       capturedSnapshot,
-      isLikelyLiveState(state),
-      isRemotePlaybackState(state),
+      isLive,
+      remotePlayback,
     );
     if (reason || !capturedTarget || !capturedSnapshot?.durationMs || capturedSnapshot.positionMs === null) {
       refreshButton();
@@ -161,20 +167,37 @@ function activate(runtime: JStremioRuntime) {
     const pausedByExtension = capturedSnapshot.paused === false;
     let sawExpectedPause = !pausedByExtension;
     let manualPauseChange = false;
+    let dialogClosed = false;
+    let pauseFailed = false;
+    let cleanupFinished = false;
+    const finishClose = (forceResume = false) => {
+      if (cleanupFinished) return;
+      cleanupFinished = true;
+      unsubscribePause();
+      if (!pausedByExtension || pauseFailed) return;
+      void runtime.stremio.getCurrentMediaTarget().then((currentTarget) => {
+        const current = runtime.player.getSnapshot();
+        if (forceResume && currentTarget?.key === capturedTarget.key) {
+          return runtime.player.setPaused(false);
+        }
+        if (shouldResumePlayback({
+          pausedByExtension,
+          sawExpectedPause,
+          manualPauseChange,
+          capturedMediaKey: capturedTarget.key,
+          currentMediaKey: currentTarget?.key ?? null,
+          currentlyPaused: current?.paused ?? null,
+        })) {
+          return runtime.player.setPaused(false);
+        }
+      }).catch((error) => runtime.diagnostics.report("timestamp-notes", error));
+    };
     const unsubscribePause = runtime.player.subscribe((current) => {
       if (!pausedByExtension || current?.paused == null) return;
       if (!sawExpectedPause && current.paused === true) sawExpectedPause = true;
       else if (sawExpectedPause && current.paused !== true) manualPauseChange = true;
+      if (dialogClosed && sawExpectedPause) finishClose();
     });
-    if (pausedByExtension) {
-      try {
-        await runtime.player.setPaused(true);
-      } catch (error) {
-        unsubscribePause();
-        runtime.diagnostics.report("timestamp-notes", error);
-        return;
-      }
-    }
 
     openNoteDialog(
       runtime,
@@ -187,31 +210,31 @@ function activate(runtime: JStremioRuntime) {
         overlayRefresh?.();
       },
       () => {
-        unsubscribePause();
-        void runtime.stremio.getCurrentMediaTarget().then((currentTarget) => {
-          const current = runtime.player.getSnapshot();
-          if (shouldResumePlayback({
-            pausedByExtension,
-            sawExpectedPause,
-            manualPauseChange,
-            capturedMediaKey: capturedTarget.key,
-            currentMediaKey: currentTarget?.key ?? null,
-            currentlyPaused: current?.paused ?? null,
-          })) {
-            return runtime.player.setPaused(false);
-          }
-        }).catch((error) => runtime.diagnostics.report("timestamp-notes", error));
+        dialogClosed = true;
+        if (!pausedByExtension || pauseFailed || sawExpectedPause) finishClose();
       },
     );
+    if (pausedByExtension) {
+      void runtime.player.setPaused(true).then(() => {
+        if (dialogClosed && !sawExpectedPause) {
+          window.setTimeout(() => finishClose(true), 0);
+        }
+      }).catch((error) => {
+        pauseFailed = true;
+        if (dialogClosed) finishClose();
+        else unsubscribePause();
+        runtime.diagnostics.report("timestamp-notes", error);
+      });
+    }
   };
 
   const openManagement = () => {
-    runtime.ui.openOverlay((container, close) => {
+    runtime.ui.openPage("timestamp-notes", (container) => {
       addStyles(container, styles);
       const shell = document.createElement("main");
       shell.className = "notes-shell";
       shell.innerHTML = `
-        <header class="notes-header"><div><h1 tabindex="-1">Timestamp Notes</h1><p>Private moments saved against absolute playback times on this computer.</p></div><button class="button icon-button" data-action="close" aria-label="Close Timestamp Notes">${CLOSE_ICON}</button></header>
+        <header class="notes-header"><div><h1 tabindex="-1">Timestamp Notes</h1><p>Private moments saved against absolute playback times on this computer.</p></div></header>
         <div class="toolbar"><button class="button" data-action="back" hidden>← Back to titles</button><input class="search" type="search" placeholder="Search titles or note text" aria-label="Search timestamp notes"><button class="button" data-action="refresh">Refresh</button><button class="button" data-action="folder">Open data folder</button></div>
         <section class="status" role="status">Loading notes…</section><section class="groups" hidden></section>`;
       container.append(shell);
@@ -276,7 +299,6 @@ function activate(runtime: JStremioRuntime) {
         render();
         heading.focus();
       });
-      shell.querySelector('[data-action="close"]')?.addEventListener("click", close);
       shell.querySelector('[data-action="refresh"]')?.addEventListener("click", () => void load());
       shell.querySelector('[data-action="folder"]')?.addEventListener("click", () => {
         void runtime.bridge.request("timestamp-notes", "openDataFolder").catch((error) => showError(status, error));
@@ -306,7 +328,7 @@ function activate(runtime: JStremioRuntime) {
     unsubscribePlayer();
     unregisterHotkey();
     timeline?.destroy();
-    runtime.ui.closeOverlay();
+    runtime.ui.closePage();
     removeOwned("timestamp-notes");
   };
 }
@@ -333,7 +355,7 @@ function openNoteDialog(
       <h2 id="jstremio-note-title">${existing ? "Update timestamp note" : "Add timestamp note"}</h2><p class="subtitle"></p>
       <div class="captured"><button type="button" class="button" data-adjust="-5000" aria-label="Move timestamp back 5 seconds">−5s</button><strong></strong><button type="button" class="button" data-adjust="5000" aria-label="Move timestamp forward 5 seconds">+5s</button><button type="button" class="button" data-action="reset">Reset</button></div>
       <label class="field">Note (required)<textarea required maxlength="5000"></textarea><span class="count">0 / 5000</span></label>
-      <div class="note-options"><label class="option-field">Marker color<input class="color-input" type="color" value="${DEFAULT_MARKER_COLOR}"></label><label class="option-field">Rating (optional)<select class="rating-select"><option value="">Not rated</option><option value="1">★☆☆☆☆ — 1</option><option value="2">★★☆☆☆ — 2</option><option value="3">★★★☆☆ — 3</option><option value="4">★★★★☆ — 4</option><option value="5">★★★★★ — 5</option></select></label></div>
+      <div class="note-options"><div class="option-field option-card"><span>Marker color</span><div data-color-picker></div></div><label class="option-field option-card"><span>Rating (optional)</span><select class="rating-select"><option value="">Not rated</option>${ratingOptions()}</select></label></div>
       <label class="capture-option"><input type="checkbox" data-capture-frame> ${existing?.thumbnailId ? "Replace the saved thumbnail with this video frame" : "Save a thumbnail of this video frame"}</label>
       <div class="alert" role="alert" aria-live="polite"></div>
       <div class="dialog-actions">${existing ? '<button type="button" class="button danger" data-action="delete">Delete</button>' : ""}<button type="button" class="button" data-action="cancel">Cancel</button><button type="submit" class="button primary">${existing ? "Update" : "Save"}</button></div>`;
@@ -341,12 +363,15 @@ function openNoteDialog(
     const time = form.querySelector<HTMLElement>(".captured strong")!;
     const textarea = form.querySelector<HTMLTextAreaElement>("textarea")!;
     const count = form.querySelector<HTMLElement>(".count")!;
-    const color = form.querySelector<HTMLInputElement>(".color-input")!;
+    const themeAccent = getComputedStyle(document.documentElement).getPropertyValue("--jstremio-accent-color").trim();
+    const colorPicker = createMarkerColorPicker(noteColor(existing), themeAccent);
+    form.querySelector<HTMLElement>("[data-color-picker]")!.replaceChildren(colorPicker.element);
+    form.querySelector<HTMLElement>(".note-options")!.append(colorPicker.panel);
+    const color = colorPicker.input;
     const rating = form.querySelector<HTMLSelectElement>(".rating-select")!;
     const alert = form.querySelector<HTMLElement>(".alert")!;
     textarea.value = existing?.text ?? "";
-    color.value = noteColor(existing);
-    const existingRating = noteRating(existing?.rating);
+    const existingRating = normalizeRating(existing?.rating);
     rating.value = existingRating === null ? "" : String(existingRating);
     const render = () => {
       time.textContent = formatTimestamp(timestampMs);
@@ -381,8 +406,8 @@ function openNoteDialog(
       }
       const operation = existing ? "update" : "create";
       const customization = {
-        color: normalizeNoteColor(color.value),
-        rating: rating.value ? Number(rating.value) : null,
+        color: normalizeMarkerColor(color.value),
+        rating: rating.value ? normalizeRating(Number(rating.value)) : null,
       };
       const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
       submit.disabled = true;
@@ -496,7 +521,7 @@ function createTimeline(
     const width = container.getBoundingClientRect().width;
     const ratio = devicePixelRatio || 1;
     const signature = `${durationMs ?? "none"}|${Math.round(width * 10) / 10}|${ratio}|${notes
-      .map((note) => `${note.id}:${note.timestampMs}:${noteColor(note)}:${noteRating(note.rating) ?? "none"}`)
+      .map((note) => `${note.id}:${note.timestampMs}:${noteColor(note)}:${normalizeRating(note.rating) ?? "none"}`)
       .join(",")}`;
     if (signature === lastRenderSignature) return;
     lastRenderSignature = signature;
@@ -615,11 +640,11 @@ function showMarkerPopover(
     swatch.className = "note-color";
     swatch.setAttribute("aria-hidden", "true");
     metadata.append(swatch);
-    const currentRating = noteRating(note.rating);
+    const currentRating = normalizeRating(note.rating);
     if (currentRating !== null) {
       const stars = document.createElement("span");
       stars.className = "note-rating";
-      stars.setAttribute("aria-label", `${currentRating} out of 5 stars`);
+      stars.setAttribute("aria-label", ratingAriaLabel(currentRating));
       stars.textContent = ratingStars(currentRating);
       metadata.append(stars);
     }
@@ -808,11 +833,11 @@ function renderGroups(
       text.className = "preview";
       text.textContent = note.text;
       body.append(text);
-      const currentRating = noteRating(note.rating);
+      const currentRating = normalizeRating(note.rating);
       if (currentRating !== null) {
         const stars = document.createElement("div");
         stars.className = "note-rating";
-        stars.setAttribute("aria-label", `${currentRating} out of 5 stars`);
+        stars.setAttribute("aria-label", ratingAriaLabel(currentRating));
         stars.textContent = ratingStars(currentRating);
         body.append(stars);
       }
@@ -844,25 +869,6 @@ function renderGroups(
     }
     root.append(section);
   }
-}
-
-function disabledReason(
-  target: MediaTarget | null,
-  snapshot: PlaybackSnapshot | null,
-  live: boolean,
-  remote: boolean,
-): string | null {
-  if (!target?.videoId) return "No stable movie or episode is active.";
-  if (remote) return "Timestamp notes require local MPV playback.";
-  if (live) return "Timestamp notes are unavailable for live streams.";
-  if (!snapshot || snapshot.positionMs === null || !Number.isFinite(snapshot.positionMs)) {
-    return "The current playback time is unavailable.";
-  }
-  if (snapshot.durationMs === null || !Number.isFinite(snapshot.durationMs) || snapshot.durationMs <= 0) {
-    return "This stream has no finite on-demand duration.";
-  }
-  if (Date.now() - snapshot.updatedAt > 5_000) return "The local MPV time signal is stale.";
-  return null;
 }
 
 function isRemotePlaybackState(state: unknown): boolean {
@@ -904,27 +910,15 @@ function asNotes(value: unknown): Note[] {
         })
         .map((note) => ({
           ...note,
-          color: validNoteColor(note.color) ? note.color.toUpperCase() : null,
-          rating: noteRating(note.rating),
+          color: isMarkerColor(note.color) ? note.color.toUpperCase() : null,
+          rating: normalizeRating(note.rating),
           thumbnailId: typeof note.thumbnailId === "string" ? note.thumbnailId : null,
         }))
     : [];
 }
 
-function validNoteColor(value: unknown): value is string {
-  return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value);
-}
-
-function normalizeNoteColor(value: unknown): string {
-  return validNoteColor(value) ? value.toUpperCase() : DEFAULT_MARKER_COLOR;
-}
-
 function noteColor(note: Pick<Note, "color"> | null | undefined): string {
-  return normalizeNoteColor(note?.color);
-}
-
-function noteRating(value: unknown): number | null {
-  return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 5 ? value : null;
+  return normalizeMarkerColor(note?.color);
 }
 
 function appendThumbnail(
@@ -999,14 +993,17 @@ function loadThumbnail(runtime: JStremioRuntime, thumbnailId: string): Promise<s
   return pending;
 }
 
-function ratingStars(rating: number): string {
-  return `${"★".repeat(rating)}${"☆".repeat(5 - rating)}`;
+function markerDescription(note: Note): string {
+  const rating = normalizeRating(note.rating);
+  const ratingLabel = rating === null ? "" : `, ${rating} out of ${MAX_RATING} stars`;
+  return `${formatTimestamp(note.timestampMs)}${ratingLabel} — ${preview(note.text)}`;
 }
 
-function markerDescription(note: Note): string {
-  const rating = noteRating(note.rating);
-  const ratingLabel = rating === null ? "" : `, ${rating} out of 5 stars`;
-  return `${formatTimestamp(note.timestampMs)}${ratingLabel} — ${preview(note.text)}`;
+function ratingOptions(): string {
+  return Array.from({ length: MAX_RATING }, (_, index) => {
+    const rating = index + 1;
+    return `<option value="${rating}">${ratingStars(rating)} — ${rating}</option>`;
+  }).join("");
 }
 
 function preview(value: string): string {

@@ -29,6 +29,7 @@ export function targetPayload(target: MediaTarget) {
 }
 
 export function viewInStremio(runtime: JStremioRuntime, target: MediaTarget) {
+  runtime.ui.closePage();
   runtime.ui.closeOverlay();
   location.hash = canonicalDetailHash(target);
 }
@@ -40,11 +41,16 @@ export function mountNavigationButton(
   onClick: () => void,
 ): HTMLButtonElement | null {
   const selector = `[data-jstremio-extension="${extensionId}"][data-jstremio-control="navigation"]`;
-  const existing = document.querySelector<HTMLButtonElement>(selector);
-  if (existing) return existing;
   const navigation = findPrimaryNavigation();
+  const existing = Array.from(document.querySelectorAll<HTMLButtonElement>(selector));
+  const current = navigation ? existing.find((button) => button.parentElement === navigation) : undefined;
+  existing.filter((button) => button !== current).forEach((button) => button.remove());
+  if (current) {
+    syncNavigationActiveState(current, extensionId);
+    return current;
+  }
   if (!navigation) return null;
-  const template = navigationTemplate();
+  const template = navigationTemplate(navigation);
   const button = document.createElement("button");
   button.type = "button";
   button.dataset.jstremioExtension = extensionId;
@@ -63,8 +69,16 @@ export function mountNavigationButton(
     button.querySelector<HTMLElement>("[data-jstremio-navigation-label]")!.hidden = true;
   }
   button.addEventListener("click", onClick);
+  syncNavigationActiveState(button, extensionId);
   navigation.append(button);
   return button;
+}
+
+function syncNavigationActiveState(button: HTMLButtonElement, extensionId: string) {
+  const active = document.documentElement.dataset.jstremioActivePage === extensionId;
+  button.classList.toggle("selected", active);
+  if (active) button.setAttribute("aria-current", "page");
+  else button.removeAttribute("aria-current");
 }
 
 export function mountPlayerButton(
@@ -89,7 +103,7 @@ export function mountPlayerButton(
   button.setAttribute("aria-label", label);
   button.title = label;
   copyIntegrationClasses(button, template);
-  button.style.cssText = "border:1px solid rgba(255,255,255,.22);border-radius:10px;background:rgba(19,14,45,.9);color:#fff;cursor:pointer;display:grid;place-items:center;width:44px;height:44px;min-width:44px;min-height:44px;padding:0;box-shadow:0 6px 20px rgba(0,0,0,.35);";
+  button.style.cssText = "border:1px solid var(--jstremio-accent-color,var(--primary-accent-color,#7b5bf5));border-radius:10px;background:var(--jstremio-surface-color,var(--modal-background-color,#130e2d));color:var(--jstremio-text-color,var(--primary-foreground-color,#fff));cursor:pointer;display:grid;place-items:center;width:44px;height:44px;min-width:44px;min-height:44px;padding:0;box-shadow:0 6px 20px color-mix(in srgb,var(--jstremio-background-start,#000) 60%,transparent);position:relative;z-index:1;pointer-events:auto;";
   button.innerHTML = icon;
   button.addEventListener("pointerdown", (event) => {
     if (event.isPrimary) event.preventDefault();
@@ -122,6 +136,11 @@ function ensurePlayerDock(): HTMLElement {
   dock.style.cssText = "position:fixed;left:50%;bottom:0;z-index:2147483000;transform:translateX(-50%);display:flex;align-items:center;gap:7px;min-height:64px;padding:10px 18px;box-sizing:border-box;pointer-events:auto;transition:opacity 160ms ease;";
   const style = document.createElement("style");
   style.textContent = `
+    [data-jstremio-control="player-dock"] > [data-jstremio-control="player"]:not(:disabled):hover,
+    [data-jstremio-control="player-dock"] > [data-jstremio-control="player"]:not(:disabled):focus-visible{
+      border-color:var(--jstremio-accent-color,var(--primary-accent-color,#7b5bf5))!important;
+      box-shadow:0 0 0 2px color-mix(in srgb,var(--jstremio-accent-color,var(--primary-accent-color,#7b5bf5)) 30%,transparent),0 6px 20px color-mix(in srgb,var(--jstremio-background-start,#000) 60%,transparent)!important
+    }
     body:has(${PLAYER_OVERLAY_HIDDEN_SELECTOR}) [data-jstremio-control="player-dock"]:not(:hover):not(:focus-within){opacity:0}
     body:has(${PLAYER_OVERLAY_HIDDEN_SELECTOR}) [data-jstremio-control="player-dock"]:hover,
     body:has(${PLAYER_OVERLAY_HIDDEN_SELECTOR}) [data-jstremio-control="player-dock"]:focus-within{opacity:1}

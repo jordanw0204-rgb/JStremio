@@ -2,9 +2,9 @@
 
 ## Documents
 
-Reviews use `reviews.json`; timestamp notes use `timestamp-notes.json`. Both documents contain `schemaVersion`, an incrementing `revision`, and a feature-specific array. Reviews use stable `<mediaType>:<videoId>` IDs. Timestamp notes use native UUIDs and also store the stable media key, absolute integer milliseconds, duration observed at creation, an optional `#RRGGBB` marker color, and an optional 1–5 rating. Existing schema-v1 notes without color or rating remain valid and use the default teal marker.
+Reviews use `reviews.json`; timestamp notes use `timestamp-notes.json`. Both documents contain `schemaVersion`, an incrementing `revision`, and a feature-specific array. Reviews use stable `<mediaType>:<videoId>` IDs. Timestamp notes use native UUIDs and also store the stable media key, absolute integer milliseconds, duration observed at creation, an optional `#RRGGBB` marker color, and an optional 1–10 rating. Existing schema-v1 notes without color or rating remain valid and use the default teal marker.
 
-Review text is optional and limited to 5,000 Unicode characters. Timestamp-note text is required after trimming and has the same limit. Marker colors must use six-digit hexadecimal notation and ratings, when present, must be integers from 1 through 5. Native validation repeats every browser-side check.
+Review text is optional and limited to 5,000 Unicode characters. Timestamp-note text is required after trimming and has the same limit. Marker colors must use six-digit hexadecimal notation and ratings, when present, must be integers from 1 through 10. Native validation repeats every browser-side check.
 
 LastPlayed uses `last-played.json`. It stores the selected video's metadata, playback position, add-on label, stream fingerprint, and official Stremio player deep link. A deep link can contain a direct-stream URL or torrent identity supplied by an installed add-on. It remains local and is used only to reopen the exact source through Stremio's normal player route.
 

@@ -41,6 +41,8 @@ test.beforeEach(async ({ page }) => {
     const hotkeys: Record<string, string> = {};
     const shortcutKeys: string[] = [];
     const lastPlayed: Array<Record<string, unknown>> = [];
+    const theme = { backgroundStart: "#0C0B11", backgroundEnd: "#1A173E", accent: "#7B5BF5", surface: "#0F0D20", text: "#E6E6E6", gradientAngle: 41 };
+    const themePresets: Array<{ id: string; name: string; theme: Record<string, unknown> }> = [];
     let revision = 0;
     let thumbnailCounter = 0;
     const state = {
@@ -83,6 +85,28 @@ test.beforeEach(async ({ page }) => {
       if (!method.startsWith("jstremio-") || Array.isArray(params)) return;
       const operation = params.operation ?? "";
       const payload = params.payload ?? {};
+      if (method === "jstremio-themes") {
+        if (operation === "get") return respond(method, request.id, theme);
+        if (operation === "set") {
+          Object.assign(theme, payload);
+          return respond(method, request.id, theme);
+        }
+        if (operation === "reset") {
+          Object.assign(theme, { backgroundStart: "#0C0B11", backgroundEnd: "#1A173E", accent: "#7B5BF5", surface: "#0F0D20", text: "#E6E6E6", gradientAngle: 41 });
+          return respond(method, request.id, theme);
+        }
+        if (operation === "getPresets") return respond(method, request.id, themePresets);
+        if (operation === "createPreset") {
+          const preset = { id: `preset-${themePresets.length + 1}`, name: `Custom ${themePresets.length + 1}`, theme: { ...payload } };
+          themePresets.push(preset);
+          return respond(method, request.id, preset);
+        }
+        if (operation === "deletePreset") {
+          const index = themePresets.findIndex((preset) => preset.id === payload.id);
+          if (index >= 0) themePresets.splice(index, 1);
+          return respond(method, request.id, { deleted: index >= 0 });
+        }
+      }
       if (method === "jstremio-plugins") {
         if (operation === "list") return respond(method, request.id, plugins);
         if (operation === "getHotkeys") return respond(method, request.id, hotkeys);
@@ -181,6 +205,8 @@ test.beforeEach(async ({ page }) => {
         hotkeys,
         shortcutKeys,
         lastPlayed,
+        theme,
+        themePresets,
         state,
         emitMpv: (name: string, data: unknown) => emit({ args: ["mpv-prop-change", { name, data }] }),
         emitShell: (name: string, data: unknown) => emit(JSON.stringify({ id: 0, type: 1, args: [name, data] })),
@@ -196,6 +222,88 @@ test.beforeEach(async ({ page }) => {
   await page.addScriptTag({ path: resolve(built, "reviews", "index.js") });
   await page.addScriptTag({ path: resolve(built, "timestamp-notes", "index.js") });
   await page.addScriptTag({ path: resolve(built, "last-played", "index.js") });
+});
+
+test("offers Crimson and persists reusable custom theme presets", async ({ page }) => {
+  await page.evaluate(() => { location.hash = "#/library"; });
+  await page.addScriptTag({ path: resolve(built, "themes", "index.js") });
+  await page.locator('[data-jstremio-testid="themes-navigation"]').click();
+  await expect(page.getByRole("heading", { name: "Custom Presets" })).toBeVisible();
+  await expect(page.locator(".preset-list .preset")).toHaveCount(5);
+  await expect(page.getByRole("button", { name: "Crimson" })).toBeVisible();
+  await page.getByRole("button", { name: "Crimson" }).click();
+  await expect(page.getByLabel("Gradient start hex color")).toHaveValue("#120405");
+  await expect(page.getByLabel("Accent hex color")).toHaveValue("#E23D49");
+
+  await page.getByLabel("Accent hex color").fill("#B52332");
+  await page.getByRole("button", { name: "Add preset" }).click();
+  const custom = page.getByRole("button", { name: "Preview Custom 1" });
+  await expect(custom).toBeVisible();
+  await expect(custom.locator(".preset-swatches i")).toHaveCount(3);
+  await expect.poll(() => page.evaluate(() => (window as any).__fixture.themePresets.length)).toBe(1);
+
+  await expect(page.getByRole("button", { name: "Close Themes" })).toHaveCount(0);
+  await page.locator('a[href="#/calendar"]').click();
+  await expect(page.locator('[data-jstremio-testid="page"]')).toHaveCount(0);
+  await page.locator('[data-jstremio-testid="themes-navigation"]').click();
+  await expect(page.getByRole("button", { name: "Preview Custom 1" })).toBeVisible();
+  await page.getByRole("button", { name: "Ocean" }).click();
+  await page.getByRole("button", { name: "Preview Custom 1" }).click();
+  await expect(page.getByLabel("Accent hex color")).toHaveValue("#B52332");
+  await page.getByRole("button", { name: "Delete Custom 1" }).click();
+  await expect(page.getByText("No custom presets saved yet.")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => (window as any).__fixture.themePresets.length)).toBe(0);
+});
+
+test("keeps all custom pages beside the active Settings-style sidebar", async ({ page }) => {
+  await page.evaluate(() => { location.hash = "#/library"; });
+  await page.addScriptTag({ path: resolve(built, "themes", "index.js") });
+  await page.evaluate(() => {
+    document.querySelector("nav")!.outerHTML = `
+      <aside id="settings-rail" role="navigation" style="position:fixed;inset:0 auto 0 0;width:82px;display:flex;flex-direction:column;background:#090507;z-index:5">
+        <button style="width:64px;height:64px" aria-label="Home"><svg></svg><span>Home</span></button>
+        <button style="width:64px;height:64px" aria-label="Discover"><svg></svg><span>Discover</span></button>
+        <button style="width:64px;height:64px" aria-label="Library"><svg></svg><span>Library</span></button>
+        <button style="width:64px;height:64px" aria-label="Calendar"><svg></svg><span>Calendar</span></button>
+        <button style="width:64px;height:64px" aria-label="Addons"><svg></svg><span>Addons</span></button>
+        <button style="width:64px;height:64px" aria-label="Settings"><svg></svg><span>Settings</span></button>
+      </aside>`;
+    location.hash = "#/settings";
+  });
+
+  const rail = page.locator("#settings-rail");
+  for (const id of ["plugin-manager", "reviews", "timestamp-notes", "themes"]) {
+    const button = page.locator(`[data-jstremio-testid="${id}-navigation"]`);
+    await expect(button).toBeVisible();
+    await expect(button.locator("xpath=..")).toHaveAttribute("id", "settings-rail");
+  }
+
+  for (const [id, heading] of [
+    ["plugin-manager", "Plugins"],
+    ["reviews", "Local Reviews"],
+    ["timestamp-notes", "Timestamp Notes"],
+    ["themes", "Themes"],
+  ] as const) {
+    await page.locator(`[data-jstremio-testid="${id}-navigation"]`).click();
+    await expect(page.getByRole("heading", { name: heading, exact: true, level: 1 })).toBeVisible();
+    await expect(page.locator(`[data-jstremio-testid="${id}-navigation"]`)).toHaveAttribute("aria-current", "page");
+    await expect.poll(async () => {
+      const railBounds = await rail.boundingBox();
+      const pageBounds = await page.locator('[data-jstremio-testid="page"]').boundingBox();
+      return railBounds && pageBounds ? pageBounds.x - (railBounds.x + railBounds.width) : -999;
+    }).toBeGreaterThanOrEqual(0);
+  }
+
+  for (const officialPage of ["Home", "Discover", "Library", "Calendar", "Addons", "Settings"]) {
+    await page.locator('[data-jstremio-testid="themes-navigation"]').click();
+    await expect(page.locator('[data-jstremio-testid="page"]')).toBeVisible();
+    await page.getByRole("button", { name: officialPage, exact: true }).click();
+    await expect(page.locator('[data-jstremio-testid="page"]')).toHaveCount(0);
+  }
+
+  await page.evaluate(() => { location.hash = "#/addons"; });
+  await expect(page.locator('[data-jstremio-testid="page"]')).toHaveCount(0);
+  await expect(page.locator('[data-jstremio-testid$="-navigation"]')).toHaveCount(4);
 });
 
 test("mounts each extension once and remounts after upstream replacement", async ({ page }) => {
@@ -220,14 +328,19 @@ test("mounts each extension once and remounts after upstream replacement", async
   await expect(page.locator('[data-jstremio-testid="dialog"]')).toHaveCount(0);
   const pluginNavigation = page.locator('[data-jstremio-testid="plugin-manager-navigation"]');
   await expect(pluginNavigation).toHaveAttribute("title", "Plugins");
+  await installFrameTheme(page);
   await pluginNavigation.click();
+  await expect(page.locator('[data-jstremio-testid="page"]')).toHaveAttribute("data-jstremio-page", "plugin-manager");
+  await expect(page.getByRole("button", { name: "Close Plugins" })).toHaveCount(0);
   await expect(page.locator(".plugin-card")).toHaveCount(4);
+  await expect(page.locator(".plugin-card").first()).toHaveCSS("background-color", "rgb(36, 10, 13)");
+  await expect(page.locator(".plugin-card").first()).toHaveCSS("color", "rgb(252, 235, 237)");
   await expect(page.getByLabel("Disable Plugins")).toBeDisabled();
   await page.getByLabel("Disable Local Reviews").uncheck();
   await expect(page.getByText("Plugin changes were saved. Fully restart JStremio to apply them.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Restart JStremio" })).toBeVisible();
   await expect.poll(() => page.evaluate(() => (window as any).__fixture.plugins.find((plugin: any) => plugin.id === "reviews").enabled)).toBe(false);
-  await page.getByRole("button", { name: "Close Plugins" }).click();
+  await page.keyboard.press("Escape");
   await expect(page.locator('[data-jstremio-testid="reviews-player-button"]')).toHaveClass(/control-bar-button_fixture/);
   await expect(page.locator('[data-jstremio-testid="reviews-player-button"]').locator("..")).toHaveAttribute("data-jstremio-control", "player-dock");
   const officialNavigation = page.locator('a[href="#/library"]');
@@ -284,14 +397,14 @@ test("mounts each extension once and remounts after upstream replacement", async
   await expect(page.locator('[data-jstremio-testid="timestamp-notes-player-button"]')).toHaveCount(1);
 });
 
-test("keeps player controls available during continuous upstream mutation churn", async ({ page }) => {
+test("keeps player controls available and opens dialogs immediately during upstream delays", async ({ page }) => {
   await page.evaluate(() => { location.hash = "#/library"; });
   await expect(page.locator('[data-jstremio-control="player"]')).toHaveCount(0);
 
   await page.evaluate(() => {
     const fixture = (window as any).__fixture;
     const state = fixture.state;
-    window.core!.getState = () => new Promise((resolve) => window.setTimeout(() => resolve(state), 60));
+    window.core!.getState = () => new Promise((resolve) => window.setTimeout(() => resolve(state), 800));
     fixture.emitMpv("duration", 2_600);
     fixture.emitMpv("time-pos", 61);
     fixture.emitMpv("pause", false);
@@ -318,7 +431,10 @@ test("keeps player controls available during continuous upstream mutation churn"
       })).toBe(true);
     }
     await review.click();
-    await expect(page.locator('[data-jstremio-testid="dialog"]')).toBeVisible();
+    await expect(page.locator('[data-jstremio-testid="dialog"]')).toBeVisible({ timeout: 250 });
+    await page.getByRole("button", { name: "Cancel" }).click();
+    await timestamp.click();
+    await expect(page.locator('[data-jstremio-testid="dialog"]')).toBeVisible({ timeout: 250 });
     await page.getByRole("button", { name: "Cancel" }).click();
   } finally {
     await page.evaluate(() => window.clearInterval((window as any).__fixture.churn));
@@ -351,7 +467,7 @@ test("records persistent plugin hotkeys and opens the matching player dialogs", 
     reviews: "Ctrl+Shift+KeyR",
     "timestamp-notes": "Ctrl+Alt+KeyN",
   });
-  await page.getByRole("button", { name: "Close Plugins" }).click();
+  await page.keyboard.press("Escape");
   await page.waitForTimeout(50);
 
   await page.evaluate(() => {
@@ -419,10 +535,13 @@ test("LastPlayed resumes and promotes the exact previously selected stream", asy
 });
 
 test("creates and manages a private review without network leakage", async ({ page }) => {
+  await installFrameTheme(page);
   const requests: string[] = [];
   page.on("request", (request) => requests.push(`${request.url()} ${request.postData() ?? ""}`));
   await page.locator('[data-jstremio-testid="reviews-player-button"]').click();
-  await page.getByRole("radio", { name: "5 stars" }).check();
+  await expect(page.locator(".dialog")).toHaveCSS("background-color", "rgb(36, 10, 13)");
+  await expect(page.locator(".dialog")).toHaveCSS("color", "rgb(252, 235, 237)");
+  await page.getByRole("radio", { name: "10 stars" }).check();
   await page.getByLabel("Private review").click();
   await page.keyboard.type("local-only-review-sentinel");
   await expect(page.getByLabel("Private review")).toHaveValue("local-only-review-sentinel");
@@ -449,39 +568,51 @@ test("creates and manages a private review without network leakage", async ({ pa
 
   await page.locator('[data-jstremio-testid="reviews-navigation"]').click();
   await expect(page.locator(".collection-card")).toHaveCount(2);
+  await expect(page.locator(".collection-card").first()).toHaveCSS("background-color", "rgb(36, 10, 13)");
+  await expect(page.locator(".collection-card").first()).toHaveCSS("color", "rgb(252, 235, 237)");
   await expect(page.getByText("The Blacklist", { exact: true })).toHaveCount(1);
   await page.getByRole("button", { name: "Open The Blacklist, 2 reviews" }).click();
   await expect(page.locator(".review-card")).toHaveCount(2);
+  await expect(page.locator(".review-card").first()).toHaveCSS("background-color", "rgb(36, 10, 13)");
   await expect(page.getByText("Pilot", { exact: true })).toBeVisible();
   await expect(page.getByText("The Freelancer", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "← Back to titles" }).click();
   await page.getByRole("button", { name: "Open Fixture Movie, 1 review" }).click();
   await expect(page.getByText("local-only-review-sentinel")).toBeVisible();
-  const closeReviews = page.getByRole("button", { name: "Close Reviews" });
-  await expect.poll(async () => {
-    const button = await closeReviews.boundingBox();
-    const icon = await closeReviews.locator("svg").boundingBox();
-    if (!button || !icon) return 99;
-    return Math.max(
-      Math.abs(button.x + button.width / 2 - (icon.x + icon.width / 2)),
-      Math.abs(button.y + button.height / 2 - (icon.y + icon.height / 2)),
-    );
-  }).toBeLessThan(0.6);
+  await expect(page.getByRole("button", { name: "Close Reviews" })).toHaveCount(0);
+  await expect(page.locator('a[href="#/library"]')).toBeVisible();
   expect(requests.join("\n")).not.toContain("local-only-review-sentinel");
 });
 
 test("captures, pauses conditionally, clusters markers, and seeks without blocking the slider", async ({ page }) => {
+  await installFrameTheme(page);
   await emitPlayback(page, 12.345, 100, false);
   const addButton = page.locator('[data-jstremio-testid="timestamp-notes-player-button"]');
   await expect(addButton).toBeEnabled();
   await addButton.click();
   await expect(page.getByText("00:12", { exact: true })).toBeVisible();
+  await expect(page.locator(".dialog")).toHaveCSS("background-color", "rgb(36, 10, 13)");
+  await expect(page.locator(".dialog")).toHaveCSS("color", "rgb(252, 235, 237)");
+  await expect(page.locator('[data-jstremio-testid="dialog"]')).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  await expect(page.locator('[data-jstremio-testid="dialog"]')).toHaveCSS("backdrop-filter", "none");
+  const optionCards = page.locator(".option-card");
+  await expect(optionCards).toHaveCount(2);
+  await expect.poll(async () => {
+    const colorBounds = await optionCards.nth(0).boundingBox();
+    const ratingBounds = await optionCards.nth(1).boundingBox();
+    return colorBounds && ratingBounds ? Math.abs(colorBounds.height - ratingBounds.height) : 999;
+  }).toBeLessThan(1);
+  await page.getByRole("button", { name: "Open custom marker color picker" }).click();
+  await expect(page.locator(".color-editor")).toBeVisible();
+  await page.getByRole("slider", { name: "Color hue" }).fill("300");
+  await page.getByRole("button", { name: "Done" }).click();
+  await expect(page.locator(".color-editor")).toBeHidden();
   await page.getByLabel("Note (required)").click();
   await page.keyboard.type("first marker note");
   await expect(page.getByLabel("Note (required)")).toHaveValue("first marker note");
   await expect.poll(() => page.evaluate(() => (window as any).__fixture.shortcutKeys)).toEqual([]);
-  await page.getByLabel("Marker color").fill("#ff3366");
-  await page.getByLabel("Rating (optional)").selectOption("5");
+  await page.getByRole("textbox", { name: "Marker color", exact: true }).fill("#ff3366");
+  await page.getByLabel("Rating (optional)").selectOption("10");
   await page.getByLabel("Save a thumbnail of this video frame").check();
   await page.getByRole("button", { name: "Save" }).click();
   await expect.poll(() => page.evaluate(() => (window as any).__fixture.notes.length)).toBe(1);
@@ -489,7 +620,7 @@ test("captures, pauses conditionally, clusters markers, and seeks without blocki
     color: (window as any).__fixture.notes[0].color,
     rating: (window as any).__fixture.notes[0].rating,
     thumbnailId: (window as any).__fixture.notes[0].thumbnailId,
-  }))).toEqual({ color: "#FF3366", rating: 5, thumbnailId: "11111111-1111-4111-8111-000000000001" });
+  }))).toEqual({ color: "#FF3366", rating: 10, thumbnailId: "11111111-1111-4111-8111-000000000001" });
   await expect.poll(() => page.evaluate(() => JSON.stringify((window as any).__fixture.commands))).toContain("screenshot-to-file");
 
   await emitPlayback(page, 12.7, 100, false);
@@ -511,6 +642,8 @@ test("captures, pauses conditionally, clusters markers, and seeks without blocki
 
   await marker.hover();
   await expect(page.locator(".marker-popover")).toHaveCount(1);
+  await expect(page.locator(".marker-popover")).toHaveCSS("background-color", "rgb(36, 10, 13)");
+  await expect(page.locator(".marker-popover")).toHaveCSS("color", "rgb(252, 235, 237)");
   await expect(page.locator(".marker-note")).toHaveCount(2);
   await expect(page.locator(".marker-thumbnail")).toHaveCount(1);
   await expect.poll(() =>
@@ -542,10 +675,10 @@ test("captures, pauses conditionally, clusters markers, and seeks without blocki
 
   await marker.click();
   const firstItem = page.locator(".marker-note").filter({ hasText: "first marker note" });
-  await expect(firstItem.getByLabel("5 out of 5 stars")).toBeVisible();
+  await expect(firstItem.getByLabel("10 out of 10 stars")).toBeVisible();
   await firstItem.getByRole("button", { name: "Edit" }).click();
   await page.getByLabel("Replace the saved thumbnail with this video frame").check();
-  await page.getByLabel("Marker color").fill("#22aa44");
+  await page.getByRole("textbox", { name: "Marker color", exact: true }).fill("#22aa44");
   await page.getByLabel("Rating (optional)").selectOption("3");
   await page.getByRole("button", { name: "Update" }).click();
   await expect.poll(() => page.evaluate(() => ({
@@ -632,8 +765,11 @@ test("captures, pauses conditionally, clusters markers, and seeks without blocki
   });
   await page.locator('[data-jstremio-testid="timestamp-notes-navigation"]').click();
   await expect(page.locator(".collection-card")).toHaveCount(2);
+  await expect(page.locator(".collection-card").first()).toHaveCSS("background-color", "rgb(36, 10, 13)");
+  await expect(page.locator(".collection-card").first()).toHaveCSS("color", "rgb(252, 235, 237)");
   await expect(page.getByText("The Blacklist", { exact: true })).toHaveCount(1);
   await page.getByRole("button", { name: "Open The Blacklist, 2 timestamp notes" }).click();
+  await expect(page.locator(".group").first()).toHaveCSS("background-color", "rgb(36, 10, 13)");
   await expect(page.getByText("Pilot", { exact: true })).toBeVisible();
   await expect(page.getByText("The Freelancer", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "← Back to titles" }).click();
@@ -642,6 +778,7 @@ test("captures, pauses conditionally, clusters markers, and seeks without blocki
   const thumbnailButton = page.getByRole("button", { name: /Enlarge video frame/ });
   await expect.poll(() => thumbnailButton.evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThanOrEqual(200);
   await thumbnailButton.click();
+  await expect(page.locator(".image-dialog")).toHaveCSS("background-color", "rgb(36, 10, 13)");
   const enlarged = page.getByRole("dialog", { name: /Video frame at/ }).locator("img");
   await expect(enlarged).toBeVisible();
   await expect.poll(() => enlarged.evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThan(300);
@@ -670,4 +807,16 @@ async function emitPlayback(page: Page, positionSeconds: number, durationSeconds
     },
     { positionSeconds, durationSeconds, paused },
   );
+}
+
+async function installFrameTheme(page: Page) {
+  await page.evaluate(() => {
+    const root = document.documentElement.style;
+    root.setProperty("--jstremio-background-start", "#100102");
+    root.setProperty("--jstremio-background-end", "#310609");
+    root.setProperty("--jstremio-accent-color", "#CC3344");
+    root.setProperty("--jstremio-surface-color", "#240A0D");
+    root.setProperty("--jstremio-text-color", "#FCEBED");
+    root.setProperty("--jstremio-gradient-angle", "135deg");
+  });
 }

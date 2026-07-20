@@ -12,14 +12,36 @@ export function isPlayerOverlayHidden(): boolean {
 }
 
 export function findPrimaryNavigation(): HTMLElement | null {
-  const links = Array.from(document.querySelectorAll<HTMLAnchorElement>("a[href]"));
-  const anchor = links.find((link) => /#\/(library|calendar)(?:\/|$)/i.test(link.getAttribute("href") ?? ""));
-  if (anchor?.parentElement) return anchor.parentElement;
-  return document.querySelector<HTMLElement>('nav, [role="navigation"]');
+  const controls = Array.from(document.querySelectorAll<HTMLElement>(INTERACTIVE)).filter(
+    (element) => !element.closest(OWNED),
+  );
+  const routeAnchor = controls.find((control) => {
+    const href = control.getAttribute("href") ?? "";
+    return /#\/(?:library|calendar)(?:\/|$)/i.test(href) && !isHiddenInTree(control);
+  });
+  if (routeAnchor?.parentElement) return routeAnchor.parentElement;
+
+  const signals = controls.filter((control) => {
+    const href = control.getAttribute("href") ?? "";
+    return !isHiddenInTree(control) && (
+      /#\/(?:home|board|discover|library|calendar|addons?|settings)(?:\/|$)/i.test(href)
+      || /\b(?:home|board|discover|library|calendar|addons?|settings)\b/i.test(navigationSignalName(control))
+    );
+  });
+  const semantic = Array.from(document.querySelectorAll<HTMLElement>('nav, [role="navigation"]'))
+    .filter((candidate) => !isHiddenInTree(candidate) && signals.some((signal) => candidate.contains(signal)))
+    .map((candidate) => ({ candidate, score: navigationScore(candidate, signals) }))
+    .sort((left, right) => right.score - left.score)[0]?.candidate;
+  if (semantic && navigationScore(semantic, signals) > 0) return semantic;
+
+  return closestCommonAncestor(signals);
 }
 
-export function navigationTemplate(): HTMLElement | null {
-  return document.querySelector<HTMLElement>('a[href*="#/library"], a[href*="#/calendar"]');
+export function navigationTemplate(navigation: ParentNode | null = findPrimaryNavigation()): HTMLElement | null {
+  if (!navigation) return null;
+  return navigation.querySelector<HTMLElement>(
+    'a[href*="#/library"], a[href*="#/calendar"], a[href*="#/home"], button:not([data-jstremio-extension]), [role="button"]:not([data-jstremio-extension])',
+  );
 }
 
 export function copyNavigationPresentation(target: HTMLElement, template: HTMLElement | null) {
@@ -98,6 +120,51 @@ function interactiveElements(root: ParentNode): HTMLElement[] {
   return Array.from(root.querySelectorAll<HTMLElement>(INTERACTIVE)).filter(
     (element) => !element.closest(OWNED),
   );
+}
+
+function navigationScore(candidate: HTMLElement, signals: HTMLElement[]): number {
+  const containedSignals = signals.filter((signal) => candidate.contains(signal)).length;
+  const officialControls = interactiveElements(candidate).length;
+  const bounds = candidate.getBoundingClientRect();
+  const hasLayout = bounds.width > 0 || bounds.height > 0;
+  let score = containedSignals * 100 - Math.max(0, officialControls - containedSignals) * 12;
+  if (candidate.matches('nav, [role="navigation"]')) score += 25;
+  if (hasLayout) {
+    if (bounds.left <= 24) score += 35;
+    if (bounds.width > 0 && bounds.width <= 180) score += 35;
+    else if (bounds.width > 320) score -= 120;
+    if (bounds.height >= window.innerHeight * 0.45) score += 20;
+    const presentation = getComputedStyle(candidate);
+    if (presentation.display === "none" || presentation.visibility === "hidden") score -= 500;
+  }
+  return score;
+}
+
+function navigationSignalName(control: HTMLElement): string {
+  const explicit = [control.getAttribute("aria-label"), control.getAttribute("title")].filter(Boolean).join(" ");
+  if (explicit) return explicit;
+  const text = control.textContent?.trim() ?? "";
+  return text.length <= 40 ? text : "";
+}
+
+function isHiddenInTree(element: HTMLElement): boolean {
+  let current: HTMLElement | null = element;
+  while (current && current !== document.body) {
+    const style = getComputedStyle(current);
+    if (style.display === "none" || style.visibility === "hidden") return true;
+    current = current.parentElement;
+  }
+  return false;
+}
+
+function closestCommonAncestor(elements: HTMLElement[]): HTMLElement | null {
+  if (!elements.length) return null;
+  let candidate = elements[0]!.parentElement;
+  while (candidate && candidate !== document.body) {
+    if (elements.every((element) => candidate!.contains(element))) return candidate;
+    candidate = candidate.parentElement;
+  }
+  return null;
 }
 
 function structuralSliderCandidates(root: ParentNode): HTMLElement[] {

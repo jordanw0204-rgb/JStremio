@@ -1,4 +1,4 @@
-#![cfg_attr(all(not(test), not(debug_assertions)), windows_subsystem = "windows")]
+#![cfg_attr(all(windows, not(test)), windows_subsystem = "windows")]
 #[macro_use]
 extern crate bitflags;
 use std::{

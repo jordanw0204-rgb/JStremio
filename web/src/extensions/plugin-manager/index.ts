@@ -26,7 +26,7 @@ const manifest = {
   schemaVersion: 1,
   id: "plugin-manager",
   name: "Plugins",
-  version: "1.2.0",
+  version: "1.3.0",
   entry: "index.js",
   styles: "styles.css",
   enabledByDefault: true,
@@ -34,18 +34,17 @@ const manifest = {
 } as const;
 
 const PLUGIN_ICON = '<svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 3.5h2V6a2 2 0 0 0 4 0V3.5h2a2 2 0 0 1 2 2v2h-2.5a2 2 0 0 0 0 4H18.5v2a2 2 0 0 1-2 2h-2V18a2 2 0 0 1-4 0v-2.5h-2a2 2 0 0 1-2-2v-2H4a2 2 0 0 1 0-4h2.5v-2a2 2 0 0 1 2-2Z"/></svg>';
-const CLOSE_ICON = '<svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>';
 
 requireRuntime().registerExtension(manifest, (runtime) => activate(runtime));
 
 function activate(runtime: JStremioRuntime) {
   const openManager = () => {
-    runtime.ui.openOverlay((container, close) => {
+    runtime.ui.openPage("plugin-manager", (container) => {
       addStyles(container, styles);
       const shell = document.createElement("main");
       shell.className = "plugins-shell";
       shell.innerHTML = `
-        <header class="plugins-header"><div><h1>Plugins</h1><p>Enable built-in features and trusted local plugins.</p></div><button class="button icon-button" data-action="close" aria-label="Close Plugins">${CLOSE_ICON}</button></header>
+        <header class="plugins-header"><div><h1>Plugins</h1><p>Enable built-in features and trusted local plugins.</p></div></header>
         <section class="warning"><strong>Local plugins are trusted code.</strong><span>They run inside Stremio's WebView and can access the page. Install plugins only from authors you trust.</span></section>
         <div class="toolbar"><button class="button" data-action="folder">Open plugins folder</button><button class="button" data-action="refresh">Refresh status</button></div>
         <div class="restart" role="status" hidden><span>Plugin changes were saved. Fully restart JStremio to apply them.</span><button class="button restart-button" data-action="restart">Restart JStremio</button></div>
@@ -73,7 +72,6 @@ function activate(runtime: JStremioRuntime) {
           status.textContent = error instanceof Error ? error.message : "Plugin state is unavailable.";
         }
       };
-      shell.querySelector('[data-action="close"]')?.addEventListener("click", close);
       shell.querySelector('[data-action="refresh"]')?.addEventListener("click", () => void load());
       shell.querySelector('[data-action="folder"]')?.addEventListener("click", () => {
         void runtime.bridge.request("plugins", "openPluginsFolder").catch((error) => {
@@ -99,7 +97,7 @@ function activate(runtime: JStremioRuntime) {
   const unsubscribe = runtime.lifecycle.onReconcile(reconcile);
   return () => {
     unsubscribe();
-    runtime.ui.closeOverlay();
+    runtime.ui.closePage();
     removeOwned("plugin-manager");
   };
 }

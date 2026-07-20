@@ -10,6 +10,16 @@
 
 `check.ps1` runs Rust formatting/clippy/tests, TypeScript typecheck/unit tests, deterministic bundles, Playwright fixtures in installed Edge, and an optimized x64 compile.
 
+## Automated evidence from 2026-07-20 (v1.6.0)
+
+The v1.6.0 themed in-shell plugin navigation and customization gate passed on Windows:
+
+- The full `build-release.ps1` gate passed Rust formatting and clippy with warnings denied, all 50 native tests, strict TypeScript with all 44 unit tests, all 11 installed-Edge Playwright scenarios, deterministic extension bundles, all updater tests, and optimized x64 app/updater builds.
+- Browser coverage proves Plugins, Themes, Local Reviews, and Timestamp Notes stay beside the official sidebar; all six official navigation controls regain the selected Stremio page; custom buttons survive upstream remounts; player actions remain immediately clickable during delayed state resolution; and all plugin frames use the saved theme.
+- Native and browser coverage proves backward-compatible 1–10 review/note ratings, validated custom theme presets, the Crimson preset, coordinated marker swatches/hex entry/full color picker behavior, and the console-free Windows application subsystem.
+- Inno Setup built `JStremioSetup-v1.6.0_x64-unsigned.exe` at 71,282,081 bytes with local SHA-256 `AED0A8A0C378D71D2A83EE014C955AD762EA6BB6EFC92E3D92C5559D183B0602`. The local portable ZIP is 92,756,907 bytes with SHA-256 `CDC617433BD061C9E325F3B91DABA40195A1374EE27A448D4EF5132964937C46`.
+- A real per-user installer upgrade from v1.5.2 returned exit code 0, installed product/file version 1.6.0, matched all 16 installed extension/runtime files to the verified resources, retained both shortcuts, preserved all 13 existing data/settings/custom-plugin files byte-for-byte, and relaunched a responding JStremio window.
+
 ## Automated evidence from 2026-07-18 (v1.5.2)
 
 The v1.5.2 native-player surface lifecycle and automatic-recovery gate passed on Windows:

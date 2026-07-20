@@ -29,10 +29,10 @@ impl Review {
                 "must equal the stable media key",
             ));
         }
-        if !(1..=5).contains(&self.rating) {
+        if !(1..=10).contains(&self.rating) {
             return Err(StorageError::invalid(
                 "rating",
-                "must be an integer from 1 to 5",
+                "must be an integer from 1 to 10",
             ));
         }
         validate_optional("text", Some(&self.text), MAX_REVIEW_TEXT_CHARS)?;
@@ -55,10 +55,10 @@ pub struct ReviewInput {
 impl ReviewInput {
     pub fn validate(&self) -> Result<(), StorageError> {
         self.media.validate()?;
-        if !(1..=5).contains(&self.rating) {
+        if !(1..=10).contains(&self.rating) {
             return Err(StorageError::invalid(
                 "rating",
-                "must be an integer from 1 to 5",
+                "must be an integer from 1 to 10",
             ));
         }
         validate_optional("text", Some(&self.text), MAX_REVIEW_TEXT_CHARS)

@@ -68,6 +68,8 @@ export type JStremioRuntime = {
     onRouteChange(callback: (url: string) => void): () => void;
   }>;
   ui: Readonly<{
+    openPage(extensionId: string, renderer: RenderHost): void;
+    closePage(): void;
     openOverlay(renderer: RenderHost): void;
     closeOverlay(): void;
     openDialog(renderer: RenderHost): void;
