@@ -19,6 +19,8 @@ The v1.6.0 themed in-shell plugin navigation and customization gate passed on Wi
 - Native and browser coverage proves backward-compatible 1–10 review/note ratings, validated custom theme presets, the Crimson preset, coordinated marker swatches/hex entry/full color picker behavior, and the console-free Windows application subsystem.
 - Inno Setup built `JStremioSetup-v1.6.0_x64-unsigned.exe` at 71,282,081 bytes with local SHA-256 `AED0A8A0C378D71D2A83EE014C955AD762EA6BB6EFC92E3D92C5559D183B0602`. The local portable ZIP is 92,756,907 bytes with SHA-256 `CDC617433BD061C9E325F3B91DABA40195A1374EE27A448D4EF5132964937C46`.
 - A real per-user installer upgrade from v1.5.2 returned exit code 0, installed product/file version 1.6.0, matched all 16 installed extension/runtime files to the verified resources, retained both shortcuts, preserved all 13 existing data/settings/custom-plugin files byte-for-byte, and relaunched a responding JStremio window.
+- Branch CI, exact-tag CI, and the clean-runner release workflow passed for release commit `c8583e5`. The anonymous latest-release endpoint returns stable v1.6.0 with the installer, portable ZIP, and checksum assets.
+- Published clean-runner digests are `41C12D79EBCFC8A0C18CFB580B0E93B4EEC500D634C9D6FB9904014EA504FFB6` for the 71,281,711-byte installer and `B6266BFB55E554C5FD984406F4487A66F43024841428BC70C50D75DEF717F496` for the 92,752,125-byte portable ZIP. The public checksum file matches both GitHub asset digests.
 
 ## Automated evidence from 2026-07-18 (v1.5.2)
 
