@@ -1,10 +1,13 @@
 use crate::stremio_app::ipc;
 use crate::stremio_app::RPCResponse;
 use flume::{Receiver, Sender};
-use libmpv2::{events::Event, Format, Mpv, SetData};
+use libmpv2::{events::Event, Format, GetData, Mpv, SetData};
 use native_windows_gui::{self as nwg, PartialUi};
 use std::{
-    mem, ptr,
+    ffi::CStr,
+    mem,
+    os::raw::c_void,
+    ptr,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -37,6 +40,100 @@ use crate::stremio_app::stremio_player::{
 struct ObserveProperty {
     name: String,
     format: Format,
+}
+
+struct JsonMpvNode(serde_json::Value);
+
+unsafe impl GetData for JsonMpvNode {
+    fn get_from_c_void<T, F: FnMut(*mut c_void) -> libmpv2::Result<T>>(
+        mut fun: F,
+    ) -> libmpv2::Result<Self> {
+        let mut node = unsafe { mem::zeroed::<libmpv2_sys::mpv_node>() };
+        fun(&mut node as *mut _ as *mut c_void)?;
+        let value = unsafe { json_from_mpv_node(&node) };
+        unsafe { libmpv2_sys::mpv_free_node_contents(&mut node) };
+        Ok(Self(value))
+    }
+
+    fn get_format() -> Format {
+        Format::Node
+    }
+}
+
+unsafe fn json_from_mpv_node(node: &libmpv2_sys::mpv_node) -> serde_json::Value {
+    use libmpv2_sys::{
+        mpv_format_MPV_FORMAT_DOUBLE as DOUBLE, mpv_format_MPV_FORMAT_FLAG as FLAG,
+        mpv_format_MPV_FORMAT_INT64 as INT64, mpv_format_MPV_FORMAT_NODE_ARRAY as ARRAY,
+        mpv_format_MPV_FORMAT_NODE_MAP as MAP, mpv_format_MPV_FORMAT_STRING as STRING,
+    };
+    match node.format {
+        STRING => {
+            let value = unsafe { node.u.string };
+            if value.is_null() {
+                serde_json::Value::Null
+            } else {
+                serde_json::Value::String(
+                    unsafe { CStr::from_ptr(value) }
+                        .to_string_lossy()
+                        .into_owned(),
+                )
+            }
+        }
+        FLAG => serde_json::Value::Bool(unsafe { node.u.flag } != 0),
+        INT64 => serde_json::Value::Number(unsafe { node.u.int64 }.into()),
+        DOUBLE => serde_json::Number::from_f64(unsafe { node.u.double_ })
+            .map(serde_json::Value::Number)
+            .unwrap_or(serde_json::Value::Null),
+        ARRAY | MAP => {
+            let list = unsafe { node.u.list };
+            if list.is_null() {
+                return if node.format == ARRAY {
+                    serde_json::Value::Array(Vec::new())
+                } else {
+                    serde_json::Value::Object(serde_json::Map::new())
+                };
+            }
+            let list = unsafe { &*list };
+            let length = if list.num > 0 { list.num as usize } else { 0 };
+            let values = if length == 0 || list.values.is_null() {
+                &[][..]
+            } else {
+                unsafe { std::slice::from_raw_parts(list.values, length) }
+            };
+            if node.format == ARRAY {
+                serde_json::Value::Array(
+                    values
+                        .iter()
+                        .map(|value| unsafe { json_from_mpv_node(value) })
+                        .collect(),
+                )
+            } else {
+                let keys = if length == 0 || list.keys.is_null() {
+                    &[][..]
+                } else {
+                    unsafe { std::slice::from_raw_parts(list.keys, length) }
+                };
+                serde_json::Value::Object(
+                    keys.iter()
+                        .zip(values)
+                        .filter_map(|(key, value)| {
+                            if (*key).is_null() {
+                                None
+                            } else {
+                                Some((
+                                    unsafe { CStr::from_ptr(*key) }
+                                        .to_string_lossy()
+                                        .into_owned(),
+                                    unsafe { json_from_mpv_node(value) },
+                                ))
+                            }
+                        })
+                        .collect(),
+                )
+            }
+        }
+        _ => serde_json::Value::Null,
+    }
 }
 
 #[link(name = "user32")]
@@ -136,7 +233,7 @@ impl PartialUi for Player {
         let _event_thread = create_event_thread(
             mpv_event_client,
             observe_property_receiver,
-            rpc_response_sender,
+            rpc_response_sender.clone(),
         );
         let gpu_video_processing = Arc::new(AtomicBool::new(false));
         let _display_thread = create_display_output_thread(
@@ -150,6 +247,7 @@ impl PartialUi for Player {
             gpu_video_processing,
             observe_property_sender,
             in_msg_receiver,
+            rpc_response_sender,
         );
         // @TODO implement a mechanism to stop threads on `Player` drop if needed
 
@@ -474,6 +572,7 @@ fn create_message_thread(
     gpu_video_processing: Arc<AtomicBool>,
     observe_property_sender: Sender<ObserveProperty>,
     in_msg_receiver: Receiver<String>,
+    rpc_response_sender: Sender<String>,
 ) -> JoinHandle<()> {
     thread::spawn(move || {
         // -- Helpers --
@@ -523,6 +622,25 @@ fn create_message_thread(
                 }
                 InMsg(InMsgFn::MpvObserveProp, InMsgArgs::ObProp(PropKey::Str(prop))) => {
                     observe_property(prop.to_string(), Format::String);
+                }
+                InMsg(InMsgFn::MpvGetAudioDeviceList, InMsgArgs::Flag(true)) => {
+                    match mpv.get_property::<JsonMpvNode>("audio-device-list") {
+                        Ok(JsonMpvNode(devices)) => {
+                            let response = PlayerResponse(
+                                "mpv-prop-change",
+                                PlayerEvent::PropChange(PlayerProprChange::from_json_value(
+                                    "audio-device-list",
+                                    devices,
+                                )),
+                            );
+                            if let Err(error) = rpc_response_sender
+                                .send(RPCResponse::response_message(response.to_value()))
+                            {
+                                eprintln!("failed to send audio device list: {error}");
+                            }
+                        }
+                        Err(error) => eprintln!("failed to inspect MPV audio devices: '{error:#}'"),
+                    }
                 }
                 InMsg(InMsgFn::MpvSetProp, InMsgArgs::StProp(name, PropVal::Bool(value))) => {
                     set_property(name, value, &mpv);

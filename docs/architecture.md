@@ -17,7 +17,10 @@ JStremio WebView2 shell ---- bundled Stremio server
                |---- Timestamp Notes -- timestamp-notes.json
                |---- LastPlayed ------- last-played.json
                |---- BegoneMouse ------ plugins.json
-               `---- Quick Seek ------- guarded player seek API
+               |---- Quick Seek ------- guarded player seek API
+               |---- Easy Sound Output  narrow MPV audio-device API
+               |---- QOL Things ------- narrow MPV volume API
+               `---- No Spoilers ------ DOM concealment / seek guard
 ```
 
 ## Native boundary
@@ -36,7 +39,7 @@ The validated saved theme is serialized into the origin-gated document-start inj
 
 The compatibility adapter owns upstream assumptions. It prefers roles/accessible names, known Library/Calendar hrefs, neighboring controls, and slider structure. Feature code does not contain CSS-module hashes.
 
-MPV property events are observed alongside Stremio's listener. `time-pos` and `duration` seconds become integer milliseconds; pause and seeking remain booleans. Media changes reset the snapshot. The public player API can set only `time-pos` and `pause`, validates the current media, clamps seeks to duration, and requires browser user activation for seeking.
+MPV property events are observed alongside Stremio's listener. `time-pos` and `duration` seconds become integer milliseconds; pause and seeking remain booleans. Media changes reset the snapshot. The player API validates and exposes only seek/pause plus the `volume`, `audio-device`, and `audio-device-list` properties needed by built-ins; arbitrary MPV properties and commands remain unavailable. Seeks are clamped to duration, require browser user activation, and pass through registered guards unless an explicit confirmation action uses the bypass.
 
 ## Extension behavior
 
@@ -45,5 +48,7 @@ Reviews never call the player API. Timestamp capture reads the latest position b
 LastPlayed observes the selected player stream, persists its exact official player deep link and stream fingerprint, and augments visual media cards plus stream-selection surfaces without modifying Stremio React code. Series-level cards choose the most recently saved episode; exact video links prefer their exact entry. Hover details reuse only the saved add-on/stream description. Resume actions navigate through Stremio's existing player route; they do not reconstruct or substitute a source.
 
 BegoneMouse observes pointer position and activity and reuses Stremio's own overlay-hidden state, with a narrow fallback selector for player controls while the upstream class name is being learned. Its validated decimal-millisecond delay is stored with plugin settings; Quick Seek hover and the responsive bottom player band are protected from idle hiding. Quick Seek renders body-level themed controls, mirrors compact controls around the official Play control, and reads two independently validated local seek durations. It uses the runtime's user-activation-guarded player seek operation and cannot issue arbitrary MPV properties or commands.
+
+Easy Sound Output observes MPV's structured device list and current device, attaches only a `contextmenu` listener to the discovered official volume control, and sets only a selected advertised device name. QOL Things observes and restores the validated MPV volume value. No Spoilers reversibly marks production detail/player DOM nodes, owns timeline pointer gestures while its guard is enabled, and routes the confirmed destination through the same user-activation-guarded player seek API.
 
 Markers are current-media-only, pointer-transparent outside explicit buttons, positioned against the current duration, hidden when out of range, and clustered within approximately ten physical pixels. Absolute timestamps are never ratio-scaled for alternate cuts.

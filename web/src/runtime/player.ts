@@ -1,8 +1,15 @@
 import { isRecord, unwrapNativeEvent } from "./nativeEvents";
-import type { MediaTarget, PlaybackSnapshot } from "./types";
+import type {
+  MediaTarget,
+  PlaybackSnapshot,
+  PlayerPropertyName,
+  PlayerSeekGuard,
+  PlayerSettablePropertyName,
+} from "./types";
 
 type TargetProvider = () => Promise<MediaTarget | null>;
 type Listener = (snapshot: PlaybackSnapshot | null) => void;
+type PropertyListener = (value: unknown) => void;
 type BridgeRequest = (
       namespace: "reviews" | "timestamp-notes" | "plugins" | "last-played",
   operation: string,
@@ -44,6 +51,10 @@ export function createPlayerAdapter(getTarget: TargetProvider, bridgeRequest?: B
   let recoveredSinceProgress = false;
   let activeDirectPointerId: number | null = null;
   const listeners = new Set<Listener>();
+  const propertyListeners = new Map<PlayerPropertyName, Set<PropertyListener>>();
+  const propertyValues = new Map<PlayerPropertyName, unknown>();
+  const observedProperties = new Set<PlayerPropertyName>();
+  const seekGuards = new Set<PlayerSeekGuard>();
   const channel = window.chrome?.webview;
 
   const beginDirectPointerAction = (event: PointerEvent) => {
@@ -74,6 +85,14 @@ export function createPlayerAdapter(getTarget: TargetProvider, bridgeRequest?: B
   };
 
   const onMessage = (event: MessageEvent) => {
+    const nativeEvent = unwrapNativeEvent(event.data);
+    if (nativeEvent?.[0] === "mpv-prop-change" && isRecord(nativeEvent[1])) {
+      const name = nativeEvent[1].name;
+      if (isPlayerPropertyName(name)) {
+        propertyValues.set(name, nativeEvent[1].data);
+        for (const listener of propertyListeners.get(name) ?? []) listener(nativeEvent[1].data);
+      }
+    }
     const update = parseMpvPropertyEvent(event.data);
     if (!update) return;
     snapshot = {
@@ -101,7 +120,10 @@ export function createPlayerAdapter(getTarget: TargetProvider, bridgeRequest?: B
     recoveredSinceProgress = false;
   };
 
-  const postProperty = (name: "time-pos" | "pause", value: number | boolean) => {
+  const postProperty = (
+    name: "time-pos" | "pause" | PlayerSettablePropertyName,
+    value: number | boolean | string,
+  ) => {
     if (!channel) throw new Error("The local MPV channel is unavailable.");
     channel.postMessage(JSON.stringify({ id: commandId++, args: ["mpv-set-prop", [name, value]] }));
   };
@@ -150,7 +172,7 @@ export function createPlayerAdapter(getTarget: TargetProvider, bridgeRequest?: B
     }
   }, PLAYER_WATCHDOG_INTERVAL_MS);
 
-  const seekTo = async (positionMs: number) => {
+  const seekTo = async (positionMs: number, options: { bypassGuards?: boolean } = {}) => {
     const activation = (navigator as Navigator & { userActivation?: { isActive: boolean } }).userActivation;
     if (activation && !activation.isActive && activeDirectPointerId === null) {
       throw new Error("Seeking requires a direct user action.");
@@ -160,6 +182,11 @@ export function createPlayerAdapter(getTarget: TargetProvider, bridgeRequest?: B
       throw new Error("The active player cannot seek to this note.");
     }
     const clamped = snapshot.durationMs === null ? positionMs : Math.min(positionMs, snapshot.durationMs);
+    if (!options.bypassGuards) {
+      for (const guard of seekGuards) {
+        if (!await guard(clamped, { ...snapshot })) return;
+      }
+    }
     postProperty("time-pos", clamped / 1_000);
   };
 
@@ -169,6 +196,48 @@ export function createPlayerAdapter(getTarget: TargetProvider, bridgeRequest?: B
       throw new Error("The active player cannot change pause state.");
     }
     postProperty("pause", paused);
+  };
+
+  const observeProperty = (name: PlayerPropertyName, listener: PropertyListener) => {
+    let listenersForName = propertyListeners.get(name);
+    if (!listenersForName) {
+      listenersForName = new Set();
+      propertyListeners.set(name, listenersForName);
+    }
+    listenersForName.add(listener);
+    if (propertyValues.has(name)) listener(propertyValues.get(name));
+    if (!observedProperties.has(name)) {
+      if (!channel) throw new Error("The local MPV channel is unavailable.");
+      observedProperties.add(name);
+      postObserveProperty(name);
+    }
+    return () => listenersForName?.delete(listener);
+  };
+
+  const postObserveProperty = (name: PlayerPropertyName) => {
+    if (!channel) throw new Error("The local MPV channel is unavailable.");
+    const args = name === "audio-device-list"
+      ? ["mpv-get-audio-device-list", true]
+      : ["mpv-observe-prop", name];
+    channel.postMessage(JSON.stringify({ id: commandId++, args }));
+  };
+
+  const refreshProperty = (name: PlayerPropertyName) => postObserveProperty(name);
+
+  const setProperty = async (name: PlayerSettablePropertyName, value: number | string) => {
+    if (name === "volume") {
+      if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 130) {
+        throw new Error("The volume is invalid.");
+      }
+    } else if (typeof value !== "string" || !value.trim() || value.length > 2_048) {
+      throw new Error("The audio output device is invalid.");
+    }
+    postProperty(name, value);
+  };
+
+  const addSeekGuard = (guard: PlayerSeekGuard) => {
+    seekGuards.add(guard);
+    return () => seekGuards.delete(guard);
   };
 
   const captureFrame = async () => {
@@ -208,6 +277,9 @@ export function createPlayerAdapter(getTarget: TargetProvider, bridgeRequest?: B
     document.removeEventListener("visibilitychange", endDirectPointerActionWhenHidden);
     window.clearInterval(watchdog);
     listeners.clear();
+    propertyListeners.clear();
+    propertyValues.clear();
+    seekGuards.clear();
   };
 
   return {
@@ -216,11 +288,19 @@ export function createPlayerAdapter(getTarget: TargetProvider, bridgeRequest?: B
       subscribe,
       seekTo,
       setPaused,
+      observeProperty,
+      refreshProperty,
+      setProperty,
+      addSeekGuard,
       captureFrame,
     },
     setMediaKey,
     destroy,
   };
+}
+
+function isPlayerPropertyName(value: unknown): value is PlayerPropertyName {
+  return value === "volume" || value === "audio-device" || value === "audio-device-list";
 }
 
 function isPlayerRoute(route: string): boolean {

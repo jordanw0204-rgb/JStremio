@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "easy-sound-output",
+  "name": "Easy Sound Output",
+  "version": "1.0.0",
+  "entry": "index.js",
+  "styles": "styles.css",
+  "enabledByDefault": true,
+  "loadOrder": 140,
+  "description": "Switch audio output devices from the player volume button and remember a preferred device.",
+  "author": "JStremio",
+  "core": false
+}

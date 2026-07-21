@@ -1,5 +1,5 @@
 use crate::{
-    extensions::{PluginDescriptor, PluginSettingsStore},
+    extensions::{PluginDescriptor, PluginSettingsStore, PreferredAudioDevice},
     last_played::{LastPlayedInput, LastPlayedStore},
     reviews::{ReviewInput, ReviewStore},
     storage::StorageError,
@@ -89,6 +89,29 @@ struct SetQuickSeekPayload {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct SetReviewSettingsPayload {
     auto_open_at_end: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SetEasySoundOutputPayload {
+    preferred_device: Option<PreferredAudioDevice>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SetQolThingsPayload {
+    remember_volume: bool,
+    saved_volume: Option<f64>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SetNoSpoilersPayload {
+    blur_summary: bool,
+    blur_artwork: bool,
+    title_mask_percent: u8,
+    guard_seeks: bool,
+    max_skip_minutes: f64,
 }
 
 const MAX_THUMBNAIL_BYTES: u64 = 2 * 1024 * 1024;
@@ -421,6 +444,83 @@ impl NativeBridge {
                 Ok(json!({
                     "backwardSeconds": payload.backward_seconds,
                     "forwardSeconds": payload.forward_seconds,
+                    "restartRequired": false
+                }))
+            }
+            "getEasySoundOutput" => self
+                .plugin_settings
+                .preferred_audio_device()
+                .map(|preferred_device| json!({ "preferredDevice": preferred_device }))
+                .map_err(storage_error),
+            "setEasySoundOutput" => {
+                let payload: SetEasySoundOutputPayload = parse_value(request.payload)?;
+                self.plugin_settings
+                    .set_preferred_audio_device(payload.preferred_device.clone())
+                    .map_err(storage_error)?;
+                Ok(json!({
+                    "preferredDevice": payload.preferred_device,
+                    "restartRequired": false
+                }))
+            }
+            "getQolThings" => self
+                .plugin_settings
+                .qol_settings()
+                .map(|(remember_volume, saved_volume)| {
+                    json!({
+                        "rememberVolume": remember_volume,
+                        "savedVolume": saved_volume
+                    })
+                })
+                .map_err(storage_error),
+            "setQolThings" => {
+                let payload: SetQolThingsPayload = parse_value(request.payload)?;
+                self.plugin_settings
+                    .set_qol_settings(payload.remember_volume, payload.saved_volume)
+                    .map_err(storage_error)?;
+                Ok(json!({
+                    "rememberVolume": payload.remember_volume,
+                    "savedVolume": payload.saved_volume,
+                    "restartRequired": false
+                }))
+            }
+            "getNoSpoilers" => self
+                .plugin_settings
+                .no_spoilers_settings()
+                .map(
+                    |(
+                        blur_summary,
+                        blur_artwork,
+                        title_mask_percent,
+                        guard_seeks,
+                        max_skip_minutes,
+                    )| {
+                        json!({
+                            "blurSummary": blur_summary,
+                            "blurArtwork": blur_artwork,
+                            "titleMaskPercent": title_mask_percent,
+                            "guardSeeks": guard_seeks,
+                            "maxSkipMinutes": max_skip_minutes
+                        })
+                    },
+                )
+                .map_err(storage_error),
+            "setNoSpoilers" => {
+                let payload: SetNoSpoilersPayload = parse_value(request.payload)?;
+                self.plugin_settings
+                    .set_no_spoilers_settings(
+                        payload.blur_summary,
+                        payload.blur_artwork,
+                        payload.title_mask_percent,
+                        payload.guard_seeks,
+                        payload.max_skip_minutes,
+                    )
+                    .map_err(storage_error)?;
+                Ok(json!({
+                    "blurSummary": payload.blur_summary,
+                    "blurArtwork": payload.blur_artwork,
+                    "titleMaskPercent": payload.title_mask_percent,
+                    "guardSeeks": payload.guard_seeks,
+                    "maxSkipMinutes": payload.max_skip_minutes,
                     "restartRequired": false
                 }))
             }
@@ -1049,6 +1149,85 @@ mod tests {
                 .quick_seek_seconds()
                 .unwrap(),
             (7.5, 12.25)
+        );
+    }
+
+    #[test]
+    fn new_player_plugin_settings_are_fixed_and_immediately_persisted() {
+        let directory = tempdir().unwrap();
+        let bridge = NativeBridge::new(directory.path());
+
+        let defaults = bridge
+            .handle(
+                PLUGINS_METHOD,
+                60,
+                Some(&json!({"operation": "getEasySoundOutput", "payload": {}})),
+            )
+            .into_event();
+        assert_eq!(defaults[1]["result"]["preferredDevice"], json!(null));
+
+        let sound = bridge
+            .handle(
+                PLUGINS_METHOD,
+                61,
+                Some(&json!({
+                    "operation": "setEasySoundOutput",
+                    "payload": {
+                        "preferredDevice": {
+                            "name": "wasapi/{device-id}",
+                            "description": "Desk speakers"
+                        }
+                    }
+                })),
+            )
+            .into_event();
+        assert_eq!(
+            sound[1]["result"]["preferredDevice"]["name"],
+            "wasapi/{device-id}"
+        );
+        assert_eq!(sound[1]["result"]["restartRequired"], false);
+
+        let qol = bridge
+            .handle(
+                PLUGINS_METHOD,
+                62,
+                Some(&json!({
+                    "operation": "setQolThings",
+                    "payload": { "rememberVolume": true, "savedVolume": 37.5 }
+                })),
+            )
+            .into_event();
+        assert_eq!(qol[1]["result"]["savedVolume"], 37.5);
+
+        let spoilers = bridge
+            .handle(
+                PLUGINS_METHOD,
+                63,
+                Some(&json!({
+                    "operation": "setNoSpoilers",
+                    "payload": {
+                        "blurSummary": false,
+                        "blurArtwork": true,
+                        "titleMaskPercent": 80,
+                        "guardSeeks": true,
+                        "maxSkipMinutes": 3.5
+                    }
+                })),
+            )
+            .into_event();
+        assert_eq!(spoilers[1]["result"]["blurSummary"], false);
+        assert_eq!(spoilers[1]["result"]["titleMaskPercent"], 80);
+        assert_eq!(spoilers[1]["result"]["maxSkipMinutes"], 3.5);
+
+        let store = PluginSettingsStore::new(directory.path());
+        assert_eq!(
+            store.preferred_audio_device().unwrap().unwrap().description,
+            "Desk speakers"
+        );
+        assert_eq!(store.qol_settings().unwrap(), (true, Some(37.5)));
+        assert_eq!(
+            store.no_spoilers_settings().unwrap(),
+            (false, true, 80, true, 3.5)
         );
     }
 

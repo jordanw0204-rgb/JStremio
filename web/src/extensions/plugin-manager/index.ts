@@ -35,6 +35,17 @@ type ReviewSettings = {
   autoOpenAtEnd: boolean;
 };
 
+type PreferredAudioDevice = { name: string; description: string };
+type EasySoundOutputSettings = { preferredDevice: PreferredAudioDevice | null };
+type QolThingsSettings = { rememberVolume: boolean; savedVolume: number | null };
+type NoSpoilersSettings = {
+  blurSummary: boolean;
+  blurArtwork: boolean;
+  titleMaskPercent: number;
+  guardSeeks: boolean;
+  maxSkipMinutes: number;
+};
+
 const DEFAULT_BEGONE_MOUSE_IDLE_MS = 1_000;
 const MAX_BEGONE_MOUSE_IDLE_MS = 600_000;
 const BEGONE_MOUSE_SETTINGS_CHANGED = "jstremio-begone-mouse-settings-changed";
@@ -43,12 +54,15 @@ const MIN_QUICK_SEEK_SECONDS = 0.05;
 const MAX_QUICK_SEEK_SECONDS = 3_600;
 const QUICK_SEEK_SETTINGS_CHANGED = "jstremio-quick-seek-settings-changed";
 const REVIEW_SETTINGS_CHANGED = "jstremio-review-settings-changed";
+const EASY_SOUND_SETTINGS_CHANGED = "jstremio-easy-sound-output-settings-changed";
+const QOL_SETTINGS_CHANGED = "jstremio-qol-things-settings-changed";
+const NO_SPOILERS_SETTINGS_CHANGED = "jstremio-no-spoilers-settings-changed";
 
 const manifest = {
   schemaVersion: 1,
   id: "plugin-manager",
   name: "Plugins",
-  version: "1.5.0",
+  version: "1.6.0",
   entry: "index.js",
   styles: "styles.css",
   enabledByDefault: true,
@@ -81,12 +95,15 @@ function activate(runtime: JStremioRuntime) {
         grid.hidden = true;
         status.textContent = "Loading plugins…";
         try {
-          const [pluginValue, hotkeyValue, reviewValue, begoneMouseValue, quickSeekValue] = await Promise.all([
+          const [pluginValue, hotkeyValue, reviewValue, begoneMouseValue, quickSeekValue, easySoundValue, qolValue, noSpoilersValue] = await Promise.all([
             runtime.bridge.request("plugins", "list"),
             runtime.bridge.request("plugins", "getHotkeys"),
             runtime.bridge.request("plugins", "getReviewSettings"),
             runtime.bridge.request("plugins", "getBegoneMouse"),
             runtime.bridge.request("plugins", "getQuickSeek"),
+            runtime.bridge.request("plugins", "getEasySoundOutput"),
+            runtime.bridge.request("plugins", "getQolThings"),
+            runtime.bridge.request("plugins", "getNoSpoilers"),
           ]);
           const plugins = asPlugins(pluginValue);
           renderPlugins(
@@ -97,6 +114,9 @@ function activate(runtime: JStremioRuntime) {
             asReviewSettings(reviewValue),
             asBegoneMouseSettings(begoneMouseValue),
             asQuickSeekSettings(quickSeekValue),
+            asEasySoundOutputSettings(easySoundValue),
+            asQolThingsSettings(qolValue),
+            asNoSpoilersSettings(noSpoilersValue),
             restart,
           );
           status.hidden = plugins.length > 0;
@@ -144,6 +164,9 @@ function renderPlugins(
   reviewSettings: ReviewSettings,
   begoneMouse: BegoneMouseSettings,
   quickSeek: QuickSeekSettings,
+  easySound: EasySoundOutputSettings,
+  qol: QolThingsSettings,
+  noSpoilers: NoSpoilersSettings,
   restart: HTMLElement,
 ) {
   grid.replaceChildren();
@@ -199,13 +222,13 @@ function renderPlugins(
       const summary = document.createElement("span");
       summary.className = "hotkey-summary";
       const renderSummary = () => {
-        summary.textContent = plugin.id === "reviews"
-          ? `Hotkey: ${displayHotkey(hotkeys.reviews)} · End prompt: ${reviewSettings.autoOpenAtEnd ? "On" : "Off"}`
-          : isHotkeyPluginId(plugin.id)
-            ? `Hotkey: ${displayHotkey(hotkeys[plugin.id])}`
-          : plugin.id === "begone-mouse"
-            ? `Idle delay: ${formatIdleDelay(begoneMouse.idleMs)}`
-            : `Back ${formatSeekSeconds(quickSeek.backwardSeconds)} · Forward ${formatSeekSeconds(quickSeek.forwardSeconds)}`;
+        if (plugin.id === "reviews") summary.textContent = `Hotkey: ${displayHotkey(hotkeys.reviews)} · End prompt: ${reviewSettings.autoOpenAtEnd ? "On" : "Off"}`;
+        else if (isHotkeyPluginId(plugin.id)) summary.textContent = `Hotkey: ${displayHotkey(hotkeys[plugin.id])}`;
+        else if (plugin.id === "begone-mouse") summary.textContent = `Idle delay: ${formatIdleDelay(begoneMouse.idleMs)}`;
+        else if (plugin.id === "quick-seek") summary.textContent = `Back ${formatSeekSeconds(quickSeek.backwardSeconds)} · Forward ${formatSeekSeconds(quickSeek.forwardSeconds)}`;
+        else if (plugin.id === "easy-sound-output") summary.textContent = easySound.preferredDevice?.description ?? "Preferred device: System default";
+        else if (plugin.id === "qol-things") summary.textContent = qol.rememberVolume ? `Remember volume: On${qol.savedVolume === null ? "" : ` · ${Number(qol.savedVolume.toFixed(1))}%`}` : "Remember volume: Off";
+        else summary.textContent = `Mask ${noSpoilers.titleMaskPercent}% · Max skip ${Number(noSpoilers.maxSkipMinutes.toFixed(2))} min`;
       };
       renderSummary();
       settings.addEventListener("click", () => {
@@ -213,8 +236,14 @@ function renderPlugins(
           openHotkeySettings(runtime, plugin, hotkeys, reviewSettings, renderSummary);
         } else if (plugin.id === "begone-mouse") {
           openBegoneMouseSettings(runtime, plugin, begoneMouse, renderSummary);
-        } else {
+        } else if (plugin.id === "quick-seek") {
           openQuickSeekSettings(runtime, plugin, quickSeek, renderSummary);
+        } else if (plugin.id === "easy-sound-output") {
+          openEasySoundSettings(runtime, plugin, easySound, renderSummary);
+        } else if (plugin.id === "qol-things") {
+          openQolSettings(runtime, plugin, qol, renderSummary);
+        } else {
+          openNoSpoilersSettings(runtime, plugin, noSpoilers, renderSummary);
         }
       });
       actions.append(settings, summary);
@@ -492,8 +521,156 @@ function openQuickSeekSettings(
   });
 }
 
+function openEasySoundSettings(
+  runtime: JStremioRuntime,
+  plugin: Plugin,
+  settings: EasySoundOutputSettings,
+  saved: () => void,
+) {
+  runtime.ui.openDialog((container, close) => {
+    addStyles(container, styles);
+    const dialog = document.createElement("section");
+    dialog.className = "plugin-settings-dialog";
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+    dialog.innerHTML = `<h2>${plugin.name} settings</h2><p class="settings-description">Right-click the player volume button to switch devices. A preferred device is selected automatically whenever playback starts.</p><label class="hotkey-field">Preferred audio output<input class="hotkey-input" type="text" readonly></label><div class="settings-status" role="status" aria-live="polite"></div><div class="settings-actions"><button type="button" class="button" data-action="clear">Clear preferred device</button><span></span><button type="button" class="button" data-action="cancel">Cancel</button><button type="button" class="button primary" data-action="save">Save</button></div>`;
+    const input = dialog.querySelector<HTMLInputElement>("input")!;
+    const status = dialog.querySelector<HTMLElement>(".settings-status")!;
+    let candidate = settings.preferredDevice;
+    const render = () => {
+      input.value = candidate?.description ?? "System default / last selected";
+      status.textContent = candidate ? candidate.name : "No preferred device is saved.";
+    };
+    dialog.querySelector('[data-action="clear"]')?.addEventListener("click", () => {
+      candidate = null;
+      render();
+    });
+    dialog.querySelector('[data-action="cancel"]')?.addEventListener("click", close);
+    dialog.querySelector<HTMLButtonElement>('[data-action="save"]')!.addEventListener("click", (event) => {
+      const button = event.currentTarget as HTMLButtonElement;
+      button.disabled = true;
+      void runtime.bridge.request("plugins", "setEasySoundOutput", { preferredDevice: candidate }).then(() => {
+        settings.preferredDevice = candidate;
+        window.dispatchEvent(new CustomEvent(EASY_SOUND_SETTINGS_CHANGED, { detail: { ...settings } }));
+        saved();
+        close();
+      }).catch((error) => {
+        button.disabled = false;
+        status.textContent = error instanceof Error ? error.message : "The preferred device could not be saved.";
+      });
+    });
+    render();
+    container.append(dialog);
+  });
+}
+
+function openQolSettings(
+  runtime: JStremioRuntime,
+  plugin: Plugin,
+  settings: QolThingsSettings,
+  saved: () => void,
+) {
+  runtime.ui.openDialog((container, close) => {
+    addStyles(container, styles);
+    const dialog = document.createElement("section");
+    dialog.className = "plugin-settings-dialog";
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+    dialog.innerHTML = `<h2>${plugin.name} settings</h2><p class="settings-description">Quality-of-life features are stored privately on this computer.</p><label class="settings-toggle"><input type="checkbox" data-remember-volume><span><strong>Remember player volume</strong><small>Restore the last volume after closing, restarting, or reopening JStremio.</small></span></label><p class="hotkey-help" data-saved-volume></p><div class="settings-status" role="status" aria-live="polite"></div><div class="settings-actions"><span></span><span></span><button type="button" class="button" data-action="cancel">Cancel</button><button type="button" class="button primary" data-action="save">Save</button></div>`;
+    const toggle = dialog.querySelector<HTMLInputElement>('[data-remember-volume]')!;
+    const status = dialog.querySelector<HTMLElement>(".settings-status")!;
+    toggle.checked = settings.rememberVolume;
+    dialog.querySelector<HTMLElement>('[data-saved-volume]')!.textContent = settings.savedVolume === null
+      ? "No volume has been saved yet."
+      : `Currently saved: ${Number(settings.savedVolume.toFixed(1))}%`;
+    dialog.querySelector('[data-action="cancel"]')?.addEventListener("click", close);
+    dialog.querySelector<HTMLButtonElement>('[data-action="save"]')!.addEventListener("click", (event) => {
+      const button = event.currentTarget as HTMLButtonElement;
+      button.disabled = true;
+      const candidate = { rememberVolume: toggle.checked, savedVolume: settings.savedVolume };
+      void runtime.bridge.request("plugins", "setQolThings", candidate).then(() => {
+        Object.assign(settings, candidate);
+        window.dispatchEvent(new CustomEvent(QOL_SETTINGS_CHANGED, { detail: { ...settings } }));
+        saved();
+        close();
+      }).catch((error) => {
+        button.disabled = false;
+        status.textContent = error instanceof Error ? error.message : "The volume preference could not be saved.";
+      });
+    });
+    container.append(dialog);
+  });
+}
+
+function openNoSpoilersSettings(
+  runtime: JStremioRuntime,
+  plugin: Plugin,
+  settings: NoSpoilersSettings,
+  saved: () => void,
+) {
+  runtime.ui.openDialog((container, close) => {
+    addStyles(container, styles);
+    const dialog = document.createElement("section");
+    dialog.className = "plugin-settings-dialog";
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+    dialog.innerHTML = `<h2>${plugin.name} settings</h2><p class="settings-description">Choose which details to conceal and how far the player may jump forward without confirmation.</p><label class="settings-toggle"><input type="checkbox" data-key="blurSummary"><span><strong>Blur summaries</strong><small>Hide plot descriptions on detail pages.</small></span></label><label class="settings-toggle"><input type="checkbox" data-key="blurArtwork"><span><strong>Blur thumbnails and backgrounds</strong><small>Conceal episode and title artwork.</small></span></label><label class="hotkey-field">Title characters hidden (%)<input class="hotkey-input delay-input" data-key="titleMaskPercent" type="number" min="0" max="100" step="1"></label><label class="settings-toggle"><input type="checkbox" data-key="guardSeeks"><span><strong>Confirm large forward skips</strong><small>Block accidental jumps while still providing an explicit Skip button.</small></span></label><label class="hotkey-field">Maximum forward skip (minutes)<input class="hotkey-input delay-input" data-key="maxSkipMinutes" type="number" min="0.05" max="1440" step="any"></label><div class="settings-status" role="status" aria-live="polite"></div><div class="settings-actions"><span></span><span></span><button type="button" class="button" data-action="cancel">Cancel</button><button type="button" class="button primary" data-action="save">Save</button></div>`;
+    const blurSummary = dialog.querySelector<HTMLInputElement>('[data-key="blurSummary"]')!;
+    const blurArtwork = dialog.querySelector<HTMLInputElement>('[data-key="blurArtwork"]')!;
+    const titleMaskPercent = dialog.querySelector<HTMLInputElement>('[data-key="titleMaskPercent"]')!;
+    const guardSeeks = dialog.querySelector<HTMLInputElement>('[data-key="guardSeeks"]')!;
+    const maxSkipMinutes = dialog.querySelector<HTMLInputElement>('[data-key="maxSkipMinutes"]')!;
+    const status = dialog.querySelector<HTMLElement>(".settings-status")!;
+    const saveButton = dialog.querySelector<HTMLButtonElement>('[data-action="save"]')!;
+    blurSummary.checked = settings.blurSummary;
+    blurArtwork.checked = settings.blurArtwork;
+    titleMaskPercent.value = String(settings.titleMaskPercent);
+    guardSeeks.checked = settings.guardSeeks;
+    maxSkipMinutes.value = String(settings.maxSkipMinutes);
+    const values = () => ({
+      blurSummary: blurSummary.checked,
+      blurArtwork: blurArtwork.checked,
+      titleMaskPercent: Number(titleMaskPercent.value),
+      guardSeeks: guardSeeks.checked,
+      maxSkipMinutes: Number(maxSkipMinutes.value),
+    });
+    const validate = () => {
+      const candidate = values();
+      const valid = Number.isFinite(candidate.titleMaskPercent) && candidate.titleMaskPercent >= 0 && candidate.titleMaskPercent <= 100
+        && Number.isFinite(candidate.maxSkipMinutes) && candidate.maxSkipMinutes >= 0.05 && candidate.maxSkipMinutes <= 1_440;
+      saveButton.disabled = !valid;
+      status.textContent = valid ? "" : "Use 0–100% for title masking and 0.05–1440 minutes for the seek limit.";
+      return valid;
+    };
+    titleMaskPercent.addEventListener("input", validate);
+    maxSkipMinutes.addEventListener("input", validate);
+    dialog.querySelector('[data-action="cancel"]')?.addEventListener("click", close);
+    saveButton.addEventListener("click", () => {
+      if (!validate()) return;
+      const candidate = values();
+      saveButton.disabled = true;
+      void runtime.bridge.request("plugins", "setNoSpoilers", candidate).then(() => {
+        Object.assign(settings, candidate);
+        window.dispatchEvent(new CustomEvent(NO_SPOILERS_SETTINGS_CHANGED, { detail: { ...settings } }));
+        saved();
+        close();
+      }).catch((error) => {
+        saveButton.disabled = false;
+        status.textContent = error instanceof Error ? error.message : "No Spoilers settings could not be saved.";
+      });
+    });
+    validate();
+    container.append(dialog);
+  });
+}
+
 function hasPluginSettings(id: string): boolean {
-  return isHotkeyPluginId(id) || id === "begone-mouse" || id === "quick-seek";
+  return isHotkeyPluginId(id)
+    || id === "begone-mouse"
+    || id === "quick-seek"
+    || id === "easy-sound-output"
+    || id === "qol-things"
+    || id === "no-spoilers";
 }
 
 function isHotkeyPluginId(id: string): id is ConfigurablePluginId {
@@ -552,5 +729,44 @@ function asReviewSettings(value: unknown): ReviewSettings {
     autoOpenAtEnd: !value || typeof value !== "object"
       ? true
       : (value as { autoOpenAtEnd?: unknown }).autoOpenAtEnd !== false,
+  };
+}
+
+function asEasySoundOutputSettings(value: unknown): EasySoundOutputSettings {
+  const preferred = value && typeof value === "object"
+    ? (value as { preferredDevice?: unknown }).preferredDevice
+    : null;
+  if (!preferred || typeof preferred !== "object") return { preferredDevice: null };
+  const source = preferred as { name?: unknown; description?: unknown };
+  return typeof source.name === "string" && typeof source.description === "string"
+    ? { preferredDevice: { name: source.name, description: source.description } }
+    : { preferredDevice: null };
+}
+
+function asQolThingsSettings(value: unknown): QolThingsSettings {
+  const source = value && typeof value === "object"
+    ? value as { rememberVolume?: unknown; savedVolume?: unknown }
+    : {};
+  const volume = Number(source.savedVolume);
+  return {
+    rememberVolume: source.rememberVolume !== false,
+    savedVolume: source.savedVolume !== null && Number.isFinite(volume) && volume >= 0 && volume <= 130
+      ? volume
+      : null,
+  };
+}
+
+function asNoSpoilersSettings(value: unknown): NoSpoilersSettings {
+  const source = value && typeof value === "object"
+    ? value as Partial<Record<keyof NoSpoilersSettings, unknown>>
+    : {};
+  const mask = Number(source.titleMaskPercent);
+  const minutes = Number(source.maxSkipMinutes);
+  return {
+    blurSummary: source.blurSummary !== false,
+    blurArtwork: source.blurArtwork !== false,
+    titleMaskPercent: Number.isFinite(mask) && mask >= 0 && mask <= 100 ? mask : 70,
+    guardSeeks: source.guardSeeks !== false,
+    maxSkipMinutes: Number.isFinite(minutes) && minutes >= 0.05 && minutes <= 1_440 ? minutes : 10,
   };
 }

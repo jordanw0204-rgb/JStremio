@@ -1,6 +1,6 @@
 use crate::stremio_app::stremio_player::communication::{
     BoolProp, CmdVal, InMsg, InMsgArgs, InMsgFn, MpvCmd, PlayerEnded, PlayerProprChange, PropKey,
-    PropVal,
+    PropVal, StrProp,
 };
 use libmpv2::{events::PropertyData, mpv_end_file_reason};
 
@@ -54,6 +54,17 @@ fn propr_change_tokens() {
         "metadata",
         PropertyData::Str(r#""ok""#),
         Token::Str("ok"),
+    );
+    assert_eq!(
+        serde_json::to_value(PlayerProprChange::from_json_value(
+            "audio-device-list",
+            serde_json::json!([{"name": "auto", "description": "Autoselect device"}]),
+        ))
+        .unwrap(),
+        serde_json::json!({
+            "name": "audio-device-list",
+            "data": [{"name": "auto", "description": "Autoselect device"}]
+        })
     );
 }
 
@@ -176,6 +187,43 @@ fn set_gpu_video_processing_tokens() {
             },
             Token::Str("mpv-set-gpu-video-processing"),
             Token::Bool(true),
+            Token::TupleStructEnd,
+        ],
+    );
+}
+
+#[test]
+fn audio_device_property_tokens() {
+    assert_tokens(
+        &InMsg(InMsgFn::MpvGetAudioDeviceList, InMsgArgs::Flag(true)),
+        &[
+            Token::TupleStruct {
+                name: "InMsg",
+                len: 2,
+            },
+            Token::Str("mpv-get-audio-device-list"),
+            Token::Bool(true),
+            Token::TupleStructEnd,
+        ],
+    );
+    assert_tokens(
+        &InMsg(
+            InMsgFn::MpvSetProp,
+            InMsgArgs::StProp(
+                PropKey::Str(StrProp::AudioDevice),
+                PropVal::Str("wasapi/{device-id}".to_string()),
+            ),
+        ),
+        &[
+            Token::TupleStruct {
+                name: "InMsg",
+                len: 2,
+            },
+            Token::Str("mpv-set-prop"),
+            Token::Tuple { len: 2 },
+            Token::Str("audio-device"),
+            Token::Str("wasapi/{device-id}"),
+            Token::TupleEnd,
             Token::TupleStructEnd,
         ],
     );

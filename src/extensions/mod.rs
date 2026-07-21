@@ -2,7 +2,7 @@ mod manifest;
 mod settings;
 
 pub use manifest::{ExtensionLoader, ManifestError, PluginDescriptor};
-pub use settings::PluginSettingsStore;
+pub use settings::{PluginSettingsStore, PreferredAudioDevice};
 
 use crate::bridge::{BridgeResponse, NativeBridge};
 use crate::themes::ThemeStore;

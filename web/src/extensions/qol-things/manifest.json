@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "qol-things",
+  "name": "QOL Things",
+  "version": "1.0.0",
+  "entry": "index.js",
+  "styles": "styles.css",
+  "enabledByDefault": true,
+  "loadOrder": 150,
+  "description": "Small quality-of-life improvements, beginning with persistent player volume.",
+  "author": "JStremio",
+  "core": false
+}

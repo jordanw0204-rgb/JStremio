@@ -20,6 +20,13 @@ export type PlaybackSnapshot = {
   updatedAt: number;
 };
 
+export type PlayerPropertyName = "volume" | "audio-device" | "audio-device-list";
+export type PlayerSettablePropertyName = "volume" | "audio-device";
+export type PlayerSeekGuard = (
+  positionMs: number,
+  snapshot: PlaybackSnapshot,
+) => boolean | Promise<boolean>;
+
 export type ExtensionManifest = {
   schemaVersion: 1;
   id: string;
@@ -56,8 +63,12 @@ export type JStremioRuntime = {
   player: Readonly<{
     getSnapshot(): PlaybackSnapshot | null;
     subscribe(listener: (snapshot: PlaybackSnapshot | null) => void): () => void;
-    seekTo(positionMs: number): Promise<void>;
+    seekTo(positionMs: number, options?: { bypassGuards?: boolean }): Promise<void>;
     setPaused(paused: boolean): Promise<void>;
+    observeProperty(name: PlayerPropertyName, listener: (value: unknown) => void): () => void;
+    refreshProperty(name: PlayerPropertyName): void;
+    setProperty(name: PlayerSettablePropertyName, value: number | string): Promise<void>;
+    addSeekGuard(guard: PlayerSeekGuard): () => void;
     captureFrame(): Promise<string>;
   }>;
   plugins: Readonly<{

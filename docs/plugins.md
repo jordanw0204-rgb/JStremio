@@ -28,6 +28,12 @@ BegoneMouse exposes its own **Settings** button. Enter the number of millisecond
 
 Quick Seek exposes independent **Rewind seconds** and **Fast-forward seconds** settings from 0.05 through 3600 seconds. Changes apply immediately to the large video controls and the compact controls mounted on either side of Stremio's Play button. The line icons and hover state follow the active theme. Holding any seek control repeats the configured seek and accelerates in multiples of that amount until release. Every seek remains clamped to the beginning or known end of the video.
 
+Easy Sound Output opens a themed device menu when you right-click the official player volume button. Left-click a listed device to switch immediately; right-click it and choose **Always use this Device to play sound** to make it the preferred playback output. Its Plugins settings show the saved device and can clear it.
+
+QOL Things enables **Remember player volume** by default. The last observed volume is stored locally and restored after JStremio closes, reopens, or restarts. Disable the setting to leave future sessions at the player's own value.
+
+No Spoilers can independently blur plot summaries and artwork, replace a configurable percentage of title characters with `*`, and confirm forward timeline jumps larger than the configured number of minutes. A blocked jump never changes playback until **Skip** is chosen in the themed confirmation dialog.
+
 Themes is a protected built-in surface rather than a downloadable theme plugin. Its fixed native operations persist only the validated palette described in [Themes](themes.md). Use the Themes sidebar button to customize the app; do not install custom JavaScript merely to change basic colors.
 
 ## Plugin structure

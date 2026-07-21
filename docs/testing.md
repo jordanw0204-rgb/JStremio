@@ -10,6 +10,14 @@
 
 `check.ps1` runs Rust formatting/clippy/tests, TypeScript typecheck/unit tests, deterministic bundles, Playwright fixtures in installed Edge, and an optimized x64 compile.
 
+## Automated evidence from 2026-07-21 (v1.9.0)
+
+The v1.9.0 player quality-of-life plugin release passed on Windows:
+
+- The locked release gate passed 61 native tests, 53 browser unit tests, and 15 Playwright end-to-end tests, plus clippy, formatting, TypeScript, optimized app, updater, portable, and installer builds.
+- Integrated browser coverage proves themed device selection and preferred-device clearing, restart-persistent volume, reversible summary/artwork/title concealment, timeline interception, blocked large seeks, and the explicit Skip override without regressing existing player plugins.
+- A real WebView2/native-MPV smoke test played a local audio/video fixture, decoded MPV's structured `audio-device-list`, rendered all five enabled outputs reported by the machine, and verified the menu used the active Crimson surface, text, accent, and border colors.
+
 ## Automated evidence from 2026-07-21 (v1.8.0)
 
 The v1.8.0 interactive Quick Seek, automatic Review prompt, and themed title-bar release passed on Windows:

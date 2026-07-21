@@ -40,6 +40,9 @@ test.beforeEach(async ({ page }) => {
       { id: "last-played", name: "LastPlayed", version: "1.0.0", description: "Exact stream resume", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
       { id: "begone-mouse", name: "BegoneMouse", version: "1.0.0", description: "Configurable player UI idle delay", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
       { id: "quick-seek", name: "Quick Seek", version: "1.3.0", description: "Configurable player seek controls", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
+      { id: "easy-sound-output", name: "Easy Sound Output", version: "1.0.0", description: "Audio output switcher", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
+      { id: "qol-things", name: "QOL Things", version: "1.0.0", description: "Quality-of-life features", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
+      { id: "no-spoilers", name: "No Spoilers", version: "1.0.0", description: "Spoiler protection", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
     ];
     const hotkeys: Record<string, string> = {};
     const shortcutKeys: string[] = [];
@@ -51,6 +54,9 @@ test.beforeEach(async ({ page }) => {
     let begoneMouseIdleMs = 1_000;
     let reviewAutoOpenAtEnd = true;
     const quickSeek = { backwardSeconds: 5, forwardSeconds: 5 };
+    const easySound = { preferredDevice: null as null | { name: string; description: string } };
+    const qolThings = { rememberVolume: true, savedVolume: null as number | null };
+    const noSpoilers = { blurSummary: true, blurArtwork: true, titleMaskPercent: 70, guardSeeks: true, maxSkipMinutes: 10 };
     const state = {
       selected: { streamRequest: { path: { id: "tt123" } }, stream: { name: "Fixture 1080p", description: "MediaFusion fixture", infoHash: "ABC123", fileIdx: 2, deepLinks: { player: "#/player/stream/exact-fixture" } } },
       addon: { manifest: { name: "MediaFusion" } },
@@ -84,6 +90,7 @@ test.beforeEach(async ({ page }) => {
         queueMicrotask(() => emit({ args: ["mpv-prop-change", { name, data: value }] }));
         return;
       }
+      if (method === "mpv-observe-prop") return;
       if (method === "mpv-command") {
         commands.push(params as unknown[]);
         return;
@@ -131,6 +138,22 @@ test.beforeEach(async ({ page }) => {
           quickSeek.backwardSeconds = Number(payload.backwardSeconds);
           quickSeek.forwardSeconds = Number(payload.forwardSeconds);
           return respond(method, request.id, { ...quickSeek, restartRequired: false });
+        }
+        if (operation === "getEasySoundOutput") return respond(method, request.id, easySound);
+        if (operation === "setEasySoundOutput") {
+          easySound.preferredDevice = (payload.preferredDevice as typeof easySound.preferredDevice) ?? null;
+          return respond(method, request.id, { ...easySound, restartRequired: false });
+        }
+        if (operation === "getQolThings") return respond(method, request.id, qolThings);
+        if (operation === "setQolThings") {
+          qolThings.rememberVolume = payload.rememberVolume !== false;
+          qolThings.savedVolume = typeof payload.savedVolume === "number" ? payload.savedVolume : null;
+          return respond(method, request.id, { ...qolThings, restartRequired: false });
+        }
+        if (operation === "getNoSpoilers") return respond(method, request.id, noSpoilers);
+        if (operation === "setNoSpoilers") {
+          Object.assign(noSpoilers, payload);
+          return respond(method, request.id, { ...noSpoilers, restartRequired: false });
         }
         if (operation === "setHotkey") {
           if (typeof payload.hotkey === "string") hotkeys[String(payload.id)] = payload.hotkey;
@@ -233,6 +256,9 @@ test.beforeEach(async ({ page }) => {
         getBegoneMouseIdleMs: () => begoneMouseIdleMs,
         getReviewAutoOpenAtEnd: () => reviewAutoOpenAtEnd,
         quickSeek,
+        easySound,
+        qolThings,
+        noSpoilers,
         emitMpv: (name: string, data: unknown) => emit({ args: ["mpv-prop-change", { name, data }] }),
         emitShell: (name: string, data: unknown) => emit(JSON.stringify({ id: 0, type: 1, args: [name, data] })),
       },
@@ -249,6 +275,59 @@ test.beforeEach(async ({ page }) => {
   await page.addScriptTag({ path: resolve(built, "last-played", "index.js") });
   await page.addScriptTag({ path: resolve(built, "begone-mouse", "index.js") });
   await page.addScriptTag({ path: resolve(built, "quick-seek", "index.js") });
+  await page.addScriptTag({ path: resolve(built, "easy-sound-output", "index.js") });
+  await page.addScriptTag({ path: resolve(built, "qol-things", "index.js") });
+  await page.addScriptTag({ path: resolve(built, "no-spoilers", "index.js") });
+});
+
+test("switches audio devices, remembers volume, conceals spoilers, and confirms large seeks", async ({ page }) => {
+  await page.evaluate(() => {
+    const fixture = (window as any).__fixture;
+    fixture.emitMpv("audio-device-list", [
+      { name: "auto", description: "System default" },
+      { name: "wasapi/{headphones}", description: "Studio headphones" },
+    ]);
+    fixture.emitMpv("audio-device", "auto");
+  });
+  const sound = page.locator('.control-bar-button_fixture[title*="Right-click"]');
+  await expect(sound).toHaveCount(1);
+  await sound.evaluate((element) => element.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true })));
+  await expect(page.getByRole("menu", { name: "Audio output devices" })).toBeVisible();
+  await page.getByRole("menuitemradio", { name: "Studio headphones" }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).__fixture.commands.some((command: unknown[]) => command[0] === "audio-device" && command[1] === "wasapi/{headphones}"))).toBe(true);
+
+  await sound.evaluate((element) => element.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true })));
+  await page.getByRole("menuitemradio", { name: "Studio headphones" }).evaluate((element) => element.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true })));
+  await page.getByRole("menuitem", { name: "Always use this Device to play sound" }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).__fixture.easySound.preferredDevice?.description)).toBe("Studio headphones");
+  await page.locator('[data-jstremio-testid="plugin-manager-navigation"]').click();
+  await page.getByRole("button", { name: "Settings for Easy Sound Output" }).click();
+  await expect(page.getByLabel("Preferred audio output")).toHaveValue("Studio headphones");
+  await page.getByRole("button", { name: "Clear preferred device" }).click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).__fixture.easySound.preferredDevice)).toBe(null);
+  await page.evaluate(() => window.JStremio?.ui.closePage());
+
+  await page.evaluate(() => (window as any).__fixture.emitMpv("volume", 43.5));
+  await expect.poll(() => page.evaluate(() => (window as any).__fixture.qolThings.savedVolume), { timeout: 2_000 }).toBe(43.5);
+
+  await page.evaluate(() => {
+    const fixture = (window as any).__fixture;
+    fixture.noSpoilers.maxSkipMinutes = 1;
+    window.dispatchEvent(new CustomEvent("jstremio-no-spoilers-settings-changed", { detail: { ...fixture.noSpoilers } }));
+    document.body.insertAdjacentHTML("afterbegin", '<img class="background-image_fixture" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="><div class="description-container_fixture">Summary A major ending is revealed here.</div><div class="player-title_fixture" style="position:fixed;top:10px;left:100px">Fixture Movie</div>');
+    fixture.emitMpv("time-pos", 10);
+    fixture.emitMpv("duration", 1_000);
+  });
+  await expect(page.locator(".description-container_fixture")).toHaveClass(/no-spoilers-blur/);
+  await expect(page.locator(".background-image_fixture")).toHaveClass(/no-spoilers-blur/);
+  await expect(page.locator(".player-title_fixture")).not.toHaveText("Fixture Movie");
+
+  const seek = page.locator(".slider-container_fixture");
+  await seek.click({ position: { x: 700, y: 20 } });
+  await expect(page.getByRole("heading", { name: "Large skip blocked" })).toBeVisible();
+  await page.getByRole("button", { name: "Skip", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).__fixture.commands.some((command: unknown[]) => command[0] === "time-pos" && Number(command[1]) > 60))).toBe(true);
 });
 
 test("offers Crimson and persists reusable custom theme presets", async ({ page }) => {
@@ -359,7 +438,7 @@ test("mounts each extension once and remounts after upstream replacement", async
   await pluginNavigation.click();
   await expect(page.locator('[data-jstremio-testid="page"]')).toHaveAttribute("data-jstremio-page", "plugin-manager");
   await expect(page.getByRole("button", { name: "Close Plugins" })).toHaveCount(0);
-  await expect(page.locator(".plugin-card")).toHaveCount(6);
+  await expect(page.locator(".plugin-card")).toHaveCount(9);
   await expect(page.locator(".plugin-card").first()).toHaveCSS("background-color", "rgb(36, 10, 13)");
   await expect(page.locator(".plugin-card").first()).toHaveCSS("color", "rgb(252, 235, 237)");
   await expect(page.getByLabel("Disable Plugins")).toBeDisabled();
@@ -674,9 +753,12 @@ test("opens Reviews with Stremio's end-of-episode prompt and honors its default-
 
 test("records persistent plugin hotkeys and opens the matching player dialogs", async ({ page }) => {
   await page.locator('[data-jstremio-testid="plugin-manager-navigation"]').click();
-  await expect(page.getByRole("button", { name: /^Settings for / })).toHaveCount(4);
+  await expect(page.getByRole("button", { name: /^Settings for / })).toHaveCount(7);
   await expect(page.locator(".plugin-card").filter({ hasText: "LastPlayed" }).getByRole("button", { name: /Settings/ })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Settings for Quick Seek" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Settings for Easy Sound Output" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Settings for QOL Things" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Settings for No Spoilers" })).toBeVisible();
 
   await page.getByRole("button", { name: "Settings for BegoneMouse" }).click();
   await page.getByLabel("Idle delay (milliseconds)").fill("0.05");

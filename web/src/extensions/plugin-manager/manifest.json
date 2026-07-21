@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "plugin-manager",
   "name": "Plugins",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "entry": "index.js",
   "styles": "styles.css",
   "enabledByDefault": true,

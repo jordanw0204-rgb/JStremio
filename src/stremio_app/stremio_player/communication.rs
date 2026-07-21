@@ -39,6 +39,12 @@ impl PlayerProprChange {
             data: Self::value_from_format(value, is_json),
         }
     }
+    pub fn from_json_value(name: impl Into<String>, data: serde_json::Value) -> Self {
+        Self {
+            name: name.into(),
+            data,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq)]
@@ -145,6 +151,7 @@ pub enum InMsgFn {
     MpvSetProp,
     MpvCommand,
     MpvObserveProp,
+    MpvGetAudioDeviceList,
     MpvSetGpuVideoProcessing,
     MpvRecoverPlayback,
 }
@@ -194,6 +201,7 @@ stringable!(FpProp);
 #[serde(try_from = "String", into = "String")]
 #[display(style = "kebab-case")]
 pub enum StrProp {
+    AudioDevice,
     FfmpegVersion,
     Hwdec,
     InputDefaultBindings,

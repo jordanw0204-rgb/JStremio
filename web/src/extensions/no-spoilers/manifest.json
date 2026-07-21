@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "no-spoilers",
+  "name": "No Spoilers",
+  "version": "1.0.0",
+  "entry": "index.js",
+  "styles": "styles.css",
+  "enabledByDefault": true,
+  "loadOrder": 160,
+  "description": "Hides summaries and artwork, masks titles, and guards against accidental large forward seeks.",
+  "author": "JStremio",
+  "core": false
+}

@@ -2,6 +2,14 @@
 
 JStremio follows Semantic Versioning. Stable releases are tagged `vMAJOR.MINOR.PATCH` and published through GitHub Releases.
 
+## 1.9.0 - 2026-07-21
+
+- Add the Easy Sound Output built-in plugin with a themed right-click menu on the player volume control, live MPV audio-device switching, a per-device preferred-output action, and persistent settings with a clear option.
+- Add the QOL Things built-in plugin with default-on, restart-persistent player volume restoration.
+- Add the No Spoilers built-in plugin with independently configurable summary and artwork blur, percentage-based title masking, and a maximum forward-skip guard with an explicit themed Skip override.
+- Extend the narrow player runtime with validated volume/audio-device properties and composable seek guards, while keeping arbitrary MPV properties and commands unavailable.
+- Add native persistence/property-contract coverage and an integrated browser regression spanning device switching, volume persistence, spoiler concealment, timeline interception, and settings management.
+
 ## 1.8.0 - 2026-07-21
 
 - Make Quick Seek's compact bottom-bar controls fully interactive by removing Stremio's copied disabled state, preserving click and accelerating hold gestures across React control-bar remounts, and retaining themed hover, active, and hold feedback.

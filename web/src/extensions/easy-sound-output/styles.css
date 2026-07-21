@@ -1,0 +1,9 @@
+.easy-sound-menu{position:fixed;z-index:2147483642;display:grid;min-width:300px;max-width:min(430px,calc(100vw - 24px));max-height:min(440px,70vh);overflow:auto;padding:8px;border:1px solid color-mix(in srgb,var(--jstremio-accent-color,#7b5bf5) 38%,transparent);border-radius:14px;background:color-mix(in srgb,var(--jstremio-surface-color,#130e2d) 96%,transparent);color:var(--jstremio-text-color,#fff);box-shadow:0 18px 55px rgba(0,0,0,.48);backdrop-filter:blur(18px)}
+.easy-sound-heading{padding:8px 10px 10px;font-weight:750;font-size:14px;color:color-mix(in srgb,var(--jstremio-text-color,#fff) 76%,transparent)}
+.easy-sound-device,.easy-sound-always{display:grid;grid-template-columns:24px minmax(0,1fr);gap:8px;align-items:center;width:100%;padding:11px 12px;border:0;border-radius:10px;background:transparent;color:inherit;text-align:left;font:inherit;cursor:pointer}
+.easy-sound-device:hover,.easy-sound-device:focus-visible,.easy-sound-always:hover,.easy-sound-always:focus-visible{outline:none;background:color-mix(in srgb,var(--jstremio-accent-color,#7b5bf5) 20%,transparent)}
+.easy-sound-device[data-active=true]{background:color-mix(in srgb,var(--jstremio-accent-color,#7b5bf5) 28%,transparent);color:var(--jstremio-text-color,#fff)}
+.easy-sound-check{font-size:18px;color:var(--jstremio-accent-color,#7b5bf5)}
+.easy-sound-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.easy-sound-empty{padding:16px;color:color-mix(in srgb,var(--jstremio-text-color,#fff) 70%,transparent)}
+.easy-sound-submenu{min-width:340px}.easy-sound-always{grid-template-columns:1fr;white-space:normal}
+@media(max-width:560px){.easy-sound-menu{min-width:min(300px,calc(100vw - 24px))}}
