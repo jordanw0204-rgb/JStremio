@@ -42,8 +42,25 @@ export function createPlayerAdapter(getTarget: TargetProvider, bridgeRequest?: B
   let lastProgressAt = Date.now();
   let lastRecoveryAt = Number.NEGATIVE_INFINITY;
   let recoveredSinceProgress = false;
+  let activeDirectPointerId: number | null = null;
   const listeners = new Set<Listener>();
   const channel = window.chrome?.webview;
+
+  const beginDirectPointerAction = (event: PointerEvent) => {
+    if (event.isTrusted && event.isPrimary && event.button === 0) activeDirectPointerId = event.pointerId;
+  };
+  const endDirectPointerAction = (event?: PointerEvent) => {
+    if (!event || event.pointerId === activeDirectPointerId) activeDirectPointerId = null;
+  };
+  const endDirectPointerActionWhenHidden = () => {
+    if (document.visibilityState === "hidden") endDirectPointerAction();
+  };
+  const endDirectPointerActionOnBlur = () => endDirectPointerAction();
+  window.addEventListener("pointerdown", beginDirectPointerAction, true);
+  window.addEventListener("pointerup", endDirectPointerAction, true);
+  window.addEventListener("pointercancel", endDirectPointerAction, true);
+  window.addEventListener("blur", endDirectPointerActionOnBlur);
+  document.addEventListener("visibilitychange", endDirectPointerActionWhenHidden);
 
   const notify = () => {
     if (notifyScheduled) return;
@@ -135,7 +152,9 @@ export function createPlayerAdapter(getTarget: TargetProvider, bridgeRequest?: B
 
   const seekTo = async (positionMs: number) => {
     const activation = (navigator as Navigator & { userActivation?: { isActive: boolean } }).userActivation;
-    if (activation && !activation.isActive) throw new Error("Seeking requires a direct user action.");
+    if (activation && !activation.isActive && activeDirectPointerId === null) {
+      throw new Error("Seeking requires a direct user action.");
+    }
     const target = await getTarget();
     if (!target || target.key !== mediaKey || !snapshot || !Number.isFinite(positionMs) || positionMs < 0) {
       throw new Error("The active player cannot seek to this note.");
@@ -182,6 +201,11 @@ export function createPlayerAdapter(getTarget: TargetProvider, bridgeRequest?: B
 
   const destroy = () => {
     channel?.removeEventListener("message", onMessage);
+    window.removeEventListener("pointerdown", beginDirectPointerAction, true);
+    window.removeEventListener("pointerup", endDirectPointerAction, true);
+    window.removeEventListener("pointercancel", endDirectPointerAction, true);
+    window.removeEventListener("blur", endDirectPointerActionOnBlur);
+    document.removeEventListener("visibilitychange", endDirectPointerActionWhenHidden);
     window.clearInterval(watchdog);
     listeners.clear();
   };

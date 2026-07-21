@@ -1,0 +1,7 @@
+html[data-jstremio-begone-mouse-hidden] { cursor:none!important; }
+html[data-jstremio-begone-mouse-hidden] [data-jstremio-control="player-dock"],
+html[data-jstremio-begone-mouse-hidden] [data-jstremio-extension="quick-seek"],
+html[data-jstremio-begone-mouse-hidden] [class*="control-bar-container"],
+html[data-jstremio-begone-mouse-hidden] [class*="controlBarContainer"],
+html[data-jstremio-begone-mouse-hidden] [class*="player-header"],
+html[data-jstremio-begone-mouse-hidden] [class*="playerHeader"] { opacity:0!important; pointer-events:none!important; }

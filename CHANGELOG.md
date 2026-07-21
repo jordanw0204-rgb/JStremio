@@ -2,6 +2,12 @@
 
 JStremio follows Semantic Versioning. Stable releases are tagged `vMAJOR.MINOR.PATCH` and published through GitHub Releases.
 
+## 1.7.0 - 2026-07-21
+
+- Add the BegoneMouse built-in plugin with an immediately applied, persistent player-interface idle delay configurable in decimal milliseconds; keep the interface visible over Quick Seek and throughout the bottom player-control region.
+- Add the Quick Seek built-in plugin with theme-aware reference-style line icons over the video and around the official Play control, independently configurable rewind/fast-forward amounts, accelerating press-and-hold, release cancellation, and playback-bound clamping.
+- Add native validation plus unit and browser regression coverage for decimal idle/seek settings, protected pointer regions, bottom-bar remounts, theme integration, upstream overlay timing, exact seeking, and extension remounts.
+
 ## 1.6.0 - 2026-07-20
 
 - Move Plugins, Themes, Local Reviews, and Timestamp Notes into a shared in-shell page surface that keeps Stremio's official sidebar visible and hands every official navigation click back to Stremio.

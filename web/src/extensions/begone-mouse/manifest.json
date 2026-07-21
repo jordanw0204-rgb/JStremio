@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "begone-mouse",
+  "name": "BegoneMouse",
+  "version": "1.1.0",
+  "entry": "index.js",
+  "styles": "styles.css",
+  "enabledByDefault": true,
+  "loadOrder": 120,
+  "description": "Configure the player idle-hide delay while protecting active seek controls and the bottom player region.",
+  "author": "JStremio",
+  "core": false
+}

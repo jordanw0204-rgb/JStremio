@@ -6,6 +6,11 @@ use std::{
 };
 
 const CONFIGURABLE_HOTKEY_PLUGINS: [&str; 2] = ["reviews", "timestamp-notes"];
+pub const DEFAULT_BEGONE_MOUSE_IDLE_MS: f64 = 1_000.0;
+const MAX_BEGONE_MOUSE_IDLE_MS: f64 = 600_000.0;
+pub const DEFAULT_QUICK_SEEK_SECONDS: f64 = 5.0;
+const MIN_QUICK_SEEK_SECONDS: f64 = 0.05;
+const MAX_QUICK_SEEK_SECONDS: f64 = 3_600.0;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -15,6 +20,12 @@ pub struct PluginSettingsDocument {
     pub enabled: HashMap<String, bool>,
     #[serde(default)]
     pub hotkeys: HashMap<String, String>,
+    #[serde(default = "default_begone_mouse_idle_ms")]
+    pub begone_mouse_idle_ms: f64,
+    #[serde(default = "default_quick_seek_seconds")]
+    pub quick_seek_backward_seconds: f64,
+    #[serde(default = "default_quick_seek_seconds")]
+    pub quick_seek_forward_seconds: f64,
 }
 
 impl StoredDocument for PluginSettingsDocument {
@@ -64,6 +75,9 @@ impl StoredDocument for PluginSettingsDocument {
                 "contains conflicting plugin hotkeys",
             ));
         }
+        validate_begone_mouse_idle_ms(self.begone_mouse_idle_ms)?;
+        validate_quick_seek_seconds("backwardSeconds", self.quick_seek_backward_seconds)?;
+        validate_quick_seek_seconds("forwardSeconds", self.quick_seek_forward_seconds)?;
         Ok(())
     }
 }
@@ -75,6 +89,9 @@ impl Default for PluginSettingsDocument {
             revision: 0,
             enabled: HashMap::new(),
             hotkeys: HashMap::new(),
+            begone_mouse_idle_ms: DEFAULT_BEGONE_MOUSE_IDLE_MS,
+            quick_seek_backward_seconds: DEFAULT_QUICK_SEEK_SECONDS,
+            quick_seek_forward_seconds: DEFAULT_QUICK_SEEK_SECONDS,
         }
     }
 }
@@ -123,6 +140,73 @@ impl PluginSettingsStore {
             Ok(document.revision)
         })
     }
+
+    pub fn begone_mouse_idle_ms(&self) -> Result<f64, StorageError> {
+        self.store
+            .read()
+            .map(|document| document.begone_mouse_idle_ms)
+    }
+
+    pub fn set_begone_mouse_idle_ms(&self, idle_ms: f64) -> Result<u64, StorageError> {
+        validate_begone_mouse_idle_ms(idle_ms)?;
+        self.store.mutate(|document| {
+            document.begone_mouse_idle_ms = idle_ms;
+            document.revision = document.revision.saturating_add(1);
+            Ok(document.revision)
+        })
+    }
+
+    pub fn quick_seek_seconds(&self) -> Result<(f64, f64), StorageError> {
+        self.store.read().map(|document| {
+            (
+                document.quick_seek_backward_seconds,
+                document.quick_seek_forward_seconds,
+            )
+        })
+    }
+
+    pub fn set_quick_seek_seconds(
+        &self,
+        backward_seconds: f64,
+        forward_seconds: f64,
+    ) -> Result<u64, StorageError> {
+        validate_quick_seek_seconds("backwardSeconds", backward_seconds)?;
+        validate_quick_seek_seconds("forwardSeconds", forward_seconds)?;
+        self.store.mutate(|document| {
+            document.quick_seek_backward_seconds = backward_seconds;
+            document.quick_seek_forward_seconds = forward_seconds;
+            document.revision = document.revision.saturating_add(1);
+            Ok(document.revision)
+        })
+    }
+}
+
+fn default_begone_mouse_idle_ms() -> f64 {
+    DEFAULT_BEGONE_MOUSE_IDLE_MS
+}
+
+fn default_quick_seek_seconds() -> f64 {
+    DEFAULT_QUICK_SEEK_SECONDS
+}
+
+fn validate_begone_mouse_idle_ms(value: f64) -> Result<(), StorageError> {
+    if !value.is_finite() || !(0.0..=MAX_BEGONE_MOUSE_IDLE_MS).contains(&value) {
+        return Err(StorageError::invalid(
+            "idleMs",
+            "must be a finite number from 0 through 600000 milliseconds",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_quick_seek_seconds(field: &'static str, value: f64) -> Result<(), StorageError> {
+    if !value.is_finite() || !(MIN_QUICK_SEEK_SECONDS..=MAX_QUICK_SEEK_SECONDS).contains(&value) {
+        return Err(StorageError::invalid(
+            field,
+            "must be a finite number from 0.05 through 3600 seconds",
+        ));
+    }
+    Ok(())
 }
 
 fn valid_hotkey(value: &str) -> bool {
@@ -216,7 +300,7 @@ mod tests {
     }
 
     #[test]
-    fn old_plugin_documents_gain_persisted_hotkeys_without_a_migration() {
+    fn old_plugin_documents_gain_new_settings_without_a_migration() {
         let directory = tempdir().unwrap();
         fs::write(
             directory.path().join("plugins.json"),
@@ -225,6 +309,8 @@ mod tests {
         .unwrap();
         let store = PluginSettingsStore::new(directory.path());
         assert!(store.hotkeys().unwrap().is_empty());
+        assert_eq!(store.begone_mouse_idle_ms().unwrap(), 1_000.0);
+        assert_eq!(store.quick_seek_seconds().unwrap(), (5.0, 5.0));
         store
             .set_hotkey("reviews", Some("Ctrl+Shift+KeyR".into()))
             .unwrap();
@@ -256,5 +342,38 @@ mod tests {
             .is_err());
         store.set_hotkey("reviews", None).unwrap();
         assert!(store.hotkeys().unwrap().is_empty());
+    }
+
+    #[test]
+    fn begone_mouse_delay_accepts_decimal_milliseconds_and_rejects_unsafe_values() {
+        let directory = tempdir().unwrap();
+        let store = PluginSettingsStore::new(directory.path());
+        store.set_begone_mouse_idle_ms(0.05).unwrap();
+        assert_eq!(
+            PluginSettingsStore::new(directory.path())
+                .begone_mouse_idle_ms()
+                .unwrap(),
+            0.05
+        );
+        assert!(store.set_begone_mouse_idle_ms(-0.01).is_err());
+        assert!(store.set_begone_mouse_idle_ms(600_000.01).is_err());
+        assert!(store.set_begone_mouse_idle_ms(f64::NAN).is_err());
+    }
+
+    #[test]
+    fn quick_seek_durations_persist_independently_and_reject_unsafe_values() {
+        let directory = tempdir().unwrap();
+        let store = PluginSettingsStore::new(directory.path());
+        store.set_quick_seek_seconds(7.5, 12.25).unwrap();
+        assert_eq!(
+            PluginSettingsStore::new(directory.path())
+                .quick_seek_seconds()
+                .unwrap(),
+            (7.5, 12.25)
+        );
+        assert!(store.set_quick_seek_seconds(0.0, 5.0).is_err());
+        assert!(store.set_quick_seek_seconds(5.0, 3_600.01).is_err());
+        assert!(store.set_quick_seek_seconds(f64::NAN, 5.0).is_err());
+        assert_eq!(store.quick_seek_seconds().unwrap(), (7.5, 12.25));
     }
 }

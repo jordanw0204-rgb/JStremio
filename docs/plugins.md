@@ -24,6 +24,10 @@ Local Reviews and Timestamp Notes expose a **Settings** button on their cards in
 
 Bindings must be unique. Modifier-only, Windows-key, Alt-only, navigation, playback, and unsafe system combinations are rejected. A configured hotkey works only while that plugin's matching player action is available, and it is ignored while typing or while a JStremio overlay/dialog is open. Use **Clear hotkey** and save to remove a binding.
 
+BegoneMouse exposes its own **Settings** button. Enter the number of milliseconds the pointer must remain idle before the player interface and cursor disappear. Values from 0 through 600,000 are accepted, including decimals such as `0.05`; browser timer scheduling means a sub-millisecond value is applied on WebView's next available timer tick. The change applies immediately without restarting. A stationary pointer over either Quick Seek control or within the responsive bottom player-control band keeps the interface visible.
+
+Quick Seek exposes independent **Rewind seconds** and **Fast-forward seconds** settings from 0.05 through 3600 seconds. Changes apply immediately to the large video controls and the compact controls mounted on either side of Stremio's Play button. The line icons and hover state follow the active theme. Holding any seek control repeats the configured seek and accelerates in multiples of that amount until release. Every seek remains clamped to the beginning or known end of the video.
+
 Themes is a protected built-in surface rather than a downloadable theme plugin. Its fixed native operations persist only the validated palette described in [Themes](themes.md). Use the Themes sidebar button to customize the app; do not install custom JavaScript merely to change basic colors.
 
 ## Plugin structure

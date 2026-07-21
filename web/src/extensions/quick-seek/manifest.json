@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "quick-seek",
+  "name": "Quick Seek",
+  "version": "1.2.0",
+  "entry": "index.js",
+  "styles": "styles.css",
+  "enabledByDefault": true,
+  "loadOrder": 130,
+  "description": "Adds configurable themed seek controls over video and beside the player button with accelerating press-and-hold.",
+  "author": "JStremio",
+  "core": false
+}

@@ -22,11 +22,28 @@ type Plugin = {
   error: string | null;
 };
 
+type BegoneMouseSettings = {
+  idleMs: number;
+};
+
+type QuickSeekSettings = {
+  backwardSeconds: number;
+  forwardSeconds: number;
+};
+
+const DEFAULT_BEGONE_MOUSE_IDLE_MS = 1_000;
+const MAX_BEGONE_MOUSE_IDLE_MS = 600_000;
+const BEGONE_MOUSE_SETTINGS_CHANGED = "jstremio-begone-mouse-settings-changed";
+const DEFAULT_QUICK_SEEK_SECONDS = 5;
+const MIN_QUICK_SEEK_SECONDS = 0.05;
+const MAX_QUICK_SEEK_SECONDS = 3_600;
+const QUICK_SEEK_SETTINGS_CHANGED = "jstremio-quick-seek-settings-changed";
+
 const manifest = {
   schemaVersion: 1,
   id: "plugin-manager",
   name: "Plugins",
-  version: "1.3.0",
+  version: "1.4.0",
   entry: "index.js",
   styles: "styles.css",
   enabledByDefault: true,
@@ -59,12 +76,22 @@ function activate(runtime: JStremioRuntime) {
         grid.hidden = true;
         status.textContent = "Loading plugins…";
         try {
-          const [pluginValue, hotkeyValue] = await Promise.all([
+          const [pluginValue, hotkeyValue, begoneMouseValue, quickSeekValue] = await Promise.all([
             runtime.bridge.request("plugins", "list"),
             runtime.bridge.request("plugins", "getHotkeys"),
+            runtime.bridge.request("plugins", "getBegoneMouse"),
+            runtime.bridge.request("plugins", "getQuickSeek"),
           ]);
           const plugins = asPlugins(pluginValue);
-          renderPlugins(runtime, grid, plugins, asPluginHotkeys(hotkeyValue), restart);
+          renderPlugins(
+            runtime,
+            grid,
+            plugins,
+            asPluginHotkeys(hotkeyValue),
+            asBegoneMouseSettings(begoneMouseValue),
+            asQuickSeekSettings(quickSeekValue),
+            restart,
+          );
           status.hidden = plugins.length > 0;
           grid.hidden = plugins.length === 0;
           status.textContent = plugins.length ? "" : "No plugins were discovered.";
@@ -107,6 +134,8 @@ function renderPlugins(
   grid: HTMLElement,
   plugins: Plugin[],
   hotkeys: PluginHotkeys,
+  begoneMouse: BegoneMouseSettings,
+  quickSeek: QuickSeekSettings,
   restart: HTMLElement,
 ) {
   grid.replaceChildren();
@@ -151,8 +180,7 @@ function renderPlugins(
     });
     toggleLabel.append(toggle, toggleText);
     card.append(heading, meta, description, toggleLabel);
-    if (isConfigurablePluginId(plugin.id) && plugin.builtIn && !plugin.error) {
-      const pluginId = plugin.id;
+    if (hasPluginSettings(plugin.id) && plugin.builtIn && !plugin.error) {
       const actions = document.createElement("div");
       actions.className = "plugin-actions";
       const settings = document.createElement("button");
@@ -163,11 +191,21 @@ function renderPlugins(
       const summary = document.createElement("span");
       summary.className = "hotkey-summary";
       const renderSummary = () => {
-        summary.textContent = `Hotkey: ${displayHotkey(hotkeys[pluginId])}`;
+        summary.textContent = isHotkeyPluginId(plugin.id)
+          ? `Hotkey: ${displayHotkey(hotkeys[plugin.id])}`
+          : plugin.id === "begone-mouse"
+            ? `Idle delay: ${formatIdleDelay(begoneMouse.idleMs)}`
+            : `Back ${formatSeekSeconds(quickSeek.backwardSeconds)} · Forward ${formatSeekSeconds(quickSeek.forwardSeconds)}`;
       };
       renderSummary();
       settings.addEventListener("click", () => {
-        openPluginSettings(runtime, plugin, hotkeys, renderSummary);
+        if (isHotkeyPluginId(plugin.id)) {
+          openHotkeySettings(runtime, plugin, hotkeys, renderSummary);
+        } else if (plugin.id === "begone-mouse") {
+          openBegoneMouseSettings(runtime, plugin, begoneMouse, renderSummary);
+        } else {
+          openQuickSeekSettings(runtime, plugin, quickSeek, renderSummary);
+        }
       });
       actions.append(settings, summary);
       card.append(actions);
@@ -176,13 +214,13 @@ function renderPlugins(
   }
 }
 
-function openPluginSettings(
+function openHotkeySettings(
   runtime: JStremioRuntime,
   plugin: Plugin,
   hotkeys: PluginHotkeys,
   saved: () => void,
 ) {
-  if (!isConfigurablePluginId(plugin.id)) return;
+  if (!isHotkeyPluginId(plugin.id)) return;
   const pluginId = plugin.id;
   runtime.ui.openDialog((container, close) => {
     addStyles(container, styles);
@@ -267,8 +305,187 @@ function openPluginSettings(
   });
 }
 
-function isConfigurablePluginId(id: string): id is ConfigurablePluginId {
+function openBegoneMouseSettings(
+  runtime: JStremioRuntime,
+  plugin: Plugin,
+  settings: BegoneMouseSettings,
+  saved: () => void,
+) {
+  runtime.ui.openDialog((container, close) => {
+    addStyles(container, styles);
+    const dialog = document.createElement("section");
+    dialog.className = "plugin-settings-dialog begone-mouse-dialog";
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+    dialog.setAttribute("aria-labelledby", "jstremio-plugin-settings-title");
+    dialog.innerHTML = `
+      <h2 id="jstremio-plugin-settings-title">${plugin.name} settings</h2>
+      <p class="settings-description">Choose how long the pointer can remain idle before JStremio hides the player interface and cursor.</p>
+      <label class="hotkey-field">Idle delay (milliseconds)<input class="hotkey-input delay-input" type="number" min="0" max="${MAX_BEGONE_MOUSE_IDLE_MS}" step="any" inputmode="decimal" autocomplete="off"></label>
+      <div class="delay-presets" aria-label="Idle delay presets">
+        ${[50, 250, 500, 1_000, 2_000, 5_000].map((value) => `<button type="button" class="delay-preset" data-delay="${value}">${value >= 1_000 ? `${value / 1_000}s` : `${value}ms`}</button>`).join("")}
+      </div>
+      <p class="hotkey-help">Decimal values such as 0.05 are accepted. Sub-millisecond delays run on WebView's next available timer tick.</p>
+      <div class="settings-status" role="status" aria-live="polite"></div>
+      <div class="settings-actions"><button type="button" class="button" data-action="default">Use 1000 ms</button><span></span><button type="button" class="button" data-action="cancel">Cancel</button><button type="button" class="button primary" data-action="save">Save</button></div>`;
+    const input = dialog.querySelector<HTMLInputElement>(".delay-input")!;
+    const status = dialog.querySelector<HTMLElement>(".settings-status")!;
+    const save = dialog.querySelector<HTMLButtonElement>('[data-action="save"]')!;
+    input.value = String(settings.idleMs);
+    const candidate = () => Number(input.value);
+    const validate = () => {
+      const value = candidate();
+      const valid = input.value.trim() !== ""
+        && Number.isFinite(value)
+        && value >= 0
+        && value <= MAX_BEGONE_MOUSE_IDLE_MS;
+      input.setAttribute("aria-invalid", String(!valid));
+      save.disabled = !valid;
+      status.textContent = valid
+        ? `The player interface will hide after ${formatIdleDelay(value)} of pointer inactivity.`
+        : "Enter a number from 0 through 600000 milliseconds.";
+      return valid;
+    };
+    input.addEventListener("input", validate);
+    dialog.querySelectorAll<HTMLButtonElement>("[data-delay]").forEach((button) => {
+      button.addEventListener("click", () => {
+        input.value = button.dataset.delay ?? String(DEFAULT_BEGONE_MOUSE_IDLE_MS);
+        validate();
+        input.focus();
+      });
+    });
+    dialog.querySelector('[data-action="default"]')?.addEventListener("click", () => {
+      input.value = String(DEFAULT_BEGONE_MOUSE_IDLE_MS);
+      validate();
+      input.focus();
+    });
+    dialog.querySelector('[data-action="cancel"]')?.addEventListener("click", close);
+    save.addEventListener("click", () => {
+      if (!validate()) return;
+      const idleMs = candidate();
+      save.disabled = true;
+      status.textContent = "Saving…";
+      void runtime.bridge.request("plugins", "setBegoneMouse", { idleMs })
+        .then(() => {
+          settings.idleMs = idleMs;
+          window.dispatchEvent(new CustomEvent(BEGONE_MOUSE_SETTINGS_CHANGED, { detail: { idleMs } }));
+          saved();
+          close();
+        })
+        .catch((error) => {
+          save.disabled = false;
+          status.textContent = error instanceof Error ? error.message : "The idle delay could not be saved.";
+        });
+    });
+    validate();
+    container.append(dialog);
+  });
+}
+
+function openQuickSeekSettings(
+  runtime: JStremioRuntime,
+  plugin: Plugin,
+  settings: QuickSeekSettings,
+  saved: () => void,
+) {
+  runtime.ui.openDialog((container, close) => {
+    addStyles(container, styles);
+    const dialog = document.createElement("section");
+    dialog.className = "plugin-settings-dialog quick-seek-dialog";
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+    dialog.setAttribute("aria-labelledby", "jstremio-plugin-settings-title");
+    dialog.innerHTML = `
+      <h2 id="jstremio-plugin-settings-title">${plugin.name} settings</h2>
+      <p class="settings-description">Choose independent rewind and fast-forward amounts. These values apply to both the large video controls and the bottom player bar.</p>
+      <div class="quick-seek-fields">
+        <label class="hotkey-field">Rewind seconds<input class="hotkey-input delay-input" data-direction="backward" type="number" min="${MIN_QUICK_SEEK_SECONDS}" max="${MAX_QUICK_SEEK_SECONDS}" step="any" inputmode="decimal" autocomplete="off"></label>
+        <label class="hotkey-field">Fast-forward seconds<input class="hotkey-input delay-input" data-direction="forward" type="number" min="${MIN_QUICK_SEEK_SECONDS}" max="${MAX_QUICK_SEEK_SECONDS}" step="any" inputmode="decimal" autocomplete="off"></label>
+      </div>
+      <div class="delay-presets" aria-label="Quick Seek presets">
+        ${[5, 10, 15, 30].map((value) => `<button type="button" class="delay-preset" data-seconds="${value}">${value}s both</button>`).join("")}
+      </div>
+      <p class="hotkey-help">Enter decimal values from 0.05 through 3600 seconds. Holding a seek button accelerates from the configured amount.</p>
+      <div class="settings-status" role="status" aria-live="polite"></div>
+      <div class="settings-actions"><button type="button" class="button" data-action="default">Use 5s both</button><span></span><button type="button" class="button" data-action="cancel">Cancel</button><button type="button" class="button primary" data-action="save">Save</button></div>`;
+    const backward = dialog.querySelector<HTMLInputElement>('[data-direction="backward"]')!;
+    const forward = dialog.querySelector<HTMLInputElement>('[data-direction="forward"]')!;
+    const status = dialog.querySelector<HTMLElement>(".settings-status")!;
+    const save = dialog.querySelector<HTMLButtonElement>('[data-action="save"]')!;
+    backward.value = String(settings.backwardSeconds);
+    forward.value = String(settings.forwardSeconds);
+    const values = () => ({ backwardSeconds: Number(backward.value), forwardSeconds: Number(forward.value) });
+    const validValue = (input: HTMLInputElement, value: number) => {
+      const valid = input.value.trim() !== ""
+        && Number.isFinite(value)
+        && value >= MIN_QUICK_SEEK_SECONDS
+        && value <= MAX_QUICK_SEEK_SECONDS;
+      input.setAttribute("aria-invalid", String(!valid));
+      return valid;
+    };
+    const validate = () => {
+      const candidate = values();
+      const valid = validValue(backward, candidate.backwardSeconds)
+        && validValue(forward, candidate.forwardSeconds);
+      save.disabled = !valid;
+      status.textContent = valid
+        ? `Rewind ${formatSeekSeconds(candidate.backwardSeconds)} and fast-forward ${formatSeekSeconds(candidate.forwardSeconds)}.`
+        : "Enter a number from 0.05 through 3600 seconds for both directions.";
+      return valid;
+    };
+    backward.addEventListener("input", validate);
+    forward.addEventListener("input", validate);
+    dialog.querySelectorAll<HTMLButtonElement>("[data-seconds]").forEach((button) => {
+      button.addEventListener("click", () => {
+        backward.value = button.dataset.seconds ?? String(DEFAULT_QUICK_SEEK_SECONDS);
+        forward.value = backward.value;
+        validate();
+      });
+    });
+    dialog.querySelector('[data-action="default"]')?.addEventListener("click", () => {
+      backward.value = String(DEFAULT_QUICK_SEEK_SECONDS);
+      forward.value = String(DEFAULT_QUICK_SEEK_SECONDS);
+      validate();
+    });
+    dialog.querySelector('[data-action="cancel"]')?.addEventListener("click", close);
+    save.addEventListener("click", () => {
+      if (!validate()) return;
+      const candidate = values();
+      save.disabled = true;
+      status.textContent = "Savingâ€¦";
+      void runtime.bridge.request("plugins", "setQuickSeek", candidate)
+        .then(() => {
+          Object.assign(settings, candidate);
+          window.dispatchEvent(new CustomEvent(QUICK_SEEK_SETTINGS_CHANGED, { detail: candidate }));
+          saved();
+          close();
+        })
+        .catch((error) => {
+          save.disabled = false;
+          status.textContent = error instanceof Error ? error.message : "The seek amounts could not be saved.";
+        });
+    });
+    validate();
+    container.append(dialog);
+  });
+}
+
+function hasPluginSettings(id: string): boolean {
+  return isHotkeyPluginId(id) || id === "begone-mouse" || id === "quick-seek";
+}
+
+function isHotkeyPluginId(id: string): id is ConfigurablePluginId {
   return id === "reviews" || id === "timestamp-notes";
+}
+
+function formatIdleDelay(value: number): string {
+  return value >= 1_000
+    ? `${Number((value / 1_000).toFixed(3))} s`
+    : `${Number(value.toFixed(3))} ms`;
+}
+
+function formatSeekSeconds(value: number): string {
+  return `${Number(value.toFixed(3))}s`;
 }
 
 function pluginName(id: string): string {
@@ -279,4 +496,31 @@ function asPlugins(value: unknown): Plugin[] {
   return Array.isArray(value)
     ? value.filter((item): item is Plugin => Boolean(item && typeof item === "object" && typeof (item as Plugin).id === "string"))
     : [];
+}
+
+function asBegoneMouseSettings(value: unknown): BegoneMouseSettings {
+  const idleMs = value && typeof value === "object" ? Number((value as { idleMs?: unknown }).idleMs) : NaN;
+  return {
+    idleMs: Number.isFinite(idleMs) && idleMs >= 0 && idleMs <= MAX_BEGONE_MOUSE_IDLE_MS
+      ? idleMs
+      : DEFAULT_BEGONE_MOUSE_IDLE_MS,
+  };
+}
+
+function asQuickSeekSettings(value: unknown): QuickSeekSettings {
+  const source = value && typeof value === "object"
+    ? value as { backwardSeconds?: unknown; forwardSeconds?: unknown }
+    : {};
+  const valid = (candidate: unknown) => {
+    const seconds = Number(candidate);
+    return Number.isFinite(seconds)
+      && seconds >= MIN_QUICK_SEEK_SECONDS
+      && seconds <= MAX_QUICK_SEEK_SECONDS
+      ? seconds
+      : DEFAULT_QUICK_SEEK_SECONDS;
+  };
+  return {
+    backwardSeconds: valid(source.backwardSeconds),
+    forwardSeconds: valid(source.forwardSeconds),
+  };
 }

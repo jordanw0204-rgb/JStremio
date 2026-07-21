@@ -28,4 +28,4 @@ The bundled streaming server stores its cache and settings under `%LOCALAPPDATA%
 
 The privacy guarantees above apply to JStremio's built-in code. An enabled user plugin is trusted JavaScript executing in the same WebView as Stremio and the JStremio runtime. It can inspect page state, call browser networking, and invoke exposed fixed bridges, including reading locally stored review or note data. Review user-plugin source before enabling it. Safe mode prevents all plugin injection, and no remote marketplace or automatic downloader is included.
 
-Plugin enablement overrides and the optional Local Reviews/Timestamp Notes hotkeys are stored in `%LOCALAPPDATA%\JStremio\data\plugins.json`. Hotkeys are canonical key identifiers only; they do not record typed text or retain a keyboard history.
+Plugin enablement overrides, the optional Local Reviews/Timestamp Notes hotkeys, the BegoneMouse idle delay, and the two Quick Seek durations are stored in `%LOCALAPPDATA%\JStremio\data\plugins.json`. Delays and seek amounts are numeric durations only. Hotkeys are canonical key identifiers only; they do not record typed text or retain a keyboard history.

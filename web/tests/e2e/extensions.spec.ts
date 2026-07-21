@@ -37,6 +37,8 @@ test.beforeEach(async ({ page }) => {
       { id: "reviews", name: "Local Reviews", version: "1.1.0", description: "Private reviews", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
       { id: "timestamp-notes", name: "Timestamp Notes", version: "1.3.0", description: "Playback notes", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
       { id: "last-played", name: "LastPlayed", version: "1.0.0", description: "Exact stream resume", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
+      { id: "begone-mouse", name: "BegoneMouse", version: "1.0.0", description: "Configurable player UI idle delay", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
+      { id: "quick-seek", name: "Quick Seek", version: "1.2.0", description: "Configurable player seek controls", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
     ];
     const hotkeys: Record<string, string> = {};
     const shortcutKeys: string[] = [];
@@ -45,6 +47,8 @@ test.beforeEach(async ({ page }) => {
     const themePresets: Array<{ id: string; name: string; theme: Record<string, unknown> }> = [];
     let revision = 0;
     let thumbnailCounter = 0;
+    let begoneMouseIdleMs = 1_000;
+    const quickSeek = { backwardSeconds: 5, forwardSeconds: 5 };
     const state = {
       selected: { streamRequest: { path: { id: "tt123" } }, stream: { name: "Fixture 1080p", description: "MediaFusion fixture", infoHash: "ABC123", fileIdx: 2, deepLinks: { player: "#/player/stream/exact-fixture" } } },
       addon: { manifest: { name: "MediaFusion" } },
@@ -110,6 +114,17 @@ test.beforeEach(async ({ page }) => {
       if (method === "jstremio-plugins") {
         if (operation === "list") return respond(method, request.id, plugins);
         if (operation === "getHotkeys") return respond(method, request.id, hotkeys);
+        if (operation === "getBegoneMouse") return respond(method, request.id, { idleMs: begoneMouseIdleMs });
+        if (operation === "setBegoneMouse") {
+          begoneMouseIdleMs = Number(payload.idleMs);
+          return respond(method, request.id, { idleMs: begoneMouseIdleMs, restartRequired: false });
+        }
+        if (operation === "getQuickSeek") return respond(method, request.id, quickSeek);
+        if (operation === "setQuickSeek") {
+          quickSeek.backwardSeconds = Number(payload.backwardSeconds);
+          quickSeek.forwardSeconds = Number(payload.forwardSeconds);
+          return respond(method, request.id, { ...quickSeek, restartRequired: false });
+        }
         if (operation === "setHotkey") {
           if (typeof payload.hotkey === "string") hotkeys[String(payload.id)] = payload.hotkey;
           else delete hotkeys[String(payload.id)];
@@ -208,6 +223,8 @@ test.beforeEach(async ({ page }) => {
         theme,
         themePresets,
         state,
+        getBegoneMouseIdleMs: () => begoneMouseIdleMs,
+        quickSeek,
         emitMpv: (name: string, data: unknown) => emit({ args: ["mpv-prop-change", { name, data }] }),
         emitShell: (name: string, data: unknown) => emit(JSON.stringify({ id: 0, type: 1, args: [name, data] })),
       },
@@ -222,6 +239,8 @@ test.beforeEach(async ({ page }) => {
   await page.addScriptTag({ path: resolve(built, "reviews", "index.js") });
   await page.addScriptTag({ path: resolve(built, "timestamp-notes", "index.js") });
   await page.addScriptTag({ path: resolve(built, "last-played", "index.js") });
+  await page.addScriptTag({ path: resolve(built, "begone-mouse", "index.js") });
+  await page.addScriptTag({ path: resolve(built, "quick-seek", "index.js") });
 });
 
 test("offers Crimson and persists reusable custom theme presets", async ({ page }) => {
@@ -313,7 +332,7 @@ test("mounts each extension once and remounts after upstream replacement", async
   await expect(page.locator('[data-jstremio-testid="reviews-player-button"]')).toHaveCount(1);
   await expect(page.locator('[data-jstremio-testid="timestamp-notes-player-button"]')).toHaveCount(1);
   const playerActions = page.locator('[data-jstremio-click-only]');
-  await expect(playerActions).toHaveCount(2);
+  await expect(playerActions).toHaveCount(6);
   for (const action of await playerActions.all()) {
     await expect(action).toHaveAttribute("tabindex", "-1");
     await expect.poll(() => action.evaluate((element) => {
@@ -332,7 +351,7 @@ test("mounts each extension once and remounts after upstream replacement", async
   await pluginNavigation.click();
   await expect(page.locator('[data-jstremio-testid="page"]')).toHaveAttribute("data-jstremio-page", "plugin-manager");
   await expect(page.getByRole("button", { name: "Close Plugins" })).toHaveCount(0);
-  await expect(page.locator(".plugin-card")).toHaveCount(4);
+  await expect(page.locator(".plugin-card")).toHaveCount(6);
   await expect(page.locator(".plugin-card").first()).toHaveCSS("background-color", "rgb(36, 10, 13)");
   await expect(page.locator(".plugin-card").first()).toHaveCSS("color", "rgb(252, 235, 237)");
   await expect(page.getByLabel("Disable Plugins")).toBeDisabled();
@@ -373,16 +392,19 @@ test("mounts each extension once and remounts after upstream replacement", async
   await expect(page.locator('[data-jstremio-testid="reviews-navigation"]')).toHaveCount(1);
   await expect(page.locator('[data-jstremio-testid="timestamp-notes-navigation"]')).toHaveCount(1);
   await expect(page.locator('[data-jstremio-testid="reviews-player-button"]')).toHaveCount(1);
+  await expect(page.locator('[data-jstremio-testid="quick-seek-bar-back"]')).toHaveCount(1);
+  await expect(page.locator('[data-jstremio-testid="quick-seek-bar-forward"]')).toHaveCount(1);
 
   const dock = page.locator('[data-jstremio-testid="player-extension-dock"]');
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("jstremio-begone-mouse-settings-changed", { detail: { idleMs: 0 } })));
   await page.evaluate(() => document.querySelector("main")?.classList.add("overlayHidden_fixture"));
   await expect(dock).toHaveCSS("opacity", "0");
-  await expect(dock).toHaveCSS("pointer-events", "auto");
-  await dock.hover();
-  await expect(dock).toHaveCSS("opacity", "1");
+  await expect(dock).toHaveCSS("pointer-events", "none");
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("jstremio-begone-mouse-settings-changed", { detail: { idleMs: 1_000 } })));
   await page.mouse.move(5, 5);
-  await expect(dock).toHaveCSS("opacity", "0");
-  await page.evaluate(() => document.querySelector("main")?.classList.remove("overlayHidden_fixture"));
+  await expect(dock).toHaveCSS("opacity", "1");
+  await expect(dock).toHaveCSS("pointer-events", "auto");
+  await expect(page.locator("main")).not.toHaveClass(/overlayHidden_fixture/);
 
   await page.evaluate(() => {
     location.hash = "#/library";
@@ -441,10 +463,130 @@ test("keeps player controls available and opens dialogs immediately during upstr
   }
 });
 
+test("configures both seek directions and protects active player control regions from idle hiding", async ({ page }) => {
+  await installFrameTheme(page);
+  await emitPlayback(page, 30, 100, false);
+  const rewind = page.locator('[data-jstremio-testid="quick-seek-back"]');
+  const forward = page.locator('[data-jstremio-testid="quick-seek-forward"]');
+  const barRewind = page.locator('[data-jstremio-testid="quick-seek-bar-back"]');
+  const barForward = page.locator('[data-jstremio-testid="quick-seek-bar-forward"]');
+  await expect(rewind).toBeVisible();
+  await expect(forward).toBeVisible();
+  await expect(rewind).toBeEnabled();
+  await expect(forward).toBeEnabled();
+  await expect(rewind.locator("[data-quick-seek-amount]")).toHaveText("5");
+  await expect(forward.locator("[data-quick-seek-amount]")).toHaveText("5");
+  await expect(rewind).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  await expect(rewind).toHaveCSS("border-top-width", "0px");
+  await expect(rewind).toHaveCSS("color", "rgb(252, 235, 237)");
+  await expect(barRewind).toBeVisible();
+  await expect(barForward).toBeVisible();
+  await expect(barRewind).toHaveClass(/control-bar-button_fixture/);
+  await expect(barRewind.locator("..")).toHaveClass(/control-bar-buttons-container_fixture/);
+  await expect.poll(async () => {
+    const viewport = page.viewportSize();
+    const backBounds = await rewind.boundingBox();
+    const forwardBounds = await forward.boundingBox();
+    if (!viewport || !backBounds || !forwardBounds) return null;
+    return {
+      width: Math.round(backBounds.width),
+      backCenterPercent: Math.round(((backBounds.x + backBounds.width / 2) / viewport.width) * 100),
+      forwardCenterPercent: Math.round(((forwardBounds.x + forwardBounds.width / 2) / viewport.width) * 100),
+    };
+  }).toEqual({ width: 243, backCenterPercent: 26, forwardCenterPercent: 74 });
+
+  await page.locator('[data-jstremio-testid="plugin-manager-navigation"]').click();
+  await page.getByRole("button", { name: "Settings for Quick Seek" }).click();
+  await page.getByLabel("Rewind seconds").fill("7.5");
+  await page.getByLabel("Fast-forward seconds").fill("12.25");
+  await page.getByRole("dialog", { name: "Quick Seek settings" }).getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Back 7.5s · Forward 12.25s")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => (window as any).__fixture.quickSeek)).toEqual({ backwardSeconds: 7.5, forwardSeconds: 12.25 });
+  await page.keyboard.press("Escape");
+  await expect(rewind.locator("[data-quick-seek-amount]")).toHaveText("7.5");
+  await expect(forward.locator("[data-quick-seek-amount]")).toHaveText("12.25");
+  await expect(barRewind.locator("[data-quick-seek-amount]")).toHaveText("7.5");
+  await expect(barForward.locator("[data-quick-seek-amount]")).toHaveText("12.25");
+
+  await page.mouse.move(400, 300);
+  await rewind.click();
+  await expect.poll(() => page.evaluate(() => {
+    const commands = (window as any).__fixture.commands as unknown[][];
+    return commands.filter((command) => command[0] === "time-pos").at(-1)?.[1];
+  })).toBe(22.5);
+  await forward.click();
+  await expect.poll(() => page.evaluate(() => {
+    const commands = (window as any).__fixture.commands as unknown[][];
+    return commands.filter((command) => command[0] === "time-pos").at(-1)?.[1];
+  })).toBe(34.75);
+
+  const commandsBeforeHold = await page.evaluate(() =>
+    ((window as any).__fixture.commands as unknown[][]).filter((command) => command[0] === "time-pos").length,
+  );
+  await barForward.hover();
+  await page.mouse.down();
+  await page.waitForTimeout(1_300);
+  await expect(barForward).toHaveAttribute("data-holding", "");
+  await expect.poll(async () => Number(await barForward.locator("[data-quick-seek-amount]").textContent())).toBeGreaterThan(12.25);
+  await page.mouse.up();
+  await expect.poll(() => page.evaluate((start) => {
+    const commands = (window as any).__fixture.commands as unknown[][];
+    const values = commands.filter((command) => command[0] === "time-pos").slice(start).map((command) => Number(command[1]));
+    return values.length >= 4
+      && values.at(-1)! - values[0]! >= 24.5
+      && values.some((value, index) => index > 0 && value - values[index - 1]! > 12.25);
+  }, commandsBeforeHold)).toBe(true);
+  await expect(barForward).not.toHaveAttribute("data-holding", "");
+  await expect(barForward.locator("[data-quick-seek-amount]")).toHaveText("12.25");
+  const commandCountAfterRelease = await page.evaluate(() =>
+    ((window as any).__fixture.commands as unknown[][]).filter((command) => command[0] === "time-pos").length,
+  );
+  await page.waitForTimeout(450);
+  await expect.poll(() => page.evaluate(() =>
+    ((window as any).__fixture.commands as unknown[][]).filter((command) => command[0] === "time-pos").length,
+  )).toBe(commandCountAfterRelease);
+
+  await page.locator('[data-jstremio-testid="plugin-manager-navigation"]').click();
+  await page.getByRole("button", { name: "Settings for BegoneMouse" }).click();
+  await page.getByLabel("Idle delay (milliseconds)").fill("120");
+  await page.getByRole("dialog", { name: "BegoneMouse settings" }).getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Idle delay: 120 ms")).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  const protectedButtonBounds = await rewind.boundingBox();
+  expect(protectedButtonBounds).not.toBeNull();
+  await page.mouse.move(
+    protectedButtonBounds!.x + protectedButtonBounds!.width / 2,
+    protectedButtonBounds!.y + protectedButtonBounds!.height / 2,
+  );
+  await page.waitForTimeout(260);
+  await expect(page.locator("html")).not.toHaveAttribute("data-jstremio-begone-mouse-hidden", "");
+  await page.mouse.move(640, 710);
+  await page.waitForTimeout(260);
+  await expect(page.locator("html")).not.toHaveAttribute("data-jstremio-begone-mouse-hidden", "");
+
+  await page.mouse.move(640, 250);
+  await expect(page.locator("html")).not.toHaveAttribute("data-jstremio-begone-mouse-hidden", "");
+  await page.evaluate(() => document.querySelector("main")?.classList.add("overlayHidden_fixture"));
+  await expect.poll(() => page.evaluate(() => document.querySelector("main")?.classList.contains("overlayHidden_fixture"))).toBe(false);
+  await expect(page.locator("html")).toHaveAttribute("data-jstremio-begone-mouse-hidden", "", { timeout: 1_000 });
+  await expect(page.locator("main")).toHaveClass(/overlayHidden_fixture/);
+  await page.mouse.move(650, 250);
+  await expect(page.locator("html")).not.toHaveAttribute("data-jstremio-begone-mouse-hidden", "");
+  await expect(page.locator("main")).not.toHaveClass(/overlayHidden_fixture/);
+});
+
 test("records persistent plugin hotkeys and opens the matching player dialogs", async ({ page }) => {
   await page.locator('[data-jstremio-testid="plugin-manager-navigation"]').click();
-  await expect(page.getByRole("button", { name: /^Settings for / })).toHaveCount(2);
+  await expect(page.getByRole("button", { name: /^Settings for / })).toHaveCount(4);
   await expect(page.locator(".plugin-card").filter({ hasText: "LastPlayed" }).getByRole("button", { name: /Settings/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Settings for Quick Seek" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Settings for BegoneMouse" }).click();
+  await page.getByLabel("Idle delay (milliseconds)").fill("0.05");
+  await page.getByRole("dialog", { name: "BegoneMouse settings" }).getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Idle delay: 0.05 ms")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => (window as any).__fixture.getBegoneMouseIdleMs())).toBe(0.05);
 
   await page.getByRole("button", { name: "Settings for Local Reviews" }).click();
   const reviewInput = page.getByLabel("Hotkey for Local Reviews");
@@ -720,11 +862,13 @@ test("captures, pauses conditionally, clusters markers, and seeks without blocki
   await expect(page.locator(".marker-popover")).toHaveCount(0);
 
   await marker.click();
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("jstremio-begone-mouse-settings-changed", { detail: { idleMs: 0 } })));
   await page.evaluate(() => document.querySelector("main")?.classList.add("overlayHidden_fixture"));
   await emitPlayback(page, 13, 100, false);
   await expect(layer).toHaveCSS("visibility", "hidden");
   await expect(page.locator(".marker-popover")).toHaveCount(0);
   await page.evaluate(() => document.querySelector("main")?.classList.remove("overlayHidden_fixture"));
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("jstremio-begone-mouse-settings-changed", { detail: { idleMs: 1_000 } })));
   await expect(layer).toHaveCSS("visibility", "visible");
 
   await marker.click();

@@ -15,7 +15,9 @@ JStremio WebView2 shell ---- bundled Stremio server
                |---- Themes ----------- themes.json
                |---- Local Reviews ---- reviews.json
                |---- Timestamp Notes -- timestamp-notes.json
-               `---- LastPlayed ------- last-played.json
+               |---- LastPlayed ------- last-played.json
+               |---- BegoneMouse ------ plugins.json
+               `---- Quick Seek ------- guarded player seek API
 ```
 
 ## Native boundary
@@ -41,5 +43,7 @@ MPV property events are observed alongside Stremio's listener. `time-pos` and `d
 Reviews never call the player API. Timestamp capture reads the latest position before pausing, records the media and duration, and conditionally resumes only a pause it owns on the same media without a manual pause-state change.
 
 LastPlayed observes the selected player stream, persists its exact official player deep link and stream fingerprint, and augments visual media cards plus stream-selection surfaces without modifying Stremio React code. Series-level cards choose the most recently saved episode; exact video links prefer their exact entry. Hover details reuse only the saved add-on/stream description. Resume actions navigate through Stremio's existing player route; they do not reconstruct or substitute a source.
+
+BegoneMouse observes pointer position and activity and reuses Stremio's own overlay-hidden state, with a narrow fallback selector for player controls while the upstream class name is being learned. Its validated decimal-millisecond delay is stored with plugin settings; Quick Seek hover and the responsive bottom player band are protected from idle hiding. Quick Seek renders body-level themed controls, mirrors compact controls around the official Play control, and reads two independently validated local seek durations. It uses the runtime's user-activation-guarded player seek operation and cannot issue arbitrary MPV properties or commands.
 
 Markers are current-media-only, pointer-transparent outside explicit buttons, positioned against the current duration, hidden when out of range, and clustered within approximately ten physical pixels. Absolute timestamps are never ratio-scaled for alternate cuts.

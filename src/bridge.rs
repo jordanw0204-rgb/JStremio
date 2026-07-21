@@ -72,6 +72,19 @@ struct SetPluginHotkeyPayload {
     hotkey: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SetBegoneMousePayload {
+    idle_ms: f64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SetQuickSeekPayload {
+    backward_seconds: f64,
+    forward_seconds: f64,
+}
+
 const MAX_THUMBNAIL_BYTES: u64 = 2 * 1024 * 1024;
 
 #[derive(Debug, Serialize)]
@@ -351,6 +364,42 @@ impl NativeBridge {
                 Ok(json!({
                     "id": payload.id,
                     "hotkey": payload.hotkey,
+                    "restartRequired": false
+                }))
+            }
+            "getBegoneMouse" => self
+                .plugin_settings
+                .begone_mouse_idle_ms()
+                .map(|idle_ms| json!({ "idleMs": idle_ms }))
+                .map_err(storage_error),
+            "setBegoneMouse" => {
+                let payload: SetBegoneMousePayload = parse_value(request.payload)?;
+                self.plugin_settings
+                    .set_begone_mouse_idle_ms(payload.idle_ms)
+                    .map_err(storage_error)?;
+                Ok(json!({
+                    "idleMs": payload.idle_ms,
+                    "restartRequired": false
+                }))
+            }
+            "getQuickSeek" => self
+                .plugin_settings
+                .quick_seek_seconds()
+                .map(|(backward_seconds, forward_seconds)| {
+                    json!({
+                        "backwardSeconds": backward_seconds,
+                        "forwardSeconds": forward_seconds
+                    })
+                })
+                .map_err(storage_error),
+            "setQuickSeek" => {
+                let payload: SetQuickSeekPayload = parse_value(request.payload)?;
+                self.plugin_settings
+                    .set_quick_seek_seconds(payload.backward_seconds, payload.forward_seconds)
+                    .map_err(storage_error)?;
+                Ok(json!({
+                    "backwardSeconds": payload.backward_seconds,
+                    "forwardSeconds": payload.forward_seconds,
                     "restartRequired": false
                 }))
             }
@@ -856,6 +905,99 @@ mod tests {
                 .get("reviews")
                 .map(String::as_str),
             Some("Ctrl+Shift+KeyR")
+        );
+    }
+
+    #[test]
+    fn begone_mouse_delay_is_fixed_validated_and_immediately_persisted() {
+        let directory = tempdir().unwrap();
+        let bridge = NativeBridge::new(directory.path());
+        let saved = bridge
+            .handle(
+                PLUGINS_METHOD,
+                54,
+                Some(&json!({
+                    "operation": "setBegoneMouse",
+                    "payload": { "idleMs": 0.05 }
+                })),
+            )
+            .into_event();
+        assert_eq!(saved[1]["ok"], true);
+        assert_eq!(saved[1]["result"]["idleMs"], 0.05);
+        assert_eq!(saved[1]["result"]["restartRequired"], false);
+        let loaded = bridge
+            .handle(
+                PLUGINS_METHOD,
+                55,
+                Some(&json!({"operation": "getBegoneMouse", "payload": {}})),
+            )
+            .into_event();
+        assert_eq!(loaded[1]["result"]["idleMs"], 0.05);
+
+        let rejected = bridge
+            .handle(
+                PLUGINS_METHOD,
+                56,
+                Some(&json!({
+                    "operation": "setBegoneMouse",
+                    "payload": { "idleMs": 600000.01 }
+                })),
+            )
+            .into_event();
+        assert_eq!(rejected[1]["ok"], false);
+        assert_eq!(
+            PluginSettingsStore::new(directory.path())
+                .begone_mouse_idle_ms()
+                .unwrap(),
+            0.05
+        );
+    }
+
+    #[test]
+    fn quick_seek_durations_are_fixed_validated_and_immediately_persisted() {
+        let directory = tempdir().unwrap();
+        let bridge = NativeBridge::new(directory.path());
+        let saved = bridge
+            .handle(
+                PLUGINS_METHOD,
+                57,
+                Some(&json!({
+                    "operation": "setQuickSeek",
+                    "payload": { "backwardSeconds": 7.5, "forwardSeconds": 12.25 }
+                })),
+            )
+            .into_event();
+        assert_eq!(saved[1]["ok"], true);
+        assert_eq!(saved[1]["result"]["backwardSeconds"], 7.5);
+        assert_eq!(saved[1]["result"]["forwardSeconds"], 12.25);
+        assert_eq!(saved[1]["result"]["restartRequired"], false);
+
+        let loaded = bridge
+            .handle(
+                PLUGINS_METHOD,
+                58,
+                Some(&json!({"operation": "getQuickSeek", "payload": {}})),
+            )
+            .into_event();
+        assert_eq!(loaded[1]["result"]["backwardSeconds"], 7.5);
+        assert_eq!(loaded[1]["result"]["forwardSeconds"], 12.25);
+
+        let rejected = bridge
+            .handle(
+                PLUGINS_METHOD,
+                59,
+                Some(&json!({
+                    "operation": "setQuickSeek",
+                    "payload": { "backwardSeconds": 0, "forwardSeconds": 5 }
+                })),
+            )
+            .into_event();
+        assert_eq!(rejected[1]["ok"], false);
+        assert_eq!(
+            PluginSettingsStore::new(directory.path())
+                .quick_seek_seconds()
+                .unwrap(),
+            (7.5, 12.25)
         );
     }
 

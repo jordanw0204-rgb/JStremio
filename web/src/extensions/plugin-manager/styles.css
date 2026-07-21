@@ -33,6 +33,12 @@
 .hotkey-field { display:grid; gap:8px; margin-top:20px; color:var(--plugin-text); font-weight:650; }
 .hotkey-input { width:100%; border:1px solid color-mix(in srgb,var(--plugin-text) 20%,transparent); border-radius:10px; background:color-mix(in srgb,var(--plugin-surface) 76%,#000 18%); color:var(--plugin-text); padding:12px 13px; outline:none; cursor:pointer; }
 .hotkey-input[data-recording="true"],.hotkey-input:focus { border-color:var(--plugin-accent); box-shadow:0 0 0 3px color-mix(in srgb,var(--plugin-accent) 20%,transparent); }
+.delay-input { cursor:text; }
+.delay-input[aria-invalid="true"] { border-color:#ff7484; box-shadow:0 0 0 3px color-mix(in srgb,#ff7484 18%,transparent); }
+.delay-presets { display:flex; flex-wrap:wrap; gap:7px; margin-top:10px; }
+.delay-preset { border:1px solid color-mix(in srgb,var(--plugin-text) 15%,transparent); border-radius:999px; background:color-mix(in srgb,var(--plugin-surface) 74%,var(--plugin-accent) 10%); color:var(--plugin-text); padding:6px 10px; cursor:pointer; }
+.delay-preset:hover,.delay-preset:focus-visible { border-color:var(--plugin-accent); background:color-mix(in srgb,var(--plugin-surface) 64%,var(--plugin-accent) 22%); }
+.quick-seek-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
 .hotkey-help { margin-top:8px; font-size:12px; }
 .settings-status { min-height:1.5em; margin-top:13px; color:color-mix(in srgb,var(--plugin-accent) 62%,var(--plugin-text) 38%); font-size:13px; }
 .settings-actions { display:grid; grid-template-columns:auto 1fr auto auto; align-items:center; gap:9px; margin-top:18px; }
@@ -41,4 +47,4 @@
 .install-help h2 { margin:0 0 9px; }
 .install-help ol { margin:0 0 10px; padding-left:22px; }
 .install-help code { color:color-mix(in srgb,var(--plugin-accent) 58%,var(--plugin-text) 42%); }
-@media (max-width:650px) { .plugins-shell{padding:18px}.plugin-grid{grid-template-columns:1fr}.restart{align-items:stretch;flex-direction:column}.settings-actions{grid-template-columns:1fr}.settings-actions span{display:none}.settings-actions .button{width:100%} }
+@media (max-width:650px) { .plugins-shell{padding:18px}.plugin-grid{grid-template-columns:1fr}.restart{align-items:stretch;flex-direction:column}.quick-seek-fields{grid-template-columns:1fr}.settings-actions{grid-template-columns:1fr}.settings-actions span{display:none}.settings-actions .button{width:100%} }

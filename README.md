@@ -59,16 +59,20 @@ Release checksums are published beside every installer as `SHA256SUMS.txt`.
 | **Themes** | Customizes the app gradient, accent, surfaces, and text with live preview, presets, and restart-persistent settings. |
 | **Local Reviews** | Saves private 1-10 star ratings and optional review text for movies and series. |
 | **Timestamp Notes** | Adds private, color-coded notes and optional thumbnails at exact playback positions. |
+| **BegoneMouse** | Lets you choose the player interface and cursor idle-hide delay while protecting hovered seek controls and the bottom player region. |
+| **Quick Seek** | Adds configurable themed rewind/fast-forward controls over the video and beside Play, with accelerating press-and-hold. |
 | **Plugins** | Lets you enable built-in features and trusted local plugins independently. |
 
 Built-in features can be managed from **Plugins** inside JStremio. Custom local
 plugins are discovered from `%LOCALAPPDATA%\JStremio\plugins` and start disabled
 until you explicitly enable them.
 
-Local Reviews and Timestamp Notes also have a **Settings** button in the Plugins
-screen. Use it to record an optional hotkey that opens the same player popout as
-clicking that plugin's player action. Hotkeys are ignored while typing or while
-a JStremio overlay or dialog is open.
+Local Reviews, Timestamp Notes, BegoneMouse, and Quick Seek also have a **Settings** button
+in the Plugins screen. Reviews and Timestamp Notes accept optional player-action
+hotkeys. BegoneMouse accepts an idle delay from 0 through 600,000 milliseconds,
+including decimal values such as `0.05`; sub-millisecond delays run on WebView's
+next available timer tick. Quick Seek stores independent rewind and fast-forward
+amounts from `0.05` through `3600` seconds and applies them immediately.
 
 Open **Themes** from the palette button in the sidebar to adjust both background
 gradient colors, the gradient angle, accent color, elevated surfaces, and

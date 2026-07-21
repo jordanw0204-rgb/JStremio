@@ -10,6 +10,16 @@
 
 `check.ps1` runs Rust formatting/clippy/tests, TypeScript typecheck/unit tests, deterministic bundles, Playwright fixtures in installed Edge, and an optimized x64 compile.
 
+## Automated evidence from 2026-07-21 (v1.7.0)
+
+The v1.7.0 BegoneMouse and Quick Seek release gate passed on Windows:
+
+- The complete `check.ps1` gate passed Rust formatting and Clippy with warnings denied, all 54 native tests, strict TypeScript, all 51 web unit tests, all 12 installed-Edge Playwright scenarios, every updater test, deterministic extension bundles, and optimized x64 app/updater builds.
+- Browser coverage proves independently configurable decimal rewind/fast-forward durations apply live to reference-style themed controls over the video and on both sides of Stremio's Play control; controls survive upstream remounts, accelerate while held, stop on release, clamp to playback bounds, and do not obstruct Timestamp popovers.
+- BegoneMouse coverage proves a stationary pointer over either Quick Seek control or anywhere in the responsive bottom player-control band prevents idle hiding, while movement back to unprotected video restores the configured deadline.
+- Inno Setup built `JStremioSetup-v1.7.0_x64-unsigned.exe` at 71,295,221 bytes with local SHA-256 `E912AB3C6E345B1EC87078E73F0C39B5179F684CE30DFD798BE787D3322E5DDB`. The local portable ZIP is 92,777,294 bytes with SHA-256 `316D128C03C45AE41B5ABAD14B1DA4FFEE1CD5676593778A70538D366F3657C9`.
+- The installed copy was deliberately not upgraded: `%LOCALAPPDATA%\Programs\JStremio\JStremio.exe` remains product/file version 1.6.0 so its automatic Update prompt can be verified against the published v1.7.0 release.
+
 ## Automated evidence from 2026-07-20 (v1.6.0)
 
 The v1.6.0 themed in-shell plugin navigation and customization gate passed on Windows:
