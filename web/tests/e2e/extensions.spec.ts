@@ -12,6 +12,7 @@ test.beforeEach(async ({ page }) => {
       .nav-tab-button_fixture .label_fixture { color:rgb(186,184,198);font-size:13px;opacity:0; }
       .nav-tab-button_fixture:hover .label_fixture { opacity:.6; }
     </style>
+    <header id="top-player-toolbar" role="toolbar"><button title="Back"></button><button title="Fullscreen"></button></header>
     <nav><a class="nav-tab-button_fixture nav-tab-button-container_fixture" href="#/library" title="Library"><svg class="icon_fixture" viewBox="0 0 24 24"></svg><div class="label_fixture">Library</div></a><a class="nav-tab-button_fixture nav-tab-button-container_fixture" href="#/calendar" title="Calendar"><svg class="icon_fixture" viewBox="0 0 24 24"></svg><div class="label_fixture">Calendar</div></a></nav>
     <main style="position:fixed;left:0;right:0;bottom:0"><div class="control-bar-container_fixture">
       <div class="seek-bar-container_fixture"><div>00:00</div><div class="slider-container_fixture" style="height:40px;width:100%">
@@ -38,7 +39,7 @@ test.beforeEach(async ({ page }) => {
       { id: "timestamp-notes", name: "Timestamp Notes", version: "1.3.0", description: "Playback notes", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
       { id: "last-played", name: "LastPlayed", version: "1.0.0", description: "Exact stream resume", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
       { id: "begone-mouse", name: "BegoneMouse", version: "1.0.0", description: "Configurable player UI idle delay", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
-      { id: "quick-seek", name: "Quick Seek", version: "1.2.0", description: "Configurable player seek controls", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
+      { id: "quick-seek", name: "Quick Seek", version: "1.2.1", description: "Configurable player seek controls", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
     ];
     const hotkeys: Record<string, string> = {};
     const shortcutKeys: string[] = [];
@@ -483,6 +484,10 @@ test("configures both seek directions and protects active player control regions
   await expect(barForward).toBeVisible();
   await expect(barRewind).toHaveClass(/control-bar-button_fixture/);
   await expect(barRewind.locator("..")).toHaveClass(/control-bar-buttons-container_fixture/);
+  await expect(page.locator("#top-player-toolbar [data-jstremio-extension=\"quick-seek\"]")).toHaveCount(0);
+  await expect(page.locator(".control-bar-buttons-container_fixture").locator(":scope > *")).toHaveCount(5);
+  await expect(page.locator(".control-bar-buttons-container_fixture").locator(":scope > *").nth(0)).toHaveAttribute("data-jstremio-control", "quick-seek-bar-back");
+  await expect(page.locator(".control-bar-buttons-container_fixture").locator(":scope > *").nth(2)).toHaveAttribute("data-jstremio-control", "quick-seek-bar-forward");
   await expect.poll(async () => {
     const viewport = page.viewportSize();
     const backBounds = await rewind.boundingBox();

@@ -2,6 +2,11 @@
 
 JStremio follows Semantic Versioning. Stable releases are tagged `vMAJOR.MINOR.PATCH` and published through GitHub Releases.
 
+## 1.7.1 - 2026-07-21
+
+- Mount Quick Seek's compact rewind and fast-forward controls in Stremio's actual bottom player-control bar even when an earlier top navigation toolbar is present.
+- Add compatibility and browser regressions for the production toolbar hierarchy, exact placement around Play, and React control-bar remounts.
+
 ## 1.7.0 - 2026-07-21
 
 - Add the BegoneMouse built-in plugin with an immediately applied, persistent player-interface idle delay configurable in decimal milliseconds; keep the interface visible over Quick Seek and throughout the bottom player-control region.

@@ -37,6 +37,16 @@ describe("central DOM compatibility adapter", () => {
     expect(findSeekContainer()?.className).toBe("slider-container_hash-e");
   });
 
+  it("prefers the bottom Stremio player controls over an earlier navigation toolbar", () => {
+    document.body.insertAdjacentHTML(
+      "afterbegin",
+      '<header id="top-navigation" role="toolbar"><button title="Back"></button><button title="Fullscreen"></button></header>',
+    );
+
+    expect(findPlayerControls()?.className).toBe("control-bar-buttons-container_hash-f");
+    expect(findPlayerControls()?.id).not.toBe("top-navigation");
+  });
+
   it("copies official navigation container, icon, and hover-label classes without selected state", () => {
     const button = document.createElement("button");
     button.innerHTML = '<svg data-jstremio-navigation-icon></svg><div data-jstremio-navigation-label>Reviews</div>';

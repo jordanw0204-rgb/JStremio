@@ -19,7 +19,7 @@ const manifest = {
   schemaVersion: 1,
   id: "quick-seek",
   name: "Quick Seek",
-  version: "1.2.0",
+  version: "1.2.1",
   entry: "index.js",
   styles: "styles.css",
   enabledByDefault: true,

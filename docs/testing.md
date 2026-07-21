@@ -10,6 +10,16 @@
 
 `check.ps1` runs Rust formatting/clippy/tests, TypeScript typecheck/unit tests, deterministic bundles, Playwright fixtures in installed Edge, and an optimized x64 compile.
 
+## Automated evidence from 2026-07-21 (v1.7.1)
+
+The v1.7.1 Quick Seek bottom-bar compatibility patch passed on Windows:
+
+- The complete `check.ps1` gate passed Rust formatting and Clippy with warnings denied, all 54 native tests, strict TypeScript, all 52 web unit tests, all 12 installed-Edge Playwright scenarios, every updater test, deterministic extension bundles, and optimized x64 app/updater builds.
+- The compatibility regression reproduces Stremio's production hierarchy with an earlier top navigation `role="toolbar"` and proves player discovery selects the hashed bottom `control-bar-buttons-container` instead.
+- Browser coverage proves rewind appears immediately before Play and fast-forward immediately after Play, neither button leaks into the top toolbar, and both return to the bottom bar after a React-style control-bar replacement.
+- Inno Setup built `JStremioSetup-v1.7.1_x64-unsigned.exe` at 71,287,849 bytes with local SHA-256 `D4B49A1F64CA8BB8D7436FFEBADEC9887DA5972E0BE12FC9291D461FA1AEDFA0`. The local portable ZIP is 92,777,816 bytes with SHA-256 `BAD1874F6B1234E9A539281408AEE953BC1D369E5D10A596CCEF12E40A3AA3A1`.
+- Packaging did not replace or restart the active installation: `%LOCALAPPDATA%\Programs\JStremio\JStremio.exe` remains product/file version 1.7.0.
+
 ## Automated evidence from 2026-07-21 (v1.7.0)
 
 The v1.7.0 BegoneMouse and Quick Seek release gate passed on Windows:

@@ -59,8 +59,13 @@ export function copyNavigationPresentation(target: HTMLElement, template: HTMLEl
 
 export function findPlayerControls(): HTMLElement | null {
   if (!isPlayerRoute()) return null;
-  const toolbar = document.querySelector<HTMLElement>('[role="toolbar"]');
-  if (toolbar) return toolbar;
+  // Stremio's player control bar uses a CSS-module class, while its top
+  // navigation may expose role="toolbar". Prefer the player-specific class so
+  // extensions do not mount beside the back/fullscreen navigation controls.
+  const stremioControlBar = document.querySelector<HTMLElement>(
+    '[class*="control-bar-buttons-container"]',
+  );
+  if (stremioControlBar) return stremioControlBar;
   const controls = interactiveElements(document);
   const known = controls.find((control) => /next|fullscreen|play|pause/i.test(accessibleName(control)));
   if (known) {
@@ -72,7 +77,7 @@ export function findPlayerControls(): HTMLElement | null {
   }
   const related = findControlsBesideStructuralSeek();
   if (related) return related;
-  return document.querySelector<HTMLElement>('[class*="control-bar-buttons-container"]');
+  return document.querySelector<HTMLElement>('[role="toolbar"]');
 }
 
 export function findSeekContainer(): HTMLElement | null {
