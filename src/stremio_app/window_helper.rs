@@ -97,19 +97,21 @@ impl WindowStyle {
             SetWindowPlacement(hwnd, &placement);
         }
     }
-    pub fn set_title_bar_color(&self, hwnd: HWND) {
+    pub fn set_title_bar_color(&self, hwnd: HWND, caption_hex: &str, text_hex: &str) {
+        let caption_color = colorref_from_hex(caption_hex).unwrap_or(STREMIO_CAPTION_COLOR);
+        let text_color = colorref_from_hex(text_hex).unwrap_or(WHITE_TEXT_COLOR);
         unsafe {
             DwmSetWindowAttribute(
                 hwnd,
                 DWMWA_CAPTION_COLOR,
-                &STREMIO_CAPTION_COLOR as *const _ as *const c_void,
-                mem::size_of_val(&STREMIO_CAPTION_COLOR) as DWORD,
+                &caption_color as *const _ as *const c_void,
+                mem::size_of_val(&caption_color) as DWORD,
             );
             DwmSetWindowAttribute(
                 hwnd,
                 DWMWA_TEXT_COLOR,
-                &WHITE_TEXT_COLOR as *const _ as *const c_void,
-                mem::size_of_val(&WHITE_TEXT_COLOR) as DWORD,
+                &text_color as *const _ as *const c_void,
+                mem::size_of_val(&text_color) as DWORD,
             );
         }
     }
@@ -198,5 +200,35 @@ impl WindowStyle {
         unsafe {
             SetForegroundWindow(hwnd);
         }
+    }
+}
+
+fn colorref_from_hex(value: &str) -> Option<DWORD> {
+    let bytes = value.as_bytes();
+    if bytes.len() != 7 || bytes[0] != b'#' {
+        return None;
+    }
+    let red = u8::from_str_radix(&value[1..3], 16).ok()? as DWORD;
+    let green = u8::from_str_radix(&value[3..5], 16).ok()? as DWORD;
+    let blue = u8::from_str_radix(&value[5..7], 16).ok()? as DWORD;
+    Some(colorref(red, green, blue))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{colorref, colorref_from_hex};
+
+    #[test]
+    fn theme_hex_colors_convert_to_windows_colorrefs() {
+        assert_eq!(
+            colorref_from_hex("#1234AB"),
+            Some(colorref(0x12, 0x34, 0xab))
+        );
+        assert_eq!(
+            colorref_from_hex("#fff1f2"),
+            Some(colorref(0xff, 0xf1, 0xf2))
+        );
+        assert_eq!(colorref_from_hex("123456"), None);
+        assert_eq!(colorref_from_hex("#12ZZ56"), None);
     }
 }

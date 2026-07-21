@@ -85,6 +85,12 @@ struct SetQuickSeekPayload {
     forward_seconds: f64,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SetReviewSettingsPayload {
+    auto_open_at_end: bool,
+}
+
 const MAX_THUMBNAIL_BYTES: u64 = 2 * 1024 * 1024;
 
 #[derive(Debug, Serialize)]
@@ -364,6 +370,21 @@ impl NativeBridge {
                 Ok(json!({
                     "id": payload.id,
                     "hotkey": payload.hotkey,
+                    "restartRequired": false
+                }))
+            }
+            "getReviewSettings" => self
+                .plugin_settings
+                .review_auto_open_at_end()
+                .map(|auto_open_at_end| json!({ "autoOpenAtEnd": auto_open_at_end }))
+                .map_err(storage_error),
+            "setReviewSettings" => {
+                let payload: SetReviewSettingsPayload = parse_value(request.payload)?;
+                self.plugin_settings
+                    .set_review_auto_open_at_end(payload.auto_open_at_end)
+                    .map_err(storage_error)?;
+                Ok(json!({
+                    "autoOpenAtEnd": payload.auto_open_at_end,
                     "restartRequired": false
                 }))
             }
@@ -906,6 +927,36 @@ mod tests {
                 .map(String::as_str),
             Some("Ctrl+Shift+KeyR")
         );
+    }
+
+    #[test]
+    fn review_end_prompt_is_fixed_and_immediately_persisted() {
+        let directory = tempdir().unwrap();
+        let bridge = NativeBridge::new(directory.path());
+        let defaults = bridge
+            .handle(
+                PLUGINS_METHOD,
+                54,
+                Some(&json!({"operation": "getReviewSettings", "payload": {}})),
+            )
+            .into_event();
+        assert_eq!(defaults[1]["result"]["autoOpenAtEnd"], true);
+
+        let saved = bridge
+            .handle(
+                PLUGINS_METHOD,
+                55,
+                Some(&json!({
+                    "operation": "setReviewSettings",
+                    "payload": { "autoOpenAtEnd": false }
+                })),
+            )
+            .into_event();
+        assert_eq!(saved[1]["result"]["autoOpenAtEnd"], false);
+        assert_eq!(saved[1]["result"]["restartRequired"], false);
+        assert!(!PluginSettingsStore::new(directory.path())
+            .review_auto_open_at_end()
+            .unwrap());
     }
 
     #[test]

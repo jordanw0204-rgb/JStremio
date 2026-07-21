@@ -33,6 +33,11 @@
 .hotkey-field { display:grid; gap:8px; margin-top:20px; color:var(--plugin-text); font-weight:650; }
 .hotkey-input { width:100%; border:1px solid color-mix(in srgb,var(--plugin-text) 20%,transparent); border-radius:10px; background:color-mix(in srgb,var(--plugin-surface) 76%,#000 18%); color:var(--plugin-text); padding:12px 13px; outline:none; cursor:pointer; }
 .hotkey-input[data-recording="true"],.hotkey-input:focus { border-color:var(--plugin-accent); box-shadow:0 0 0 3px color-mix(in srgb,var(--plugin-accent) 20%,transparent); }
+.settings-toggle { display:flex; align-items:flex-start; gap:11px; margin-top:16px; padding:13px; border:1px solid color-mix(in srgb,var(--plugin-text) 14%,transparent); border-radius:11px; background:color-mix(in srgb,var(--plugin-surface) 80%,var(--plugin-accent) 8%); cursor:pointer; }
+.settings-toggle input { flex:0 0 auto; width:19px; height:19px; margin:2px 0 0; accent-color:var(--plugin-accent); }
+.settings-toggle span { display:grid; gap:3px; }
+.settings-toggle strong { font-size:14px; }
+.settings-toggle small { color:color-mix(in srgb,var(--plugin-text) 66%,transparent); line-height:1.35; }
 .delay-input { cursor:text; }
 .delay-input[aria-invalid="true"] { border-color:#ff7484; box-shadow:0 0 0 3px color-mix(in srgb,#ff7484 18%,transparent); }
 .delay-presets { display:flex; flex-wrap:wrap; gap:7px; margin-top:10px; }

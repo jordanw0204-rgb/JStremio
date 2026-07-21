@@ -10,6 +10,18 @@
 
 `check.ps1` runs Rust formatting/clippy/tests, TypeScript typecheck/unit tests, deterministic bundles, Playwright fixtures in installed Edge, and an optimized x64 compile.
 
+## Automated evidence from 2026-07-21 (v1.8.0)
+
+The v1.8.0 interactive Quick Seek, automatic Review prompt, and themed title-bar release passed on Windows:
+
+- Real-WebView CDP testing against a local 70-second seekable video proved both compact controls are enabled, own their hit targets, use the active Crimson accent, and perform real backward/forward seeks. A 1.3-second press survived Stremio replacing the captured React control mid-gesture and accelerated the displayed seek step from 5 to 10 seconds.
+- Browser coverage recreates the disabled class copied from Stremio's Play control, replaces the entire native control bar during a held press, and verifies interactivity, themed hold feedback, accelerating seek commands, and clean release without continued seeking.
+- Browser coverage also mounts the semantic `Next on` / `Dismiss` / `Watch now` episode prompt, verifies Local Reviews opens once alongside it by default, persists the new setting as Off, and verifies later prompts remain closed.
+- A native rendered-window probe captured JStremio's real HWND with `PrintWindow` and measured the caption at `#1B080A`, exactly matching the saved theme Surface color; the caption text rendered with the saved light Text color.
+- The complete `check.ps1` gate passed Rust formatting and Clippy with warnings denied, all 57 native tests, strict TypeScript, all 53 web unit tests, all 14 installed-Edge Playwright scenarios, every updater test, deterministic extension bundles, and optimized x64 app/updater builds.
+- Inno Setup built `JStremioSetup-v1.8.0_x64-unsigned.exe` at 71,294,555 bytes with local SHA-256 `0FC5A1F85706F65CE3A94657FAAFD508570443D932A1222928CD07E16CFB11B1`. The local portable ZIP is 92,786,314 bytes with SHA-256 `7EA516384C499E4871FD19B1D04BC579DBAA4906C0D429BFA389639AAC26B2D9`.
+- Packaging did not replace or restart the installed application: `%LOCALAPPDATA%\Programs\JStremio\JStremio.exe` remains product/file version 1.7.2 so its in-app updater can discover v1.8.0 after publication.
+
 ## Automated evidence from 2026-07-21 (v1.7.2)
 
 The v1.7.2 Quick Seek late-player-mount fix passed on Windows:

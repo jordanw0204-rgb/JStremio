@@ -31,6 +31,10 @@ type QuickSeekSettings = {
   forwardSeconds: number;
 };
 
+type ReviewSettings = {
+  autoOpenAtEnd: boolean;
+};
+
 const DEFAULT_BEGONE_MOUSE_IDLE_MS = 1_000;
 const MAX_BEGONE_MOUSE_IDLE_MS = 600_000;
 const BEGONE_MOUSE_SETTINGS_CHANGED = "jstremio-begone-mouse-settings-changed";
@@ -38,12 +42,13 @@ const DEFAULT_QUICK_SEEK_SECONDS = 5;
 const MIN_QUICK_SEEK_SECONDS = 0.05;
 const MAX_QUICK_SEEK_SECONDS = 3_600;
 const QUICK_SEEK_SETTINGS_CHANGED = "jstremio-quick-seek-settings-changed";
+const REVIEW_SETTINGS_CHANGED = "jstremio-review-settings-changed";
 
 const manifest = {
   schemaVersion: 1,
   id: "plugin-manager",
   name: "Plugins",
-  version: "1.4.0",
+  version: "1.5.0",
   entry: "index.js",
   styles: "styles.css",
   enabledByDefault: true,
@@ -76,9 +81,10 @@ function activate(runtime: JStremioRuntime) {
         grid.hidden = true;
         status.textContent = "Loading plugins…";
         try {
-          const [pluginValue, hotkeyValue, begoneMouseValue, quickSeekValue] = await Promise.all([
+          const [pluginValue, hotkeyValue, reviewValue, begoneMouseValue, quickSeekValue] = await Promise.all([
             runtime.bridge.request("plugins", "list"),
             runtime.bridge.request("plugins", "getHotkeys"),
+            runtime.bridge.request("plugins", "getReviewSettings"),
             runtime.bridge.request("plugins", "getBegoneMouse"),
             runtime.bridge.request("plugins", "getQuickSeek"),
           ]);
@@ -88,6 +94,7 @@ function activate(runtime: JStremioRuntime) {
             grid,
             plugins,
             asPluginHotkeys(hotkeyValue),
+            asReviewSettings(reviewValue),
             asBegoneMouseSettings(begoneMouseValue),
             asQuickSeekSettings(quickSeekValue),
             restart,
@@ -134,6 +141,7 @@ function renderPlugins(
   grid: HTMLElement,
   plugins: Plugin[],
   hotkeys: PluginHotkeys,
+  reviewSettings: ReviewSettings,
   begoneMouse: BegoneMouseSettings,
   quickSeek: QuickSeekSettings,
   restart: HTMLElement,
@@ -191,8 +199,10 @@ function renderPlugins(
       const summary = document.createElement("span");
       summary.className = "hotkey-summary";
       const renderSummary = () => {
-        summary.textContent = isHotkeyPluginId(plugin.id)
-          ? `Hotkey: ${displayHotkey(hotkeys[plugin.id])}`
+        summary.textContent = plugin.id === "reviews"
+          ? `Hotkey: ${displayHotkey(hotkeys.reviews)} · End prompt: ${reviewSettings.autoOpenAtEnd ? "On" : "Off"}`
+          : isHotkeyPluginId(plugin.id)
+            ? `Hotkey: ${displayHotkey(hotkeys[plugin.id])}`
           : plugin.id === "begone-mouse"
             ? `Idle delay: ${formatIdleDelay(begoneMouse.idleMs)}`
             : `Back ${formatSeekSeconds(quickSeek.backwardSeconds)} · Forward ${formatSeekSeconds(quickSeek.forwardSeconds)}`;
@@ -200,7 +210,7 @@ function renderPlugins(
       renderSummary();
       settings.addEventListener("click", () => {
         if (isHotkeyPluginId(plugin.id)) {
-          openHotkeySettings(runtime, plugin, hotkeys, renderSummary);
+          openHotkeySettings(runtime, plugin, hotkeys, reviewSettings, renderSummary);
         } else if (plugin.id === "begone-mouse") {
           openBegoneMouseSettings(runtime, plugin, begoneMouse, renderSummary);
         } else {
@@ -218,6 +228,7 @@ function openHotkeySettings(
   runtime: JStremioRuntime,
   plugin: Plugin,
   hotkeys: PluginHotkeys,
+  reviewSettings: ReviewSettings,
   saved: () => void,
 ) {
   if (!isHotkeyPluginId(plugin.id)) return;
@@ -233,6 +244,7 @@ function openHotkeySettings(
       <h2 id="jstremio-plugin-settings-title"></h2>
       <p class="settings-description">Choose a hotkey that opens this plugin's player popout. It works only while the matching player action is available.</p>
       <label class="hotkey-field">Hotkey<input class="hotkey-input" type="text" readonly spellcheck="false" autocomplete="off"></label>
+      ${pluginId === "reviews" ? '<label class="settings-toggle"><input type="checkbox" data-review-auto-open><span><strong>Open automatically at episode end</strong><small>Show the review popout when Stremio displays its Next episode prompt.</small></span></label>' : ""}
       <p class="hotkey-help">Select the field, then press a letter, number, function key, or a combination using Ctrl, Alt, and Shift.</p>
       <div class="settings-status" role="status" aria-live="polite"></div>
       <div class="settings-actions"><button type="button" class="button" data-action="clear">Clear hotkey</button><span></span><button type="button" class="button" data-action="cancel">Cancel</button><button type="button" class="button primary" data-action="save">Save</button></div>`;
@@ -241,6 +253,8 @@ function openHotkeySettings(
     input.setAttribute("aria-label", `Hotkey for ${plugin.name}`);
     const status = dialog.querySelector<HTMLElement>(".settings-status")!;
     const save = dialog.querySelector<HTMLButtonElement>('[data-action="save"]')!;
+    const autoOpen = dialog.querySelector<HTMLInputElement>('[data-review-auto-open]');
+    if (autoOpen) autoOpen.checked = reviewSettings.autoOpenAtEnd;
     let candidate = hotkeys[pluginId] ?? null;
     const showCandidate = () => {
       input.value = displayHotkey(candidate);
@@ -287,10 +301,18 @@ function openHotkeySettings(
     save.addEventListener("click", () => {
       save.disabled = true;
       status.textContent = "Saving…";
-      void runtime.bridge.request("plugins", "setHotkey", { id: pluginId, hotkey: candidate })
+      const requests = [runtime.bridge.request("plugins", "setHotkey", { id: pluginId, hotkey: candidate })];
+      if (pluginId === "reviews" && autoOpen) {
+        requests.push(runtime.bridge.request("plugins", "setReviewSettings", { autoOpenAtEnd: autoOpen.checked }));
+      }
+      void Promise.all(requests)
         .then(() => {
           if (candidate) hotkeys[pluginId] = candidate;
           else delete hotkeys[pluginId];
+          if (pluginId === "reviews" && autoOpen) {
+            reviewSettings.autoOpenAtEnd = autoOpen.checked;
+            window.dispatchEvent(new CustomEvent(REVIEW_SETTINGS_CHANGED, { detail: { ...reviewSettings } }));
+          }
           notifyHotkeysChanged();
           saved();
           close();
@@ -522,5 +544,13 @@ function asQuickSeekSettings(value: unknown): QuickSeekSettings {
   return {
     backwardSeconds: valid(source.backwardSeconds),
     forwardSeconds: valid(source.forwardSeconds),
+  };
+}
+
+function asReviewSettings(value: unknown): ReviewSettings {
+  return {
+    autoOpenAtEnd: !value || typeof value !== "object"
+      ? true
+      : (value as { autoOpenAtEnd?: unknown }).autoOpenAtEnd !== false,
   };
 }

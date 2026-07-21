@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "reviews",
   "name": "Local Reviews",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "entry": "index.js",
   "styles": "styles.css",
   "enabledByDefault": true,

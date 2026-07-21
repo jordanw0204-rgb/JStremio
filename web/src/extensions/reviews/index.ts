@@ -1,5 +1,5 @@
 import styles from "./styles.css";
-import { isPlayerRoute } from "../../runtime/compatibility";
+import { accessibleName, isPlayerRoute } from "../../runtime/compatibility";
 import { registerPluginHotkey } from "../../runtime/hotkeys";
 import type { JStremioRuntime, MediaTarget } from "../../runtime/types";
 import {
@@ -28,12 +28,14 @@ const manifest = {
   schemaVersion: 1,
   id: "reviews",
   name: "Local Reviews",
-  version: "1.4.0",
+  version: "1.5.0",
   entry: "index.js",
   styles: "styles.css",
   enabledByDefault: true,
   loadOrder: 100,
 } as const;
+
+const REVIEW_SETTINGS_CHANGED = "jstremio-review-settings-changed";
 
 requireRuntime().registerExtension(manifest, (runtime) => activate(runtime));
 
@@ -41,6 +43,9 @@ function activate(runtime: JStremioRuntime) {
   let overlayRefresh: (() => void) | null = null;
   let playerRoute = "";
   let resolvedPlayerTarget: MediaTarget | null = null;
+  let autoOpenAtEnd = true;
+  let settingsLoaded = false;
+  let endPromptWasVisible = false;
   const reviewCache = new Map<string, Review | null>();
   const reviewLoads = new Map<string, Promise<Review | null>>();
   const loadReview = (target: MediaTarget): Promise<Review | null> => {
@@ -65,6 +70,16 @@ function activate(runtime: JStremioRuntime) {
       reviewCache.delete(target.key);
       overlayRefresh?.();
     });
+  };
+  const maybeOpenEndReview = () => {
+    const promptVisible = isPlayerRoute() && findNextEpisodePrompt() !== null;
+    if (!promptVisible) {
+      endPromptWasVisible = false;
+      return;
+    }
+    if (!settingsLoaded || !autoOpenAtEnd || endPromptWasVisible || !resolvedPlayerTarget) return;
+    endPromptWasVisible = true;
+    openPlayerReview();
   };
   const unregisterHotkey = registerPluginHotkey(
     runtime,
@@ -168,12 +183,14 @@ function activate(runtime: JStremioRuntime) {
       existing?.remove();
       playerRoute = "";
       resolvedPlayerTarget = null;
+      endPromptWasVisible = false;
       return;
     }
     const route = location.hash;
     if (route !== playerRoute) {
       playerRoute = route;
       resolvedPlayerTarget = null;
+      endPromptWasVisible = false;
     }
     const button = mountPlayerButton("reviews", "Review this title", STAR_ICON, () => {
       void openPlayerReview();
@@ -185,19 +202,63 @@ function activate(runtime: JStremioRuntime) {
         resolvedPlayerTarget = target;
         setReviewButtonAvailability(button, true);
         void loadReview(target).catch((error) => runtime.diagnostics.report("reviews", error));
+        maybeOpenEndReview();
       } else if (!resolvedPlayerTarget) {
         setReviewButtonAvailability(button, false);
       }
     });
+    maybeOpenEndReview();
   };
 
+  const onSettingsChanged = (event: Event) => {
+    const value = (event as CustomEvent<{ autoOpenAtEnd?: unknown }>).detail?.autoOpenAtEnd;
+    autoOpenAtEnd = value !== false;
+    if (!autoOpenAtEnd) endPromptWasVisible = false;
+    maybeOpenEndReview();
+  };
+  window.addEventListener(REVIEW_SETTINGS_CHANGED, onSettingsChanged);
   const unsubscribe = runtime.lifecycle.onReconcile(reconcile);
+  void runtime.bridge.request("plugins", "getReviewSettings")
+    .then((value) => {
+      autoOpenAtEnd = !value || typeof value !== "object"
+        ? true
+        : (value as { autoOpenAtEnd?: unknown }).autoOpenAtEnd !== false;
+      settingsLoaded = true;
+      maybeOpenEndReview();
+    })
+    .catch((error) => runtime.diagnostics.report("reviews", error));
   return () => {
     unsubscribe();
     unregisterHotkey();
+    window.removeEventListener(REVIEW_SETTINGS_CHANGED, onSettingsChanged);
     runtime.ui.closePage();
     removeOwned("reviews");
   };
+}
+
+function findNextEpisodePrompt(): HTMLElement | null {
+  const controls = Array.from(document.querySelectorAll<HTMLElement>('button,[role="button"],a[href]'))
+    .filter((element) => !element.closest('[data-jstremio-extension]'));
+  const watch = controls.find((element) => /^watch now$/i.test(accessibleName(element).trim()));
+  const dismiss = controls.find((element) => /^dismiss$/i.test(accessibleName(element).trim()));
+  if (!watch || !dismiss) return null;
+  let host = watch.parentElement;
+  while (host && host !== document.body) {
+    const bounds = host.getBoundingClientRect();
+    const presentation = getComputedStyle(host);
+    if (
+      host.contains(dismiss)
+      && /\bnext on\b/i.test(host.textContent ?? "")
+      && bounds.width > 0
+      && bounds.height > 0
+      && presentation.display !== "none"
+      && presentation.visibility !== "hidden"
+    ) {
+      return host;
+    }
+    host = host.parentElement;
+  }
+  return null;
 }
 
 function setReviewButtonAvailability(button: HTMLButtonElement | null, available: boolean) {

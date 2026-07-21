@@ -19,7 +19,7 @@ const manifest = {
   schemaVersion: 1,
   id: "quick-seek",
   name: "Quick Seek",
-  version: "1.2.2",
+  version: "1.3.0",
   entry: "index.js",
   styles: "styles.css",
   enabledByDefault: true,
@@ -40,6 +40,7 @@ type HoldState = {
   pointerId: number;
   startedAt: number;
   targetMs: number;
+  displayedSeconds: number;
   active: boolean;
 };
 
@@ -90,10 +91,14 @@ function activate(runtime: JStremioRuntime) {
     const position = snapshot?.positionMs;
     for (const button of buttons()) {
       const direction = button.dataset.direction === "back" ? -1 : 1;
-      button.disabled = direction < 0
+      const disabled = direction < 0
         ? position === null || position === undefined || position <= 0
         : position === null || position === undefined
           || (snapshot?.durationMs !== null && snapshot?.durationMs !== undefined && position >= snapshot.durationMs);
+      button.disabled = disabled;
+      if (button.classList.contains("quick-seek-bar-button")) {
+        button.classList.toggle("disabled", disabled);
+      }
     }
   };
 
@@ -122,7 +127,7 @@ function activate(runtime: JStremioRuntime) {
     clearHoldTimers();
     delete current.button.dataset.holding;
     setDisplayedSeconds(current.button, secondsFor(current.direction));
-    if (suppressReleaseClick && current.active) suppressClick = current.button;
+    if (suppressReleaseClick) suppressClick = current.button;
     else if (!suppressReleaseClick) suppressClick = null;
     if (current.button.hasPointerCapture(current.pointerId)) current.button.releasePointerCapture(current.pointerId);
   };
@@ -139,7 +144,8 @@ function activate(runtime: JStremioRuntime) {
     const target = relativeSeekTarget(optimisticSnapshot, deltaMs);
     if (target !== null && target !== current.targetMs) {
       current.targetMs = target;
-      setDisplayedSeconds(current.button, Math.abs(deltaMs) / 1_000);
+      current.displayedSeconds = Math.abs(deltaMs) / 1_000;
+      setDisplayedSeconds(current.button, current.displayedSeconds);
       window.dispatchEvent(new CustomEvent(PLAYER_ACTIVITY_EVENT));
       seekTarget(target, current.button);
     }
@@ -149,6 +155,7 @@ function activate(runtime: JStremioRuntime) {
   const startHold = (event: PointerEvent, direction: -1 | 1, button: HTMLButtonElement) => {
     if (!event.isTrusted || !event.isPrimary || event.button !== 0 || button.disabled || snapshot?.positionMs === null || !snapshot) return;
     event.preventDefault();
+    event.stopPropagation();
     stopHold();
     suppressClick = null;
     button.setPointerCapture(event.pointerId);
@@ -158,6 +165,7 @@ function activate(runtime: JStremioRuntime) {
       pointerId: event.pointerId,
       startedAt: performance.now(),
       targetMs: snapshot.positionMs,
+      displayedSeconds: secondsFor(direction),
       active: false,
     };
     holdStartTimer = window.setTimeout(() => {
@@ -168,10 +176,19 @@ function activate(runtime: JStremioRuntime) {
     }, HOLD_START_DELAY_MS);
   };
 
+  const finishPointer = (pointerId: number) => {
+    if (!hold || hold.pointerId !== pointerId) return;
+    const current = hold;
+    const activateClick = !current.active;
+    stopHold(pointerId, true);
+    if (activateClick) seek(current.direction, current.button);
+  };
+
   const createButton = (direction: Direction, placement: "side" | "bar", template?: HTMLElement | null) => {
     const button = document.createElement("button");
     button.type = "button";
     if (placement === "bar") copyIntegrationClasses(button, template ?? null);
+    button.classList.remove("disabled");
     button.classList.add("quick-seek-button", `quick-seek-${placement}-button`, `quick-seek-${direction}`);
     button.dataset.jstremioExtension = "quick-seek";
     button.dataset.jstremioControl = `quick-seek-${placement}-${direction}`;
@@ -182,24 +199,28 @@ function activate(runtime: JStremioRuntime) {
     button.innerHTML = iconMarkup(direction);
     const deltaDirection = direction === "back" ? -1 : 1;
     button.addEventListener("pointerdown", (event) => startHold(event, deltaDirection, button));
-    button.addEventListener("pointerup", (event) => stopHold(event.pointerId, true));
-    button.addEventListener("pointercancel", (event) => stopHold(event.pointerId));
-    button.addEventListener("lostpointercapture", (event) => stopHold(event.pointerId));
+    button.addEventListener("pointerup", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      finishPointer(event.pointerId);
+    });
+    button.addEventListener("pointercancel", (event) => {
+      event.stopPropagation();
+      stopHold(event.pointerId);
+    });
     button.addEventListener("focus", () => button.blur());
     button.addEventListener("keydown", (event) => {
       event.preventDefault();
       event.stopImmediatePropagation();
     });
     button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopImmediatePropagation();
       if (suppressClick === button) {
         suppressClick = null;
-        event.preventDefault();
-        event.stopImmediatePropagation();
         return;
       }
       if (event.detail === 0) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
         return;
       }
       seek(deltaDirection, button);
@@ -238,11 +259,21 @@ function activate(runtime: JStremioRuntime) {
       && play.nextElementSibling === barForward,
     );
     if (correctlyMounted) return;
+    const heldDirection = hold && (hold.button === barBack || hold.button === barForward)
+      ? hold.direction
+      : null;
     barBack?.remove();
     barForward?.remove();
     const template = play ?? playerControlTemplate(controls);
     barBack = createButton("back", "bar", template);
     barForward = createButton("forward", "bar", template);
+    if (hold && heldDirection !== null) {
+      hold.button = heldDirection < 0 ? barBack : barForward;
+      if (hold.active) {
+        hold.button.dataset.holding = "";
+        setDisplayedSeconds(hold.button, hold.displayedSeconds);
+      }
+    }
     if (play?.parentElement === host) {
       host.insertBefore(barBack, play);
       play.insertAdjacentElement("afterend", barForward);
@@ -283,6 +314,9 @@ function activate(runtime: JStremioRuntime) {
   });
   const cancelHold = () => stopHold();
   window.addEventListener("blur", cancelHold);
+  const finishGlobalPointer = (event: PointerEvent) => finishPointer(event.pointerId);
+  window.addEventListener("pointerup", finishGlobalPointer);
+  window.addEventListener("pointercancel", finishGlobalPointer);
   document.addEventListener("visibilitychange", cancelHold);
   void runtime.bridge.request("plugins", "getQuickSeek")
     .then((value) => {
@@ -297,6 +331,8 @@ function activate(runtime: JStremioRuntime) {
     unsubscribePlayer();
     window.removeEventListener(SETTINGS_CHANGED_EVENT, onSettingsChanged);
     window.removeEventListener("blur", cancelHold);
+    window.removeEventListener("pointerup", finishGlobalPointer);
+    window.removeEventListener("pointercancel", finishGlobalPointer);
     document.removeEventListener("visibilitychange", cancelHold);
     removeOwned("quick-seek");
   };

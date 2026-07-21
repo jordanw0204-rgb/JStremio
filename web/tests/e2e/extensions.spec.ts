@@ -21,7 +21,7 @@ test.beforeEach(async ({ page }) => {
         <div><div style="margin-left:calc(100% * 0)"></div></div>
       </div><div tabindex="-1"><div>01:40</div></div></div>
       <div class="control-bar-buttons-container_fixture">
-        <div class="control-bar-button_fixture" title="Pause" tabindex="-1"></div>
+        <div class="control-bar-button_fixture disabled" title="Pause" tabindex="-1"></div>
         <div class="control-bar-button_fixture" title="Next video" tabindex="-1"></div>
         <div class="control-bar-button_fixture" title="Mute" tabindex="-1"></div>
       </div>
@@ -35,11 +35,11 @@ test.beforeEach(async ({ page }) => {
     const commands: Array<unknown[]> = [];
     const plugins = [
       { id: "plugin-manager", name: "Plugins", version: "1.0.0", description: "Manage plugins", author: "JStremio", builtIn: true, enabled: true, core: true, error: null },
-      { id: "reviews", name: "Local Reviews", version: "1.1.0", description: "Private reviews", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
+      { id: "reviews", name: "Local Reviews", version: "1.5.0", description: "Private reviews", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
       { id: "timestamp-notes", name: "Timestamp Notes", version: "1.3.0", description: "Playback notes", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
       { id: "last-played", name: "LastPlayed", version: "1.0.0", description: "Exact stream resume", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
       { id: "begone-mouse", name: "BegoneMouse", version: "1.0.0", description: "Configurable player UI idle delay", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
-      { id: "quick-seek", name: "Quick Seek", version: "1.2.2", description: "Configurable player seek controls", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
+      { id: "quick-seek", name: "Quick Seek", version: "1.3.0", description: "Configurable player seek controls", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
     ];
     const hotkeys: Record<string, string> = {};
     const shortcutKeys: string[] = [];
@@ -49,6 +49,7 @@ test.beforeEach(async ({ page }) => {
     let revision = 0;
     let thumbnailCounter = 0;
     let begoneMouseIdleMs = 1_000;
+    let reviewAutoOpenAtEnd = true;
     const quickSeek = { backwardSeconds: 5, forwardSeconds: 5 };
     const state = {
       selected: { streamRequest: { path: { id: "tt123" } }, stream: { name: "Fixture 1080p", description: "MediaFusion fixture", infoHash: "ABC123", fileIdx: 2, deepLinks: { player: "#/player/stream/exact-fixture" } } },
@@ -115,6 +116,11 @@ test.beforeEach(async ({ page }) => {
       if (method === "jstremio-plugins") {
         if (operation === "list") return respond(method, request.id, plugins);
         if (operation === "getHotkeys") return respond(method, request.id, hotkeys);
+        if (operation === "getReviewSettings") return respond(method, request.id, { autoOpenAtEnd: reviewAutoOpenAtEnd });
+        if (operation === "setReviewSettings") {
+          reviewAutoOpenAtEnd = payload.autoOpenAtEnd !== false;
+          return respond(method, request.id, { autoOpenAtEnd: reviewAutoOpenAtEnd, restartRequired: false });
+        }
         if (operation === "getBegoneMouse") return respond(method, request.id, { idleMs: begoneMouseIdleMs });
         if (operation === "setBegoneMouse") {
           begoneMouseIdleMs = Number(payload.idleMs);
@@ -225,6 +231,7 @@ test.beforeEach(async ({ page }) => {
         themePresets,
         state,
         getBegoneMouseIdleMs: () => begoneMouseIdleMs,
+        getReviewAutoOpenAtEnd: () => reviewAutoOpenAtEnd,
         quickSeek,
         emitMpv: (name: string, data: unknown) => emit({ args: ["mpv-prop-change", { name, data }] }),
         emitShell: (name: string, data: unknown) => emit(JSON.stringify({ id: 0, type: 1, args: [name, data] })),
@@ -512,6 +519,12 @@ test("configures both seek directions and protects active player control regions
   await expect(rewind).toHaveCSS("color", "rgb(252, 235, 237)");
   await expect(barRewind).toBeVisible();
   await expect(barForward).toBeVisible();
+  await expect(barRewind).toBeEnabled();
+  await expect(barForward).toBeEnabled();
+  await expect(barRewind).not.toHaveClass(/(?:^|\s)disabled(?:\s|$)/);
+  await expect(barForward).not.toHaveClass(/(?:^|\s)disabled(?:\s|$)/);
+  await expect(barRewind).toHaveCSS("pointer-events", "auto");
+  await expect(barForward).toHaveCSS("pointer-events", "auto");
   await expect(barRewind).toHaveClass(/control-bar-button_fixture/);
   await expect(barRewind.locator("..")).toHaveClass(/control-bar-buttons-container_fixture/);
   await expect(page.locator("#top-player-toolbar [data-jstremio-extension=\"quick-seek\"]")).toHaveCount(0);
@@ -560,7 +573,14 @@ test("configures both seek directions and protects active player control regions
   );
   await barForward.hover();
   await page.mouse.down();
-  await page.waitForTimeout(1_300);
+  await page.waitForTimeout(120);
+  await page.evaluate(() => {
+    const nativeBar = document.querySelector(".control-bar-buttons-container_fixture");
+    if (!nativeBar) throw new Error("The native player bar fixture was not found");
+    nativeBar.innerHTML = '<div class="control-bar-button_fixture" title="Pause" tabindex="-1"></div><div class="control-bar-button_fixture" title="Next video" tabindex="-1"></div><div class="control-bar-button_fixture" title="Mute" tabindex="-1"></div>';
+  });
+  await expect(page.locator(".control-bar-buttons-container_fixture").locator(":scope > *")).toHaveCount(5);
+  await page.waitForTimeout(1_180);
   await expect(barForward).toHaveAttribute("data-holding", "");
   await expect.poll(async () => Number(await barForward.locator("[data-quick-seek-amount]").textContent())).toBeGreaterThan(12.25);
   await page.mouse.up();
@@ -609,6 +629,47 @@ test("configures both seek directions and protects active player control regions
   await page.mouse.move(650, 250);
   await expect(page.locator("html")).not.toHaveAttribute("data-jstremio-begone-mouse-hidden", "");
   await expect(page.locator("main")).not.toHaveClass(/overlayHidden_fixture/);
+});
+
+test("opens Reviews with Stremio's end-of-episode prompt and honors its default-on setting", async ({ page }) => {
+  await expect(page.locator('[data-jstremio-testid="reviews-player-button"]')).toBeEnabled();
+  const mountNextEpisodePrompt = () => page.evaluate(() => {
+    document.querySelector(".next-episode-fixture")?.remove();
+    document.body.insertAdjacentHTML("beforeend", `
+      <section class="next-episode-fixture" style="position:fixed;left:220px;top:120px;width:620px;height:210px;background:#000">
+        <h2>Next on <span>The Blacklist</span></h2>
+        <p>General Shiro (S6E7)</p>
+        <button type="button">Dismiss</button>
+        <button type="button">Watch now</button>
+      </section>`);
+  });
+
+  await mountNextEpisodePrompt();
+  const reviewDialog = page.getByRole("dialog", { name: "Add review" });
+  await expect(reviewDialog).toBeVisible();
+  await reviewDialog.getByRole("button", { name: "Cancel" }).click();
+  await page.evaluate(() => {
+    const mutation = document.createElement("span");
+    document.body.append(mutation);
+    mutation.remove();
+  });
+  await page.waitForTimeout(150);
+  await expect(reviewDialog).toHaveCount(0);
+  await page.evaluate(() => document.querySelector(".next-episode-fixture")?.remove());
+
+  await page.locator('[data-jstremio-testid="plugin-manager-navigation"]').click();
+  await page.getByRole("button", { name: "Settings for Local Reviews" }).click();
+  const autoOpen = page.getByRole("checkbox", { name: /Open automatically at episode end/ });
+  await expect(autoOpen).toBeChecked();
+  await autoOpen.uncheck();
+  await page.getByRole("dialog", { name: "Local Reviews settings" }).getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText(/End prompt: Off/)).toBeVisible();
+  await expect.poll(() => page.evaluate(() => (window as any).__fixture.getReviewAutoOpenAtEnd())).toBe(false);
+  await page.keyboard.press("Escape");
+
+  await mountNextEpisodePrompt();
+  await page.waitForTimeout(300);
+  await expect(reviewDialog).toHaveCount(0);
 });
 
 test("records persistent plugin hotkeys and opens the matching player dialogs", async ({ page }) => {

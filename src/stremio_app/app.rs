@@ -14,7 +14,7 @@ use std::{
 use winapi::um::{winbase::CREATE_BREAKAWAY_FROM_JOB, winuser::WS_EX_TOPMOST};
 
 use crate::{
-    bridge::NativeBridge,
+    bridge::{NativeBridge, THEMES_METHOD},
     extensions::ExtensionHost,
     stremio_app::{
         constants::{
@@ -30,6 +30,7 @@ use crate::{
         window_settings::WindowSettings,
         PipeServer,
     },
+    themes::{ThemeSettings, ThemeStore},
     updater::UpdateLaunch,
 };
 
@@ -49,6 +50,7 @@ pub struct MainWindow {
     pub update_launch: Option<UpdateLaunch>,
     pub update_shutdown_command: Option<String>,
     pub requested_fullscreen: Arc<Mutex<Option<bool>>>,
+    pub pending_title_bar_theme: Arc<Mutex<Option<ThemeSettings>>>,
     pub saved_window_style: RefCell<WindowStyle>,
     #[nwg_resource]
     pub embed: nwg::EmbedResource,
@@ -94,9 +96,27 @@ pub struct MainWindow {
     #[nwg_control]
     #[nwg_events(OnNotice: [Self::on_focus_notice] )]
     pub focus_notice: nwg::Notice,
+    #[nwg_control]
+    #[nwg_events(OnNotice: [Self::on_title_bar_theme_notice] )]
+    pub title_bar_theme_notice: nwg::Notice,
 }
 
 impl MainWindow {
+    fn on_title_bar_theme_notice(&self) {
+        let theme = self
+            .pending_title_bar_theme
+            .lock()
+            .ok()
+            .and_then(|mut pending| pending.take());
+        if let (Some(theme), Some(hwnd), Ok(style)) = (
+            theme,
+            self.window.handle.hwnd(),
+            self.saved_window_style.try_borrow(),
+        ) {
+            style.set_title_bar_color(hwnd, &theme.surface, &theme.text);
+        }
+    }
+
     fn transmit_window_visibility_change(&self) {
         if let (Ok(web_channel), Ok(style)) = (
             self.webview.channel.try_borrow(),
@@ -146,9 +166,12 @@ impl MainWindow {
             };
         self.webview.endpoint.set(webui_url).ok();
         self.webview.dev_tools.set(self.dev_tools).ok();
+        let theme = ThemeStore::new(&self.data_directory)
+            .get()
+            .unwrap_or_default();
         if let Some(hwnd) = self.window.handle.hwnd() {
             if let Ok(mut saved_style) = self.saved_window_style.try_borrow_mut() {
-                saved_style.set_title_bar_color(hwnd);
+                saved_style.set_title_bar_color(hwnd, &theme.surface, &theme.text);
                 if let Some(window_settings) = WindowSettings::load() {
                     saved_style
                         .restore_window_placement(hwnd, window_settings.to_window_placement());
@@ -230,8 +253,10 @@ impl MainWindow {
         let toggle_fullscreen_sender = self.toggle_fullscreen_notice.sender();
         let hide_splash_sender = self.hide_splash_notice.sender();
         let focus_sender = self.focus_notice.sender();
+        let title_bar_theme_sender = self.title_bar_theme_notice.sender();
         let discord_rpc = DiscordRpc::new(web_tx.clone());
         let requested_fullscreen = self.requested_fullscreen.clone();
+        let pending_title_bar_theme = self.pending_title_bar_theme.clone();
         let extension_host = self.extension_host.clone();
         let data_directory = self.data_directory.clone();
 
@@ -243,6 +268,12 @@ impl MainWindow {
                 };
                 if let Some(method) = msg.get_method() {
                     if NativeBridge::supports(method) {
+                        let updates_title_bar = method == THEMES_METHOD
+                            && msg
+                                .get_params()
+                                .and_then(|params| params.get("operation"))
+                                .and_then(|operation| operation.as_str())
+                                .is_some_and(|operation| matches!(operation, "set" | "reset"));
                         if let Some(response) = extension_host.as_ref().and_then(|host| {
                             host.handle_bridge_message(
                                 method,
@@ -253,6 +284,14 @@ impl MainWindow {
                                 &web_message.top_level_source,
                             )
                         }) {
+                            if updates_title_bar {
+                                if let Ok(theme) = ThemeStore::new(&data_directory).get() {
+                                    if let Ok(mut pending) = pending_title_bar_theme.lock() {
+                                        *pending = Some(theme);
+                                        title_bar_theme_sender.notice();
+                                    }
+                                }
+                            }
                             web_tx_web
                                 .send(RPCResponse::response_message(Some(response.into_event())))
                                 .ok();

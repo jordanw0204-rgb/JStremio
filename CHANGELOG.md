@@ -2,6 +2,13 @@
 
 JStremio follows Semantic Versioning. Stable releases are tagged `vMAJOR.MINOR.PATCH` and published through GitHub Releases.
 
+## 1.8.0 - 2026-07-21
+
+- Make Quick Seek's compact bottom-bar controls fully interactive by removing Stremio's copied disabled state, preserving click and accelerating hold gestures across React control-bar remounts, and retaining themed hover, active, and hold feedback.
+- Automatically open Local Reviews alongside Stremio's end-of-episode Next episode prompt, with a persistent default-on toggle in the plugin settings.
+- Apply the saved theme's surface and text colors to the native Windows title bar at startup and immediately after theme saves or resets.
+- Add real-player interaction coverage, a remount-during-hold browser regression, end-prompt settings coverage, and native rendered-title-bar verification.
+
 ## 1.7.2 - 2026-07-21
 
 - Fix Quick Seek's compact controls being captured by the hidden search toolbar before Stremio's real player bar mounts, which made them absent from the visible bottom frame.

@@ -7,6 +7,7 @@ use std::{
 
 const CONFIGURABLE_HOTKEY_PLUGINS: [&str; 2] = ["reviews", "timestamp-notes"];
 pub const DEFAULT_BEGONE_MOUSE_IDLE_MS: f64 = 1_000.0;
+pub const DEFAULT_REVIEW_AUTO_OPEN_AT_END: bool = true;
 const MAX_BEGONE_MOUSE_IDLE_MS: f64 = 600_000.0;
 pub const DEFAULT_QUICK_SEEK_SECONDS: f64 = 5.0;
 const MIN_QUICK_SEEK_SECONDS: f64 = 0.05;
@@ -20,6 +21,8 @@ pub struct PluginSettingsDocument {
     pub enabled: HashMap<String, bool>,
     #[serde(default)]
     pub hotkeys: HashMap<String, String>,
+    #[serde(default = "default_review_auto_open_at_end")]
+    pub review_auto_open_at_end: bool,
     #[serde(default = "default_begone_mouse_idle_ms")]
     pub begone_mouse_idle_ms: f64,
     #[serde(default = "default_quick_seek_seconds")]
@@ -89,6 +92,7 @@ impl Default for PluginSettingsDocument {
             revision: 0,
             enabled: HashMap::new(),
             hotkeys: HashMap::new(),
+            review_auto_open_at_end: DEFAULT_REVIEW_AUTO_OPEN_AT_END,
             begone_mouse_idle_ms: DEFAULT_BEGONE_MOUSE_IDLE_MS,
             quick_seek_backward_seconds: DEFAULT_QUICK_SEEK_SECONDS,
             quick_seek_forward_seconds: DEFAULT_QUICK_SEEK_SECONDS,
@@ -141,6 +145,20 @@ impl PluginSettingsStore {
         })
     }
 
+    pub fn review_auto_open_at_end(&self) -> Result<bool, StorageError> {
+        self.store
+            .read()
+            .map(|document| document.review_auto_open_at_end)
+    }
+
+    pub fn set_review_auto_open_at_end(&self, enabled: bool) -> Result<u64, StorageError> {
+        self.store.mutate(|document| {
+            document.review_auto_open_at_end = enabled;
+            document.revision = document.revision.saturating_add(1);
+            Ok(document.revision)
+        })
+    }
+
     pub fn begone_mouse_idle_ms(&self) -> Result<f64, StorageError> {
         self.store
             .read()
@@ -183,6 +201,10 @@ impl PluginSettingsStore {
 
 fn default_begone_mouse_idle_ms() -> f64 {
     DEFAULT_BEGONE_MOUSE_IDLE_MS
+}
+
+fn default_review_auto_open_at_end() -> bool {
+    DEFAULT_REVIEW_AUTO_OPEN_AT_END
 }
 
 fn default_quick_seek_seconds() -> f64 {
@@ -309,6 +331,7 @@ mod tests {
         .unwrap();
         let store = PluginSettingsStore::new(directory.path());
         assert!(store.hotkeys().unwrap().is_empty());
+        assert!(store.review_auto_open_at_end().unwrap());
         assert_eq!(store.begone_mouse_idle_ms().unwrap(), 1_000.0);
         assert_eq!(store.quick_seek_seconds().unwrap(), (5.0, 5.0));
         store
@@ -322,6 +345,17 @@ mod tests {
                 .map(String::as_str),
             Some("Ctrl+Shift+KeyR")
         );
+    }
+
+    #[test]
+    fn review_end_prompt_defaults_on_and_persists() {
+        let directory = tempdir().unwrap();
+        let store = PluginSettingsStore::new(directory.path());
+        assert!(store.review_auto_open_at_end().unwrap());
+        store.set_review_auto_open_at_end(false).unwrap();
+        assert!(!PluginSettingsStore::new(directory.path())
+            .review_auto_open_at_end()
+            .unwrap());
     }
 
     #[test]
