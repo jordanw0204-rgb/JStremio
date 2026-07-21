@@ -19,7 +19,7 @@ const manifest = {
   schemaVersion: 1,
   id: "quick-seek",
   name: "Quick Seek",
-  version: "1.2.1",
+  version: "1.2.2",
   entry: "index.js",
   styles: "styles.css",
   enabledByDefault: true,
@@ -222,15 +222,24 @@ function activate(runtime: JStremioRuntime) {
   };
 
   const mountBarButtons = () => {
-    if (barBack?.isConnected && barForward?.isConnected) return;
-    barBack?.remove();
-    barForward?.remove();
     const controls = findPlayerControls();
     if (!controls) return;
     const official = Array.from(controls.querySelectorAll<HTMLElement>('button,[role="button"],[tabindex]'))
       .filter((element) => !element.closest('[data-jstremio-extension]'));
     const play = official.find((element) => /\b(?:play|pause)\b/i.test(accessibleName(element))) ?? official[0];
     const host = play?.parentElement ?? controls;
+    const correctlyMounted = Boolean(
+      play
+      && barBack?.isConnected
+      && barForward?.isConnected
+      && barBack.parentElement === host
+      && barForward.parentElement === host
+      && barBack.nextElementSibling === play
+      && play.nextElementSibling === barForward,
+    );
+    if (correctlyMounted) return;
+    barBack?.remove();
+    barForward?.remove();
     const template = play ?? playerControlTemplate(controls);
     barBack = createButton("back", "bar", template);
     barForward = createButton("forward", "bar", template);

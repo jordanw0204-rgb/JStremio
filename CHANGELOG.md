@@ -2,6 +2,12 @@
 
 JStremio follows Semantic Versioning. Stable releases are tagged `vMAJOR.MINOR.PATCH` and published through GitHub Releases.
 
+## 1.7.2 - 2026-07-21
+
+- Fix Quick Seek's compact controls being captured by the hidden search toolbar before Stremio's real player bar mounts, which made them absent from the visible bottom frame.
+- Revalidate and relocate both compact controls around the current Play/Pause control whenever the official player bar appears or remounts.
+- Add a late-player-mount browser regression plus a real-WebView CDP smoke test that verifies visible, stable placement in the production control bar.
+
 ## 1.7.1 - 2026-07-21
 
 - Mount Quick Seek's compact rewind and fast-forward controls in Stremio's actual bottom player-control bar even when an earlier top navigation toolbar is present.

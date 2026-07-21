@@ -47,6 +47,18 @@ describe("central DOM compatibility adapter", () => {
     expect(findPlayerControls()?.id).not.toBe("top-navigation");
   });
 
+  it("does not mistake a Player settings label for a playback control", () => {
+    document.body.innerHTML = `
+      <section id="pre-player-shell">
+        <div class="search-bar-container_hash"><button class="submit-button_hash"></button></div>
+        <div title="Player" tabindex="-1"></div>
+        <div title="Streaming" tabindex="-1"></div>
+        <div title="Shortcuts" tabindex="-1"></div>
+      </section>`;
+
+    expect(findPlayerControls()).toBeNull();
+  });
+
   it("copies official navigation container, icon, and hover-label classes without selected state", () => {
     const button = document.createElement("button");
     button.innerHTML = '<svg data-jstremio-navigation-icon></svg><div data-jstremio-navigation-label>Reviews</div>';

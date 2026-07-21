@@ -66,8 +66,12 @@ export function findPlayerControls(): HTMLElement | null {
     '[class*="control-bar-buttons-container"]',
   );
   if (stremioControlBar) return stremioControlBar;
+  const related = findControlsBesideStructuralSeek();
+  if (related) return related;
   const controls = interactiveElements(document);
-  const known = controls.find((control) => /next|fullscreen|play|pause/i.test(accessibleName(control)));
+  const known = controls.find((control) =>
+    /\b(?:play|pause|next video|mute|unmute)\b/i.test(accessibleName(control)),
+  );
   if (known) {
     let candidate: HTMLElement | null = known.parentElement;
     while (candidate && candidate !== document.body) {
@@ -75,8 +79,6 @@ export function findPlayerControls(): HTMLElement | null {
       candidate = candidate.parentElement;
     }
   }
-  const related = findControlsBesideStructuralSeek();
-  if (related) return related;
   return document.querySelector<HTMLElement>('[role="toolbar"]');
 }
 

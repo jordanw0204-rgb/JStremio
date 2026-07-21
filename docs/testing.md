@@ -10,6 +10,17 @@
 
 `check.ps1` runs Rust formatting/clippy/tests, TypeScript typecheck/unit tests, deterministic bundles, Playwright fixtures in installed Edge, and an optimized x64 compile.
 
+## Automated evidence from 2026-07-21 (v1.7.2)
+
+The v1.7.2 Quick Seek late-player-mount fix passed on Windows:
+
+- Live CDP inspection of the real JStremio WebView reproduced the failure: before Stremio mounted its official player bar, Quick Seek's compact buttons attached to the hidden search toolbar at zero size and the old connected-node shortcut prevented relocation.
+- The compatibility adapter now rejects the pre-player `Player` settings label as a Play control, and Quick Seek revalidates the current host and exact order around Play/Pause on every reconcile before retaining mounted controls.
+- A dedicated real-WebView smoke navigated to the newest saved player route and verified both compact buttons at 50x46 pixels in `control-bar-buttons-container`, immediately around Pause, with unchanged placement after the player settled.
+- The complete `check.ps1` gate passed Rust formatting and Clippy with warnings denied, all 54 native tests, strict TypeScript, all 53 web unit tests, all 13 installed-Edge Playwright scenarios, every updater test, deterministic extension bundles, and optimized x64 app/updater builds.
+- Inno Setup built `JStremioSetup-v1.7.2_x64-unsigned.exe` at 71,290,916 bytes with local SHA-256 `580949B1065B7DD3AB7A839E06F86D54652946EF658FE52E484F58EEBE864D84`. The local portable ZIP is 92,778,183 bytes with SHA-256 `ABBB0520D9F7B36AFCA69E17056D07F256F7D1FBD7F804F821F63E89E5906AFC`.
+- Packaging did not install v1.7.2 locally: the existing installation remains product/file version 1.7.1 so the public updater path can be exercised after publication.
+
 ## Automated evidence from 2026-07-21 (v1.7.1)
 
 The v1.7.1 Quick Seek bottom-bar compatibility patch passed on Windows:

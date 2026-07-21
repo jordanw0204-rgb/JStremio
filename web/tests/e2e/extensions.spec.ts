@@ -39,7 +39,7 @@ test.beforeEach(async ({ page }) => {
       { id: "timestamp-notes", name: "Timestamp Notes", version: "1.3.0", description: "Playback notes", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
       { id: "last-played", name: "LastPlayed", version: "1.0.0", description: "Exact stream resume", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
       { id: "begone-mouse", name: "BegoneMouse", version: "1.0.0", description: "Configurable player UI idle delay", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
-      { id: "quick-seek", name: "Quick Seek", version: "1.2.1", description: "Configurable player seek controls", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
+      { id: "quick-seek", name: "Quick Seek", version: "1.2.2", description: "Configurable player seek controls", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
     ];
     const hotkeys: Record<string, string> = {};
     const shortcutKeys: string[] = [];
@@ -462,6 +462,36 @@ test("keeps player controls available and opens dialogs immediately during upstr
   } finally {
     await page.evaluate(() => window.clearInterval((window as any).__fixture.churn));
   }
+});
+
+test("relocates early Quick Seek controls into a player bar that mounts later", async ({ page }) => {
+  await page.evaluate(() => {
+    location.hash = "#/library";
+    document.querySelector(".control-bar-buttons-container_fixture")?.remove();
+  });
+  await expect(page.locator('[data-jstremio-testid="quick-seek-bar-back"]')).toHaveCount(0);
+
+  await page.evaluate(() => { location.hash = "#/player/stream/exact-fixture"; });
+  const rewind = page.locator('[data-jstremio-testid="quick-seek-bar-back"]');
+  const forward = page.locator('[data-jstremio-testid="quick-seek-bar-forward"]');
+  await expect(rewind).toHaveCount(1);
+  await expect(forward).toHaveCount(1);
+  await expect(rewind.locator("..")).toHaveAttribute("id", "top-player-toolbar");
+
+  await page.evaluate(() => {
+    document.querySelector(".control-bar-container_fixture")?.insertAdjacentHTML(
+      "beforeend",
+      '<div class="control-bar-buttons-container_fixture"><div class="control-bar-button_fixture" title="Pause" tabindex="-1"></div><div class="control-bar-button_fixture" title="Next video" tabindex="-1"></div><div class="control-bar-button_fixture" title="Mute" tabindex="-1"></div></div>',
+    );
+  });
+
+  const playerBar = page.locator(".control-bar-buttons-container_fixture");
+  await expect(rewind.locator("..")).toHaveClass(/control-bar-buttons-container_fixture/);
+  await expect(forward.locator("..")).toHaveClass(/control-bar-buttons-container_fixture/);
+  await expect(page.locator('#top-player-toolbar [data-jstremio-extension="quick-seek"]')).toHaveCount(0);
+  await expect(playerBar.locator(":scope > *")).toHaveCount(5);
+  await expect(playerBar.locator(":scope > *").nth(0)).toHaveAttribute("data-jstremio-control", "quick-seek-bar-back");
+  await expect(playerBar.locator(":scope > *").nth(2)).toHaveAttribute("data-jstremio-control", "quick-seek-bar-forward");
 });
 
 test("configures both seek directions and protects active player control regions from idle hiding", async ({ page }) => {
