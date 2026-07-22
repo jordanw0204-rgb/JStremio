@@ -1,5 +1,5 @@
 import styles from "./styles.css";
-import { accessibleName, isPlayerRoute } from "../../runtime/compatibility";
+import { findNextVideoPopup, isPlayerRoute } from "../../runtime/compatibility";
 import { registerPluginHotkey } from "../../runtime/hotkeys";
 import type { JStremioRuntime, MediaTarget } from "../../runtime/types";
 import {
@@ -28,7 +28,7 @@ const manifest = {
   schemaVersion: 1,
   id: "reviews",
   name: "Local Reviews",
-  version: "1.5.0",
+  version: "1.5.1",
   entry: "index.js",
   styles: "styles.css",
   enabledByDefault: true,
@@ -72,7 +72,7 @@ function activate(runtime: JStremioRuntime) {
     });
   };
   const maybeOpenEndReview = () => {
-    const promptVisible = isPlayerRoute() && findNextEpisodePrompt() !== null;
+    const promptVisible = isPlayerRoute() && findNextVideoPopup() !== null;
     if (!promptVisible) {
       endPromptWasVisible = false;
       return;
@@ -234,31 +234,6 @@ function activate(runtime: JStremioRuntime) {
     runtime.ui.closePage();
     removeOwned("reviews");
   };
-}
-
-function findNextEpisodePrompt(): HTMLElement | null {
-  const controls = Array.from(document.querySelectorAll<HTMLElement>('button,[role="button"],a[href]'))
-    .filter((element) => !element.closest('[data-jstremio-extension]'));
-  const watch = controls.find((element) => /^watch now$/i.test(accessibleName(element).trim()));
-  const dismiss = controls.find((element) => /^dismiss$/i.test(accessibleName(element).trim()));
-  if (!watch || !dismiss) return null;
-  let host = watch.parentElement;
-  while (host && host !== document.body) {
-    const bounds = host.getBoundingClientRect();
-    const presentation = getComputedStyle(host);
-    if (
-      host.contains(dismiss)
-      && /\bnext on\b/i.test(host.textContent ?? "")
-      && bounds.width > 0
-      && bounds.height > 0
-      && presentation.display !== "none"
-      && presentation.visibility !== "hidden"
-    ) {
-      return host;
-    }
-    host = host.parentElement;
-  }
-  return null;
 }
 
 function setReviewButtonAvailability(button: HTMLButtonElement | null, available: boolean) {

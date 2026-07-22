@@ -37,12 +37,12 @@ test.beforeEach(async ({ page }) => {
       { id: "plugin-manager", name: "Plugins", version: "1.0.0", description: "Manage plugins", author: "JStremio", builtIn: true, enabled: true, core: true, error: null },
       { id: "reviews", name: "Local Reviews", version: "1.5.0", description: "Private reviews", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
       { id: "timestamp-notes", name: "Timestamp Notes", version: "1.3.0", description: "Playback notes", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
-      { id: "last-played", name: "LastPlayed", version: "1.0.0", description: "Exact stream resume", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
+      { id: "last-played", name: "LastPlayed", version: "1.1.1", description: "Exact stream resume", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
       { id: "begone-mouse", name: "BegoneMouse", version: "1.0.0", description: "Configurable player UI idle delay", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
       { id: "quick-seek", name: "Quick Seek", version: "1.3.0", description: "Configurable player seek controls", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
       { id: "easy-sound-output", name: "Easy Sound Output", version: "1.0.0", description: "Audio output switcher", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
       { id: "qol-things", name: "QOL Things", version: "1.0.0", description: "Quality-of-life features", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
-      { id: "no-spoilers", name: "No Spoilers", version: "1.0.0", description: "Spoiler protection", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
+      { id: "no-spoilers", name: "No Spoilers", version: "1.0.3", description: "Spoiler protection", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
     ];
     const hotkeys: Record<string, string> = {};
     const shortcutKeys: string[] = [];
@@ -315,19 +315,45 @@ test("switches audio devices, remembers volume, conceals spoilers, and confirms 
     const fixture = (window as any).__fixture;
     fixture.noSpoilers.maxSkipMinutes = 1;
     window.dispatchEvent(new CustomEvent("jstremio-no-spoilers-settings-changed", { detail: { ...fixture.noSpoilers } }));
-    document.body.insertAdjacentHTML("afterbegin", '<img class="background-image_fixture" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="><div class="description-container_fixture">Summary A major ending is revealed here.</div><div class="player-title_fixture" style="position:fixed;top:10px;left:100px">Fixture Movie</div>');
+    document.body.insertAdjacentHTML("afterbegin", '<img class="background-image_fixture" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="><h1 class="series-title_fixture">Fixture Movie</h1><div class="description-container_fixture"><div class="label-container_fixture">Summary</div><div class="summary-body_fixture">A major ending is revealed here.</div></div><div class="episode-title_fixture">S6E13 Robert Vesco</div><span class="player-title_fixture">The Blacklist - Robert Vesco (6x13)</span><div class="videos-list_fixture"><div class="video-container_fixture" tabindex="0" title="General Shiro"><img class="thumbnail_fixture" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="><div class="title-container_fixture">7. General Shiro</div></div></div>');
     fixture.emitMpv("time-pos", 10);
     fixture.emitMpv("duration", 1_000);
   });
-  await expect(page.locator(".description-container_fixture")).toHaveClass(/no-spoilers-blur/);
+  await expect(page.locator(".summary-body_fixture")).toHaveClass(/no-spoilers-blur/);
   await expect(page.locator(".background-image_fixture")).toHaveClass(/no-spoilers-blur/);
-  await expect(page.locator(".player-title_fixture")).not.toHaveText("Fixture Movie");
+  await expect(page.locator(".thumbnail_fixture")).toHaveClass(/no-spoilers-blur/);
+  await expect(page.locator(".series-title_fixture")).toHaveText("Fixture Movie");
+  await expect(page.locator(".episode-title_fixture")).toHaveText("S6E13 Robe** *****");
+  await expect(page.locator(".title-container_fixture")).toHaveText("7. Gene*** *****");
+  await expect(page.locator(".video-container_fixture")).toHaveAttribute("title", "Gene*** *****");
+  await expect(page.locator(".player-title_fixture")).toHaveText("The Blacklist - Robe** ***** (6x13)");
+
+  await page.locator(".summary-body_fixture").click();
+  await expect(page.getByRole("heading", { name: "Reveal summary?" })).toBeVisible();
+  await page.getByRole("button", { name: "Keep hidden" }).click();
+  await expect(page.locator(".summary-body_fixture")).toHaveClass(/no-spoilers-blur/);
+  await page.locator(".summary-body_fixture").click();
+  await page.getByRole("button", { name: "Reveal summary" }).click();
+  await expect(page.locator(".summary-body_fixture")).not.toHaveClass(/no-spoilers-blur/);
+
+  await page.locator(".player-title_fixture").click();
+  await expect(page.getByRole("heading", { name: "Reveal episode name?" })).toBeVisible();
+  await page.getByRole("button", { name: "Reveal episode name" }).click();
+  await expect(page.locator(".player-title_fixture")).toHaveText("The Blacklist - Robert Vesco (6x13)");
 
   const seek = page.locator(".slider-container_fixture");
   await seek.click({ position: { x: 700, y: 20 } });
   await expect(page.getByRole("heading", { name: "Large skip blocked" })).toBeVisible();
   await page.getByRole("button", { name: "Skip", exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as any).__fixture.commands.some((command: unknown[]) => command[0] === "time-pos" && Number(command[1]) > 60))).toBe(true);
+
+  await page.evaluate(() => {
+    location.hash = "#/home";
+    const fixture = (window as any).__fixture;
+    window.dispatchEvent(new CustomEvent("jstremio-no-spoilers-settings-changed", { detail: { ...fixture.noSpoilers } }));
+  });
+  await expect(page.locator(".background-image_fixture")).not.toHaveClass(/no-spoilers-blur/);
+  await expect(page.locator(".thumbnail_fixture")).not.toHaveClass(/no-spoilers-blur/);
 });
 
 test("offers Crimson and persists reusable custom theme presets", async ({ page }) => {
@@ -715,18 +741,27 @@ test("opens Reviews with Stremio's end-of-episode prompt and honors its default-
   const mountNextEpisodePrompt = () => page.evaluate(() => {
     document.querySelector(".next-episode-fixture")?.remove();
     document.body.insertAdjacentHTML("beforeend", `
-      <section class="next-episode-fixture" style="position:fixed;left:220px;top:120px;width:620px;height:210px;background:#000">
-        <h2>Next on <span>The Blacklist</span></h2>
-        <p>General Shiro (S6E7)</p>
-        <button type="button">Dismiss</button>
-        <button type="button">Watch now</button>
+      <section class="next-episode-fixture next-video-popup-container_fixture" style="position:fixed;left:220px;top:120px;width:620px;height:210px;background:#000">
+        <div class="details-container_fixture">
+          <h2>Next on <span>The Blacklist</span></h2>
+          <p class="next-video-title-fixture title_fixture">General Shiro (S6E7)</p>
+        </div>
+        <div tabindex="0">Dismiss</div>
+        <div tabindex="0">Watch now</div>
       </section>`);
   });
 
   await mountNextEpisodePrompt();
+  const nextVideoTitle = page.locator(".next-video-title-fixture");
+  await expect(nextVideoTitle).toHaveText("Gene*** ***** (S6E7)");
+  await expect(nextVideoTitle).toHaveClass(/no-spoilers-next-video-title-protected/);
   const reviewDialog = page.getByRole("dialog", { name: "Add review" });
   await expect(reviewDialog).toBeVisible();
   await reviewDialog.getByRole("button", { name: "Cancel" }).click();
+  await nextVideoTitle.click();
+  await expect(page.getByRole("heading", { name: "Reveal episode name?" })).toBeVisible();
+  await page.getByRole("button", { name: "Reveal episode name" }).click();
+  await expect(nextVideoTitle).toHaveText("General Shiro (S6E7)");
   await page.evaluate(() => {
     const mutation = document.createElement("span");
     document.body.append(mutation);

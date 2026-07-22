@@ -2,6 +2,14 @@
 
 JStremio follows Semantic Versioning. Stable releases are tagged `vMAJOR.MINOR.PATCH` and published through GitHub Releases.
 
+## 1.10.0 - 2026-07-22
+
+- Make No Spoilers target only spoiler-bearing detail and player surfaces, leaving home/catalog artwork and the main series title untouched while correctly blurring detail summaries, backgrounds, episode-list thumbnails, and episode tooltips.
+- Mask episode names consistently in detail headers, episode lists, the player header, and Stremio's current next-video popup while preserving series names and season/episode numbers; add themed click-to-reveal confirmations for summaries and player/next-episode names.
+- Detect Stremio's current hashed next-video popup structure through a shared compatibility adapter so Local Reviews reliably opens alongside it; retain the persistent default-on Reviews setting and verify that disabling it prevents automatic opening.
+- Apply the active JStremio theme to LastPlayed buttons and metadata popovers, including accent, surface, text, border, and hover states.
+- Add focused masking/compatibility tests plus real WebView smoke coverage for detail-page protection, player-title reveal, next-video masking/reveal, Reviews automatic opening, the Reviews off toggle, and non-spoiler home artwork.
+
 ## 1.9.0 - 2026-07-21
 
 - Add the Easy Sound Output built-in plugin with a themed right-click menu on the player volume control, live MPV audio-device switching, a per-device preferred-output action, and persistent settings with a clear option.

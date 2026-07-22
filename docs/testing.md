@@ -10,6 +10,16 @@
 
 `check.ps1` runs Rust formatting/clippy/tests, TypeScript typecheck/unit tests, deterministic bundles, Playwright fixtures in installed Edge, and an optimized x64 compile.
 
+## Automated evidence from 2026-07-22 (v1.10.0)
+
+The v1.10.0 spoiler-protection and end-of-episode compatibility release passed on Windows:
+
+- The locked release gate passed 61 native tests, 60 browser unit tests, and 15 Playwright end-to-end tests, plus formatting, Clippy with warnings denied, strict TypeScript, deterministic bundles, optimized app/updater builds, and release packaging.
+- Browser coverage reproduces Stremio's current hashed next-video popup with non-button controls and verifies No Spoilers masks only the episode name, click-to-reveal restores it, Local Reviews opens automatically by default, and the persisted Off setting prevents later automatic prompts.
+- Native WebView2 testing against a generated local H.264/AAC stream verified `General Shiro (S6E7)` becomes `Gene*** ***** (S6E7)`, the themed reveal dialog restores the full name, Reviews opens concurrently with the next-video surface, and disabling automatic Reviews keeps it closed.
+- Additional live WebView checks verified detail-page summaries/backgrounds and all 22 episode rows/thumbnails are protected while 79 home/catalog artworks remain untouched; player-title masking preserves the series and episode number and reveals only after confirmation.
+- Inno Setup built `JStremioSetup-v1.10.0_x64-unsigned.exe` at 71,328,456 bytes with SHA-256 `115FCF7D5F418986CEDC7A6949E39DA5BDA7EA76AA7823E1B90ACBEF7D41A443`. The portable ZIP is 92,834,987 bytes with SHA-256 `C224B7C98E312639D039DF38281E1C304E91B6A912DC93A3FB8764C8A101F1FD`.
+
 ## Automated evidence from 2026-07-21 (v1.9.0)
 
 The v1.9.0 player quality-of-life plugin release passed on Windows:

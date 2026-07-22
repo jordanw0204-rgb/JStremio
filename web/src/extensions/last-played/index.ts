@@ -16,7 +16,7 @@ export type LastPlayedEntry = MediaTarget & {
   updatedAt: string;
 };
 
-const manifest = { schemaVersion:1,id:"last-played",name:"LastPlayed",version:"1.1.0",entry:"index.js",styles:"styles.css",enabledByDefault:true,loadOrder:120 } as const;
+const manifest = { schemaVersion:1,id:"last-played",name:"LastPlayed",version:"1.1.1",entry:"index.js",styles:"styles.css",enabledByDefault:true,loadOrder:120 } as const;
 const OWNER = "last-played";
 
 requireRuntime().registerExtension(manifest, (runtime) => activate(runtime));

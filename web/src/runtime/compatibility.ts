@@ -123,6 +123,45 @@ export function accessibleName(element: Element): string {
     .join(" ");
 }
 
+export function findNextVideoPopup(): HTMLElement | null {
+  if (!isPlayerRoute()) return null;
+  const official = Array.from(
+    document.querySelectorAll<HTMLElement>('[class*="next-video-popup-container"]'),
+  ).find((element) => !element.closest(OWNED) && !isHiddenInTree(element));
+  if (official) return official;
+
+  const controls = interactiveElements(document);
+  const watch = controls.find((element) => /^watch now$/i.test(accessibleName(element).trim()));
+  const dismiss = controls.find((element) => /^dismiss$/i.test(accessibleName(element).trim()));
+  if (!watch || !dismiss) return null;
+  let host = watch.parentElement;
+  while (host && host !== document.body) {
+    const bounds = host.getBoundingClientRect();
+    if (
+      host.contains(dismiss)
+      && /\b(?:coming up )?next on\b/i.test(host.textContent ?? "")
+      && bounds.width > 0
+      && bounds.height > 0
+      && !isHiddenInTree(host)
+    ) {
+      return host;
+    }
+    host = host.parentElement;
+  }
+  return null;
+}
+
+export function findNextVideoTitle(popup: HTMLElement | null = findNextVideoPopup()): HTMLElement | null {
+  if (!popup) return null;
+  const official = popup.querySelector<HTMLElement>(
+    '[class*="details-container"] > [class*="title"]',
+  );
+  if (official) return official;
+  return Array.from(popup.querySelectorAll<HTMLElement>("*")).find((element) =>
+    element.children.length === 0 && /\(\s*S\d+\s*E\d+\s*\)\s*$/i.test(element.textContent ?? ""),
+  ) ?? null;
+}
+
 function interactiveElements(root: ParentNode): HTMLElement[] {
   return Array.from(root.querySelectorAll<HTMLElement>(INTERACTIVE)).filter(
     (element) => !element.closest(OWNED),

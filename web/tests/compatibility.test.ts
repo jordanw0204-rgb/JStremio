@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   copyNavigationPresentation,
+  findNextVideoPopup,
+  findNextVideoTitle,
   findPlayerControls,
   findPrimaryNavigation,
   findSeekContainer,
@@ -111,5 +113,25 @@ describe("central DOM compatibility adapter", () => {
     expect(isPlayerOverlayHidden()).toBe(false);
     document.querySelector(".control-bar-container_hash-c")?.classList.add("overlayHidden_changedHash");
     expect(isPlayerOverlayHidden()).toBe(true);
+  });
+
+  it("finds Stremio's current next-video popup even when its controls are divs", () => {
+    document.body.insertAdjacentHTML("beforeend", `
+      <section class="next-video-popup-container_hash">
+        <div class="info-container_hash">
+          <div class="details-container_hash">
+            <div class="name_hash"><span>Next on</span> The Blacklist</div>
+            <div class="title_hash">General Shiro (S6E7)</div>
+          </div>
+          <div class="buttons-container_hash">
+            <div class="button-container_hash" tabindex="0"><span>Dismiss</span></div>
+            <div class="button-container_hash" tabindex="0"><span>Watch now</span></div>
+          </div>
+        </div>
+      </section>`);
+
+    const popup = findNextVideoPopup();
+    expect(popup?.className).toBe("next-video-popup-container_hash");
+    expect(findNextVideoTitle(popup)?.textContent).toBe("General Shiro (S6E7)");
   });
 });

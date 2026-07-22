@@ -1,7 +1,18 @@
 import styles from "./styles.css";
-import { findSeekContainer, isPlayerRoute } from "../../runtime/compatibility";
-import type { JStremioRuntime, MediaTarget } from "../../runtime/types";
+import {
+  findNextVideoPopup,
+  findNextVideoTitle,
+  findSeekContainer,
+  isPlayerRoute,
+} from "../../runtime/compatibility";
+import type { JStremioRuntime } from "../../runtime/types";
 import { addStyles, removeOwned, requireRuntime } from "../shared";
+import {
+  maskEpisodeLabel,
+  maskNextVideoEpisodeLabel,
+  maskPlayerEpisodeLabel,
+  maskSpoilerText,
+} from "./masking";
 
 type Settings = {
   blurSummary: boolean;
@@ -15,7 +26,7 @@ const manifest = {
   schemaVersion: 1,
   id: "no-spoilers",
   name: "No Spoilers",
-  version: "1.0.0",
+  version: "1.0.4",
   entry: "index.js",
   styles: "styles.css",
   enabledByDefault: true,
@@ -27,16 +38,28 @@ requireRuntime().registerExtension(manifest, (runtime) => activate(runtime));
 
 function activate(runtime: JStremioRuntime) {
   let settings: Settings = defaults();
-  let target: MediaTarget | null = null;
-  let generation = 0;
   let seekPointer: { id: number; targetMs: number } | null = null;
   let suppressClickUntil = 0;
   let promptOpen = false;
+  let summaryPromptOpen = false;
+  let summaryPromptRoute: string | null = null;
+  let dismissSummaryPrompt: (() => void) | null = null;
+  let revealedSummaryRoute: string | null = null;
+  let revealedPlayerTitleRoute: string | null = null;
+  let revealedNextVideoTitleRoute: string | null = null;
+  let appliedRoute: string | null = null;
+  let appliedSettings = "";
   let pendingSeekMs = 0;
   let observer: MutationObserver | null = null;
   const maskedText = new Map<HTMLElement, string>();
+  const maskedPlayerText = new Map<HTMLElement, string>();
+  const maskedNextVideoText = new Map<HTMLElement, string>();
+  const maskedTitles = new Map<HTMLElement, string>();
+  const wrappedSummaryText = new Map<HTMLElement, Text>();
   const blurred = new Set<HTMLElement>();
-  const maskedLogos = new Map<HTMLElement, HTMLElement>();
+  const protectedSummaries = new Set<HTMLElement>();
+  const protectedPlayerTitles = new Set<HTMLElement>();
+  const protectedNextVideoTitles = new Set<HTMLElement>();
   const style = document.createElement("style");
   style.dataset.jstremioExtension = manifest.id;
   style.textContent = styles;
@@ -47,13 +70,30 @@ function activate(runtime: JStremioRuntime) {
       if (element.isConnected) element.textContent = original;
     }
     maskedText.clear();
+    for (const [element, original] of maskedPlayerText) {
+      if (element.isConnected) element.textContent = original;
+    }
+    maskedPlayerText.clear();
+    for (const [element, original] of maskedNextVideoText) {
+      if (element.isConnected) element.textContent = original;
+    }
+    maskedNextVideoText.clear();
+    for (const [element, original] of maskedTitles) {
+      if (element.isConnected) element.setAttribute("title", original);
+    }
+    maskedTitles.clear();
+    for (const [wrapper, text] of wrappedSummaryText) {
+      if (wrapper.isConnected) wrapper.replaceWith(text);
+    }
+    wrappedSummaryText.clear();
     for (const element of blurred) element.classList.remove("no-spoilers-blur");
     blurred.clear();
-    for (const [logo, replacement] of maskedLogos) {
-      logo.classList.remove("no-spoilers-logo-hidden");
-      replacement.remove();
-    }
-    maskedLogos.clear();
+    for (const element of protectedSummaries) element.classList.remove("no-spoilers-summary-protected");
+    protectedSummaries.clear();
+    for (const element of protectedPlayerTitles) element.classList.remove("no-spoilers-player-title-protected");
+    protectedPlayerTitles.clear();
+    for (const element of protectedNextVideoTitles) element.classList.remove("no-spoilers-next-video-title-protected");
+    protectedNextVideoTitles.clear();
   };
 
   const blur = (element: HTMLElement | null) => {
@@ -63,56 +103,183 @@ function activate(runtime: JStremioRuntime) {
   };
 
   const maskElement = (element: HTMLElement | null) => {
-    if (!element || maskedText.has(element)) return;
+    if (!element) return;
     const original = element.textContent?.trim();
     if (!original || original.length < 2) return;
+    const previous = maskedText.get(element);
+    if (previous && original === maskEpisodeLabel(previous, settings.titleMaskPercent)) return;
+    const masked = maskEpisodeLabel(original, settings.titleMaskPercent);
+    if (!masked) return;
     maskedText.set(element, original);
-    element.textContent = maskTitle(original, settings.titleMaskPercent);
+    element.textContent = masked;
   };
 
-  const applyProtection = () => {
-    observer?.disconnect();
-    restore();
-    if (settings.blurSummary) {
-      const summary = Array.from(document.querySelectorAll<HTMLElement>('[class*="description-container"]'))
-        .find((element) => /^\s*summary\b/i.test(element.textContent ?? ""));
-      blur(summary ?? null);
+  const maskPlayerTitle = (element: HTMLElement | null) => {
+    if (!element) return;
+    const original = element.textContent?.trim();
+    if (!original || original.length < 2) return;
+    const previous = maskedPlayerText.get(element);
+    if (previous && original === maskPlayerEpisodeLabel(previous, settings.titleMaskPercent)) return;
+    const masked = maskPlayerEpisodeLabel(original, settings.titleMaskPercent);
+    if (!masked) return;
+    maskedPlayerText.set(element, original);
+    element.textContent = masked;
+    element.classList.add("no-spoilers-player-title-protected");
+    protectedPlayerTitles.add(element);
+  };
+
+  const maskNextVideoTitle = (element: HTMLElement | null) => {
+    if (!element) return;
+    const original = element.textContent?.trim();
+    if (!original || original.length < 2) return;
+    const previous = maskedNextVideoText.get(element);
+    if (previous && original === maskNextVideoEpisodeLabel(previous, settings.titleMaskPercent)) return;
+    const masked = maskNextVideoEpisodeLabel(original, settings.titleMaskPercent);
+    if (!masked) return;
+    maskedNextVideoText.set(element, original);
+    element.textContent = masked;
+    element.classList.add("no-spoilers-next-video-title-protected");
+    protectedNextVideoTitles.add(element);
+  };
+
+  const blurSummaries = () => {
+    const protect = (element: HTMLElement) => {
+      element.classList.add("no-spoilers-summary-protected");
+      protectedSummaries.add(element);
+      blur(element);
+    };
+    for (const container of document.querySelectorAll<HTMLElement>('[class*="description-container"]')) {
+      const children = Array.from(container.children).filter((child): child is HTMLElement => child instanceof HTMLElement);
+      const label = children.find((child) => /^\s*summary\s*$/i.test(child.textContent ?? ""));
+      if (!label) continue;
+      const bodies = children.filter((child) => child !== label && Boolean(child.textContent?.trim()));
+      bodies.forEach(protect);
+      const textNodes = Array.from(container.childNodes)
+        .filter((node): node is Text => node instanceof Text && Boolean(node.textContent?.trim()));
+      for (const text of textNodes) {
+        const wrapper = document.createElement("span");
+        wrapper.dataset.jstremioExtension = manifest.id;
+        wrapper.className = "no-spoilers-summary-text";
+        container.insertBefore(wrapper, text);
+        wrapper.append(text);
+        wrappedSummaryText.set(wrapper, text);
+        protect(wrapper);
+      }
+      if (!bodies.length && !textNodes.length) protect(container);
     }
+  };
+
+  const episodeListTitles = () => document.querySelectorAll<HTMLElement>(
+    '[class*="videos-list"] [class*="title-container"], [class*="videos-container"] [class*="title-container"]',
+  );
+
+  const blurEpisodeThumbnails = () => {
+    document.querySelectorAll<HTMLElement>(
+      '[class*="videos-list"] [class*="video-container"], [class*="videos-container"] [class*="video-container"]',
+    ).forEach((row) => {
+      const title = row.querySelector<HTMLElement>('[class*="title-container"]');
+      if (!title || !maskEpisodeLabel(title.textContent?.trim() ?? "", settings.titleMaskPercent)) return;
+      row.querySelectorAll<HTMLElement>('[class*="thumbnail-container"] img, img[class*="thumbnail"]').forEach(blur);
+    });
+  };
+
+  const maskEpisodeTooltips = () => {
+    document.querySelectorAll<HTMLElement>(
+      '[class*="videos-list"] [class*="video-container"][title], [class*="videos-container"] [class*="video-container"][title]',
+    ).forEach((row) => {
+      const title = row.getAttribute("title")?.trim();
+      const label = row.querySelector<HTMLElement>('[class*="title-container"]')?.textContent?.trim() ?? "";
+      if (!title || !maskEpisodeLabel(label, settings.titleMaskPercent)) return;
+      const previous = maskedTitles.get(row);
+      if (previous && title === maskSpoilerText(previous, settings.titleMaskPercent)) return;
+      maskedTitles.set(row, title);
+      row.setAttribute("title", maskSpoilerText(title, settings.titleMaskPercent));
+    });
+  };
+
+  const applyProtection = (forceReset = false) => {
+    const route = location.hash;
+    const settingsKey = `${settings.blurSummary}|${settings.blurArtwork}|${settings.titleMaskPercent}`;
+    if (revealedSummaryRoute && revealedSummaryRoute !== route) revealedSummaryRoute = null;
+    if (revealedPlayerTitleRoute && revealedPlayerTitleRoute !== route) revealedPlayerTitleRoute = null;
+    if (revealedNextVideoTitleRoute && revealedNextVideoTitleRoute !== route) revealedNextVideoTitleRoute = null;
+    if (summaryPromptOpen && summaryPromptRoute !== route) dismissSummaryPrompt?.();
+    observer?.disconnect();
+    if (forceReset || appliedRoute !== route || appliedSettings !== settingsKey) restore();
+    appliedRoute = route;
+    appliedSettings = settingsKey;
+    if (!isProtectedRoute()) {
+      observer?.observe(document.body, { childList: true, subtree: true, characterData: true });
+      return;
+    }
+    if (settings.blurSummary && revealedSummaryRoute !== route) blurSummaries();
     if (settings.blurArtwork) {
       document.querySelectorAll<HTMLElement>(
         '[class*="background-image"],img[class*="poster"],[class*="poster-container"] img,[class*="episode-poster"] img',
       ).forEach(blur);
+      blurEpisodeThumbnails();
     }
     document.querySelectorAll<HTMLElement>('[class*="episode-title"]').forEach(maskElement);
-    const names = [target?.title, target?.name].filter((value): value is string => Boolean(value && value.length > 1));
-    for (const element of Array.from(document.querySelectorAll<HTMLElement>("div,span,h1,h2,h3"))) {
-      if (element.closest('[data-jstremio-extension], [class*="subtitle"]')) continue;
-      const rect = element.getBoundingClientRect();
-      if (!rect.width || !rect.height || (isPlayerRoute() && rect.top > 150)) continue;
-      const text = element.textContent?.trim() ?? "";
-      if (names.some((name) => text === name || text.endsWith(name))) maskElement(element);
+    episodeListTitles().forEach(maskElement);
+    maskEpisodeTooltips();
+    if (isPlayerRoute() && revealedPlayerTitleRoute !== route) {
+      document.querySelectorAll<HTMLElement>('span[class*="player-title"]').forEach(maskPlayerTitle);
     }
-    document.querySelectorAll<HTMLElement>('img[class*="logo"][title]').forEach((logo) => {
-      const title = logo.getAttribute("title")?.trim();
-      if (!title || maskedLogos.has(logo)) return;
-      const replacement = document.createElement("span");
-      replacement.dataset.jstremioExtension = manifest.id;
-      replacement.className = "no-spoilers-masked-logo";
-      replacement.textContent = maskTitle(title, settings.titleMaskPercent);
-      logo.classList.add("no-spoilers-logo-hidden");
-      logo.insertAdjacentElement("afterend", replacement);
-      maskedLogos.set(logo, replacement);
-    });
-    observer?.observe(document.body, { childList: true, subtree: true });
+    if (isPlayerRoute() && revealedNextVideoTitleRoute !== route) {
+      maskNextVideoTitle(findNextVideoTitle(findNextVideoPopup()));
+    }
+    observer?.observe(document.body, { childList: true, subtree: true, characterData: true });
   };
 
-  const refreshTarget = () => {
-    const current = ++generation;
-    void runtime.stremio.getCurrentMediaTarget().then((value) => {
-      if (current !== generation) return;
-      target = value;
-      applyProtection();
-    }).catch((error) => runtime.diagnostics.report(manifest.id, error));
+  const showReveal = (kind: "summary" | "episode" | "nextEpisode") => {
+    if (summaryPromptOpen) return;
+    summaryPromptOpen = true;
+    summaryPromptRoute = location.hash;
+    runtime.ui.openDialog((container, closeHost) => {
+      addStyles(container, styles);
+      const close = () => {
+        if (!summaryPromptOpen) return;
+        summaryPromptOpen = false;
+        summaryPromptRoute = null;
+        dismissSummaryPrompt = null;
+        closeHost();
+      };
+      dismissSummaryPrompt = close;
+      const dialog = document.createElement("section");
+      dialog.className = "no-spoilers-dialog";
+      dialog.setAttribute("role", "dialog");
+      dialog.setAttribute("aria-modal", "true");
+      const titleId = kind === "summary"
+        ? "no-spoilers-summary-title"
+        : kind === "episode"
+          ? "no-spoilers-episode-title"
+          : "no-spoilers-next-episode-title";
+      const heading = kind === "summary" ? "Reveal summary?" : "Reveal episode name?";
+      const copy = kind === "summary"
+        ? "This summary may contain plot details. Are you sure you want to show it?"
+        : "This episode name may contain plot details. Are you sure you want to show it?";
+      const keepLabel = kind === "summary" ? "Keep hidden" : "Keep episode hidden";
+      const revealLabel = kind === "summary" ? "Reveal summary" : "Reveal episode name";
+      dialog.setAttribute("aria-labelledby", titleId);
+      dialog.innerHTML = `<h2 id="${titleId}">${heading}</h2><p>${copy}</p><div class="no-spoilers-actions"><button type="button" class="no-spoilers-action" data-action="cancel">${keepLabel}</button><button type="button" class="no-spoilers-action primary" data-action="reveal">${revealLabel}</button></div>`;
+      dialog.querySelector('[data-action="cancel"]')?.addEventListener("click", close);
+      dialog.querySelector('[data-action="reveal"]')?.addEventListener("click", () => {
+        const route = summaryPromptRoute;
+        close();
+        if (route === location.hash) {
+          if (kind === "summary") revealedSummaryRoute = route;
+          else if (kind === "episode") revealedPlayerTitleRoute = route;
+          else revealedNextVideoTitleRoute = route;
+          applyProtection(true);
+        }
+      });
+      container.append(dialog);
+      return () => {
+        summaryPromptOpen = false;
+        summaryPromptRoute = null;
+        dismissSummaryPrompt = null;
+      };
+    });
   };
 
   const showBlockedSeek = (positionMs: number) => {
@@ -187,6 +354,33 @@ function activate(runtime: JStremioRuntime) {
     void runtime.player.seekTo(position).catch((error) => runtime.diagnostics.report(manifest.id, error));
   };
   const onClick = (event: MouseEvent) => {
+    const summary = event.target instanceof Element
+      ? event.target.closest<HTMLElement>(".no-spoilers-summary-protected")
+      : null;
+    if (summary) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      showReveal("summary");
+      return;
+    }
+    const playerTitle = event.target instanceof Element
+      ? event.target.closest<HTMLElement>(".no-spoilers-player-title-protected")
+      : null;
+    if (playerTitle) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      showReveal("episode");
+      return;
+    }
+    const nextVideoTitle = event.target instanceof Element
+      ? event.target.closest<HTMLElement>(".no-spoilers-next-video-title-protected")
+      : null;
+    if (nextVideoTitle) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      showReveal("nextEpisode");
+      return;
+    }
     if (performance.now() <= suppressClickUntil && eventIsOnSeek(event)) {
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -198,22 +392,22 @@ function activate(runtime: JStremioRuntime) {
   window.addEventListener("pointercancel", onPointerUp, true);
   window.addEventListener("click", onClick, true);
 
-  const reconcile = () => refreshTarget();
+  const reconcile = () => applyProtection();
   const unsubscribe = runtime.lifecycle.onReconcile(reconcile);
   const onSettings = (event: Event) => {
     settings = asSettings((event as CustomEvent).detail);
-    applyProtection();
+    applyProtection(true);
   };
   window.addEventListener(SETTINGS_CHANGED, onSettings);
   observer = new MutationObserver(() => applyProtection());
-  observer.observe(document.body, { childList: true, subtree: true });
+  observer.observe(document.body, { childList: true, subtree: true, characterData: true });
   void runtime.bridge.request("plugins", "getNoSpoilers").then((value) => {
     settings = asSettings(value);
-    refreshTarget();
+    applyProtection(true);
   }).catch((error) => runtime.diagnostics.report(manifest.id, error));
 
   return () => {
-    generation += 1;
+    dismissSummaryPrompt?.();
     unsubscribe();
     removeGuard();
     observer?.disconnect();
@@ -228,14 +422,13 @@ function activate(runtime: JStremioRuntime) {
   };
 }
 
-function maskTitle(value: string, percent: number) {
-  const visible = Math.max(1, Math.ceil(Array.from(value).filter((character) => !/\s/.test(character)).length * (1 - percent / 100)));
-  let remaining = visible;
-  return Array.from(value).map((character) => {
-    if (/\s/.test(character)) return character;
-    if (remaining > 0) { remaining -= 1; return character; }
-    return "*";
-  }).join("");
+function isProtectedRoute() {
+  try {
+    const route = decodeURIComponent(location.hash);
+    return route.startsWith("#/detail/") || route.startsWith("#/player/");
+  } catch {
+    return false;
+  }
 }
 
 function defaults(): Settings {

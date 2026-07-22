@@ -7,6 +7,7 @@ test("adds exact LastPlayed actions and metadata to played movie and series card
   await page.setContent(`
     <style>
       * { overflow: hidden; }
+      :root { --jstremio-background-start:#120405;--jstremio-background-end:#43090d;--jstremio-accent-color:#e23d49;--jstremio-surface-color:#1b080a;--jstremio-text-color:#fff1f2; }
       body { margin: 30px; background: #0e1026; color: white; font-family: sans-serif; }
       .row { display: flex; gap: 24px; }
       article { width: 180px; }
@@ -83,10 +84,14 @@ test("adds exact LastPlayed actions and metadata to played movie and series card
   await expect(page.locator("#nav [data-jstremio-last-played-card],#detail-text [data-jstremio-last-played-card],#stream-text [data-jstremio-last-played-card],#unplayed-card [data-jstremio-last-played-card]")).toHaveCount(0);
 
   const newestAction = page.locator("#series-card .jstremio-last-played-button");
+  await expect(newestAction).toHaveCSS("background-color", "rgb(226, 61, 73)");
+  await expect(newestAction).toHaveCSS("color", "rgb(255, 241, 242)");
   await page.locator("#series-card").hover();
   await newestAction.hover();
   const details = page.locator("body > [role=tooltip][data-open]").filter({ hasText: "Zarak Mosadek" });
   await expect(details).toBeVisible();
+  await expect(details).toHaveCSS("background-color", "rgb(27, 8, 10)");
+  await expect(details).toHaveCSS("color", "rgb(255, 241, 242)");
   await expect.poll(async () => (await details.boundingBox())?.width ?? 0).toBeGreaterThan(180);
   await expect(details).toContainText("The Blacklist — S05E18 · Zarak Mosadek");
   await expect(details).toContainText("Provider · Torrentio RD");
