@@ -10,6 +10,7 @@
 .warning { display:grid; gap:4px; border-color:color-mix(in srgb,var(--plugin-accent) 38%,var(--plugin-text) 8%); background:color-mix(in srgb,var(--plugin-surface) 82%,var(--plugin-accent) 10%); }
 .warning span,.install-help p { color:color-mix(in srgb,var(--plugin-text) 72%,transparent); }
 .restart { border-color:color-mix(in srgb,var(--plugin-accent) 45%,transparent); color:color-mix(in srgb,var(--plugin-accent) 64%,var(--plugin-text) 36%); display:flex; align-items:center; justify-content:space-between; gap:14px; }
+.restart[hidden] { display:none; }
 .restart-button { flex:0 0 auto; border-color:color-mix(in srgb,var(--plugin-accent) 58%,transparent); background:color-mix(in srgb,var(--plugin-surface) 70%,var(--plugin-accent) 22%); }
 .restart-button:hover,.restart-button:focus-visible { background:color-mix(in srgb,var(--plugin-surface) 58%,var(--plugin-accent) 32%); }
 .toolbar { max-width:1200px; margin:0 auto 18px; display:flex; gap:10px; flex-wrap:wrap; }

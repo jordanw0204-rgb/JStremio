@@ -2,6 +2,15 @@
 
 JStremio follows Semantic Versioning. Stable releases are tagged `vMAJOR.MINOR.PATCH` and published through GitHub Releases.
 
+## 1.10.1 - 2026-07-24
+
+- Add the built-in Stream Switcher player control: left-click selects the closest matching alternate provider/quality stream, right-click opens a compact themed stream picker, and successful replacements resume at the prior playback position and pause state.
+- Prevent Watch Now transitions from carrying an ending timestamp into the following episode by tracking the outgoing media identity and rejecting inherited end positions during the player handoff.
+- Keep automatic Local Reviews owned by the episode that actually ended, suppress duplicate dialogs throughout Watch Now transitions and remounted end cards, and require genuinely near-end playback before opening automatically.
+- Make player media identity route-authoritative while Stremio preselects the next episode, preserving the correct title, season, episode, stream, review, and resume target across asynchronous route/core updates.
+- Make Restart JStremio launch a detached replacement process reliably after the current WebView, server, profile, and IPC handles have closed.
+- Add focused unit, repeated browser, and live smoke coverage for alternate-stream ranking/resume, inherited-end recovery, restart replacement, route-owned episode targeting, and remounted Watch Next prompts at `00:00`.
+
 ## 1.10.0 - 2026-07-22
 
 - Make No Spoilers target only spoiler-bearing detail and player surfaces, leaving home/catalog artwork and the main series title untouched while correctly blurring detail summaries, backgrounds, episode-list thumbnails, and episode tooltips.

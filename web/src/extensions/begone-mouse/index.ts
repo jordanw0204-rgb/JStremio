@@ -75,7 +75,7 @@ function activate(runtime: JStremioRuntime) {
     if (isBottomProtected(pointerY, window.innerHeight)) return true;
     if (pointerX === null || pointerY === null) return false;
     const target = document.elementFromPoint(pointerX, pointerY);
-    return Boolean(target?.closest('[data-jstremio-extension="quick-seek"]'));
+    return Boolean(target?.closest("[data-jstremio-player-protected]"));
   };
 
   const hideInterface = () => {

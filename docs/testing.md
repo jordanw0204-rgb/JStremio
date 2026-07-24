@@ -10,6 +10,15 @@
 
 `check.ps1` runs Rust formatting/clippy/tests, TypeScript typecheck/unit tests, deterministic bundles, Playwright fixtures in installed Edge, and an optimized x64 compile.
 
+## Automated evidence from 2026-07-24 (v1.10.1)
+
+The v1.10.1 player-transition, stream-switching, and Review ownership release passed on Windows:
+
+- The locked release gate passed 62 native tests, 66 browser unit tests, and 16 Playwright end-to-end tests, plus formatting, Clippy with warnings denied, strict TypeScript, deterministic bundles, updater integration tests, optimized x64 app/updater builds, portable packaging, and installer packaging.
+- The exact Watch Now race was repeated 20 consecutive times with React removing and remounting the next-video card before the new episode reported `00:00`; Reviews stayed closed during every handoff and opened exactly once for the correct episode at its genuine end.
+- Focused coverage verifies route-owned episode identity while Stremio preselects the following episode, inherited ending-position rejection, matching alternate-stream ranking, compact stream selection, exact playback-position restoration, and detached restart replacement behavior.
+- Inno Setup built `JStremioSetup-v1.10.1_x64-unsigned.exe` at 71,327,161 bytes with SHA-256 `C86A77E56F585E6615AFBDFACE6469BEDA3F2FB34CAD6A9276BF88F54AF16359`. The portable ZIP is 92,844,919 bytes with SHA-256 `558492815B3BE79144B30D5BCEB9FEE3A200253BDAA6A54FEEC33B5FD507B98F`.
+
 ## Automated evidence from 2026-07-22 (v1.10.0)
 
 The v1.10.0 spoiler-protection and end-of-episode compatibility release passed on Windows:

@@ -1,7 +1,8 @@
 import styles from "./styles.css";
 import { findNextVideoPopup, isPlayerRoute } from "../../runtime/compatibility";
 import { registerPluginHotkey } from "../../runtime/hotkeys";
-import type { JStremioRuntime, MediaTarget } from "../../runtime/types";
+import { NEXT_VIDEO_REQUESTED_EVENT } from "../../runtime/playerEvents";
+import type { JStremioRuntime, MediaTarget, PlaybackSnapshot } from "../../runtime/types";
 import {
   addStyles,
   mediaCollectionKey,
@@ -45,7 +46,9 @@ function activate(runtime: JStremioRuntime) {
   let resolvedPlayerTarget: MediaTarget | null = null;
   let autoOpenAtEnd = true;
   let settingsLoaded = false;
-  let endPromptWasVisible = false;
+  let nextVideoRequested = false;
+  let suppressAutoOpenUntilPlaybackStarts = false;
+  const handledEndTargets = new Set<string>();
   const reviewCache = new Map<string, Review | null>();
   const reviewLoads = new Map<string, Promise<Review | null>>();
   const loadReview = (target: MediaTarget): Promise<Review | null> => {
@@ -72,15 +75,37 @@ function activate(runtime: JStremioRuntime) {
     });
   };
   const maybeOpenEndReview = () => {
-    const promptVisible = isPlayerRoute() && findNextVideoPopup() !== null;
-    if (!promptVisible) {
-      endPromptWasVisible = false;
+    const prompt = isPlayerRoute() ? findNextVideoPopup() : null;
+    const playback = runtime.player.getSnapshot();
+    if (suppressAutoOpenUntilPlaybackStarts) {
+      // React can unmount the old end card and immediately mount a fresh copy
+      // while the following episode is already loading. Keep the transition
+      // suppressed until the player positively reports non-ending playback;
+      // DOM element identity alone cannot distinguish those two cards.
+      if (playback && !isPlaybackNearEnd(playback)) {
+        suppressAutoOpenUntilPlaybackStarts = false;
+      }
       return;
     }
-    if (!settingsLoaded || !autoOpenAtEnd || endPromptWasVisible || !resolvedPlayerTarget) return;
-    endPromptWasVisible = true;
+    if (
+      !prompt ||
+      !settingsLoaded ||
+      !autoOpenAtEnd ||
+      !playback ||
+      !isPlaybackNearEnd(playback) ||
+      !resolvedPlayerTarget ||
+      handledEndTargets.has(resolvedPlayerTarget.key)
+    ) return;
+    handledEndTargets.add(resolvedPlayerTarget.key);
     openPlayerReview();
   };
+  const onNextVideoRequested = () => {
+    nextVideoRequested = true;
+    suppressAutoOpenUntilPlaybackStarts = true;
+    runtime.ui.closeDialog();
+  };
+  window.addEventListener(NEXT_VIDEO_REQUESTED_EVENT, onNextVideoRequested);
+  const unsubscribePlayer = runtime.player.subscribe(() => maybeOpenEndReview());
   const unregisterHotkey = registerPluginHotkey(
     runtime,
     "reviews",
@@ -183,19 +208,36 @@ function activate(runtime: JStremioRuntime) {
       existing?.remove();
       playerRoute = "";
       resolvedPlayerTarget = null;
-      endPromptWasVisible = false;
+      nextVideoRequested = false;
+      suppressAutoOpenUntilPlaybackStarts = false;
       return;
     }
     const route = location.hash;
-    if (route !== playerRoute) {
+    const endPrompt = findNextVideoPopup();
+    const retainEndingOwner = Boolean(
+      route !== playerRoute &&
+      endPrompt &&
+      resolvedPlayerTarget &&
+      !nextVideoRequested
+    );
+    if (route !== playerRoute && !retainEndingOwner) {
       playerRoute = route;
       resolvedPlayerTarget = null;
-      endPromptWasVisible = false;
+      nextVideoRequested = false;
+      runtime.ui.closeDialog();
     }
     const button = mountPlayerButton("reviews", "Review this title", STAR_ICON, () => {
       void openPlayerReview();
     });
     setReviewButtonAvailability(button, resolvedPlayerTarget !== null);
+    // The upstream player may preselect and route to the following episode
+    // before its old video surface and end prompt unmount. While that prompt is
+    // still visible, keep the episode that owned the mounted player instead of
+    // accepting Stremio's already-advanced selection.
+    if (endPrompt && resolvedPlayerTarget) {
+      maybeOpenEndReview();
+      return;
+    }
     void runtime.stremio.getCurrentMediaTarget().then((target) => {
       if (route !== location.hash || !isPlayerRoute()) return;
       if (target) {
@@ -213,7 +255,6 @@ function activate(runtime: JStremioRuntime) {
   const onSettingsChanged = (event: Event) => {
     const value = (event as CustomEvent<{ autoOpenAtEnd?: unknown }>).detail?.autoOpenAtEnd;
     autoOpenAtEnd = value !== false;
-    if (!autoOpenAtEnd) endPromptWasVisible = false;
     maybeOpenEndReview();
   };
   window.addEventListener(REVIEW_SETTINGS_CHANGED, onSettingsChanged);
@@ -230,10 +271,20 @@ function activate(runtime: JStremioRuntime) {
   return () => {
     unsubscribe();
     unregisterHotkey();
+    unsubscribePlayer();
     window.removeEventListener(REVIEW_SETTINGS_CHANGED, onSettingsChanged);
+    window.removeEventListener(NEXT_VIDEO_REQUESTED_EVENT, onNextVideoRequested);
     runtime.ui.closePage();
     removeOwned("reviews");
   };
+}
+
+function isPlaybackNearEnd(snapshot: PlaybackSnapshot): boolean {
+  const { positionMs, durationMs } = snapshot;
+  return positionMs !== null &&
+    durationMs !== null &&
+    durationMs > 0 &&
+    positionMs >= durationMs * 0.75;
 }
 
 function setReviewButtonAvailability(button: HTMLButtonElement | null, available: boolean) {

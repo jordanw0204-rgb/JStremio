@@ -40,6 +40,7 @@ test.beforeEach(async ({ page }) => {
       { id: "last-played", name: "LastPlayed", version: "1.1.1", description: "Exact stream resume", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
       { id: "begone-mouse", name: "BegoneMouse", version: "1.0.0", description: "Configurable player UI idle delay", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
       { id: "quick-seek", name: "Quick Seek", version: "1.3.0", description: "Configurable player seek controls", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
+      { id: "stream-switcher", name: "Stream Switcher", version: "1.0.0", description: "Matching stream switcher", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
       { id: "easy-sound-output", name: "Easy Sound Output", version: "1.0.0", description: "Audio output switcher", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
       { id: "qol-things", name: "QOL Things", version: "1.0.0", description: "Quality-of-life features", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
       { id: "no-spoilers", name: "No Spoilers", version: "1.0.3", description: "Spoiler protection", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
@@ -59,9 +60,19 @@ test.beforeEach(async ({ page }) => {
     const noSpoilers = { blurSummary: true, blurArtwork: true, titleMaskPercent: 70, guardSeeks: true, maxSkipMinutes: 10 };
     const state = {
       selected: { streamRequest: { path: { id: "tt123" } }, stream: { name: "Fixture 1080p", description: "MediaFusion fixture", infoHash: "ABC123", fileIdx: 2, deepLinks: { player: "#/player/stream/exact-fixture" } } },
-      addon: { manifest: { name: "MediaFusion" } },
+      addon: { transportUrl: "https://mediafusion.example/manifest.json", manifest: { name: "MediaFusion" } },
       metaItem: { content: { id: "tt123", type: "movie", name: "Fixture Movie", videos: [] } },
       title: "Fixture Movie",
+    };
+    const metaDetailsState = {
+      streams: [{
+        addon: { transportUrl: "https://mediafusion.example/manifest.json", manifest: { name: "MediaFusion" } },
+        content: { type: "Ready", content: [
+          { name: "Fixture 1080p", description: "MediaFusion fixture", infoHash: "ABC123", fileIdx: 2, deepLinks: { player: "#/player/stream/exact-fixture" } },
+          { name: "Fixture 1080p", description: "MediaFusion fixture alternate HEVC", infoHash: "DEF456", fileIdx: 2, deepLinks: { player: "#/player/stream/alternate-fixture" } },
+          { name: "Fixture 720p", description: "Lower quality fallback", infoHash: "GHI789", fileIdx: 2, deepLinks: { player: "#/player/stream/lower-fixture" } },
+        ] },
+      }],
     };
     const emit = (value: unknown) => {
       for (const listener of listeners) listener(new MessageEvent("message", { data: value }));
@@ -234,7 +245,10 @@ test.beforeEach(async ({ page }) => {
       respond(method, request.id, { status: "ok", revision });
     };
     Object.assign(window, {
-      core: { getState: () => state },
+      core: {
+        getState: (name: string) => name === "meta_details" ? metaDetailsState : state,
+        dispatch: () => Promise.resolve(),
+      },
       chrome: {
         webview: {
           postMessage,
@@ -253,6 +267,7 @@ test.beforeEach(async ({ page }) => {
         theme,
         themePresets,
         state,
+        metaDetailsState,
         getBegoneMouseIdleMs: () => begoneMouseIdleMs,
         getReviewAutoOpenAtEnd: () => reviewAutoOpenAtEnd,
         quickSeek,
@@ -275,6 +290,7 @@ test.beforeEach(async ({ page }) => {
   await page.addScriptTag({ path: resolve(built, "last-played", "index.js") });
   await page.addScriptTag({ path: resolve(built, "begone-mouse", "index.js") });
   await page.addScriptTag({ path: resolve(built, "quick-seek", "index.js") });
+  await page.addScriptTag({ path: resolve(built, "stream-switcher", "index.js") });
   await page.addScriptTag({ path: resolve(built, "easy-sound-output", "index.js") });
   await page.addScriptTag({ path: resolve(built, "qol-things", "index.js") });
   await page.addScriptTag({ path: resolve(built, "no-spoilers", "index.js") });
@@ -289,7 +305,7 @@ test("switches audio devices, remembers volume, conceals spoilers, and confirms 
     ]);
     fixture.emitMpv("audio-device", "auto");
   });
-  const sound = page.locator('.control-bar-button_fixture[title*="Right-click"]');
+  const sound = page.locator('.control-bar-button_fixture[title^="Mute"]');
   await expect(sound).toHaveCount(1);
   await sound.evaluate((element) => element.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true })));
   await expect(page.getByRole("menu", { name: "Audio output devices" })).toBeVisible();
@@ -464,10 +480,11 @@ test("mounts each extension once and remounts after upstream replacement", async
   await pluginNavigation.click();
   await expect(page.locator('[data-jstremio-testid="page"]')).toHaveAttribute("data-jstremio-page", "plugin-manager");
   await expect(page.getByRole("button", { name: "Close Plugins" })).toHaveCount(0);
-  await expect(page.locator(".plugin-card")).toHaveCount(9);
+  await expect(page.locator(".plugin-card")).toHaveCount(10);
   await expect(page.locator(".plugin-card").first()).toHaveCSS("background-color", "rgb(36, 10, 13)");
   await expect(page.locator(".plugin-card").first()).toHaveCSS("color", "rgb(252, 235, 237)");
   await expect(page.getByLabel("Disable Plugins")).toBeDisabled();
+  await expect(page.getByText("Plugin changes were saved. Fully restart JStremio to apply them.")).toBeHidden();
   await page.getByLabel("Disable Local Reviews").uncheck();
   await expect(page.getByText("Plugin changes were saved. Fully restart JStremio to apply them.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Restart JStremio" })).toBeVisible();
@@ -601,9 +618,42 @@ test("relocates early Quick Seek controls into a player bar that mounts later", 
   await expect(rewind.locator("..")).toHaveClass(/control-bar-buttons-container_fixture/);
   await expect(forward.locator("..")).toHaveClass(/control-bar-buttons-container_fixture/);
   await expect(page.locator('#top-player-toolbar [data-jstremio-extension="quick-seek"]')).toHaveCount(0);
-  await expect(playerBar.locator(":scope > *")).toHaveCount(5);
+  await expect(playerBar.locator(":scope > *")).toHaveCount(6);
   await expect(playerBar.locator(":scope > *").nth(0)).toHaveAttribute("data-jstremio-control", "quick-seek-bar-back");
   await expect(playerBar.locator(":scope > *").nth(2)).toHaveAttribute("data-jstremio-control", "quick-seek-bar-forward");
+  await expect(playerBar.locator(":scope > *").nth(3)).toHaveAttribute("data-jstremio-control", "stream-switcher");
+});
+
+test("ranks and switches streams from the player bar while exposing the full themed picker", async ({ page }) => {
+  await installFrameTheme(page);
+  await emitPlayback(page, 31.25, 100, false);
+  const control = page.locator('[data-jstremio-testid="stream-switcher"]');
+  const playerBar = page.locator(".control-bar-buttons-container_fixture");
+  await expect(control).toBeVisible();
+  await expect(control).toHaveClass(/control-bar-button_fixture/);
+  await expect(playerBar.locator(":scope > *").nth(3)).toHaveAttribute("data-jstremio-control", "stream-switcher");
+  await expect(playerBar.locator(":scope > *").nth(4)).toHaveAttribute("title", "Next video");
+
+  await control.evaluate((element) => element.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true })));
+  const picker = page.getByRole("dialog", { name: "Choose a stream" });
+  await expect(picker).toBeVisible();
+  await expect(picker).toHaveCSS("background-color", "rgb(36, 10, 13)");
+  await expect(picker.locator(".stream-switcher-option")).toHaveCount(3);
+  await expect(picker.locator(".stream-switcher-option[data-current]")).toHaveCount(1);
+  await picker.locator('[data-jstremio-stream-route="#/player/stream/alternate-fixture"]').click();
+  await expect.poll(() => page.evaluate(() => location.hash)).toBe("#/player/stream/alternate-fixture");
+  await page.evaluate(() => {
+    const fixture = (window as any).__fixture;
+    fixture.state.selected.stream = fixture.metaDetailsState.streams[0].content.content[1];
+    fixture.emitMpv("time-pos", 0);
+  });
+  await expect.poll(() => page.evaluate(() => (window as any).__fixture.commands.filter(
+    (command: unknown[]) => command[0] === "time-pos" && command[1] === 31.25,
+  ).length)).toBe(1);
+  await page.waitForTimeout(1_900);
+  await expect.poll(() => page.evaluate(() => (window as any).__fixture.commands.filter(
+    (command: unknown[]) => command[0] === "time-pos" && command[1] === 31.25,
+  ).length)).toBe(1);
 });
 
 test("configures both seek directions and protects active player control regions from idle hiding", async ({ page }) => {
@@ -633,7 +683,7 @@ test("configures both seek directions and protects active player control regions
   await expect(barRewind).toHaveClass(/control-bar-button_fixture/);
   await expect(barRewind.locator("..")).toHaveClass(/control-bar-buttons-container_fixture/);
   await expect(page.locator("#top-player-toolbar [data-jstremio-extension=\"quick-seek\"]")).toHaveCount(0);
-  await expect(page.locator(".control-bar-buttons-container_fixture").locator(":scope > *")).toHaveCount(5);
+  await expect(page.locator(".control-bar-buttons-container_fixture").locator(":scope > *")).toHaveCount(6);
   await expect(page.locator(".control-bar-buttons-container_fixture").locator(":scope > *").nth(0)).toHaveAttribute("data-jstremio-control", "quick-seek-bar-back");
   await expect(page.locator(".control-bar-buttons-container_fixture").locator(":scope > *").nth(2)).toHaveAttribute("data-jstremio-control", "quick-seek-bar-forward");
   await expect.poll(async () => {
@@ -684,7 +734,7 @@ test("configures both seek directions and protects active player control regions
     if (!nativeBar) throw new Error("The native player bar fixture was not found");
     nativeBar.innerHTML = '<div class="control-bar-button_fixture" title="Pause" tabindex="-1"></div><div class="control-bar-button_fixture" title="Next video" tabindex="-1"></div><div class="control-bar-button_fixture" title="Mute" tabindex="-1"></div>';
   });
-  await expect(page.locator(".control-bar-buttons-container_fixture").locator(":scope > *")).toHaveCount(5);
+  await expect(page.locator(".control-bar-buttons-container_fixture").locator(":scope > *")).toHaveCount(6);
   await page.waitForTimeout(1_180);
   await expect(barForward).toHaveAttribute("data-holding", "");
   await expect.poll(async () => Number(await barForward.locator("[data-quick-seek-amount]").textContent())).toBeGreaterThan(12.25);
@@ -737,38 +787,105 @@ test("configures both seek directions and protects active player control regions
 });
 
 test("opens Reviews with Stremio's end-of-episode prompt and honors its default-on setting", async ({ page }) => {
+  await page.evaluate(() => {
+    const fixture = (window as any).__fixture;
+    Object.assign(fixture.state, {
+      selected: {
+        ...fixture.state.selected,
+        streamRequest: { path: { id: "tt123:3:4" } },
+        title: "Current episode",
+      },
+      seriesInfo: { season: 3, episode: 4 },
+      metaItem: { content: {
+        id: "tt123",
+        type: "series",
+        name: "Fixture Series",
+        videos: [
+          { id: "tt123:3:4", title: "Current episode", season: 3, episode: 4 },
+          { id: "tt123:3:5", title: "Next episode", season: 3, episode: 5 },
+          { id: "tt123:3:6", title: "Following episode", season: 3, episode: 6 },
+        ],
+      } },
+      title: "Current episode",
+    });
+    location.hash = "#/player/stream/stream-transport/meta-transport/series/tt123/tt123%3A3%3A4";
+  });
   await expect(page.locator('[data-jstremio-testid="reviews-player-button"]')).toBeEnabled();
-  const mountNextEpisodePrompt = () => page.evaluate(() => {
+  await expect.poll(() => page.evaluate(async () =>
+    (await (window as any).JStremio.stremio.getCurrentMediaTarget())?.key,
+  )).toBe("series:tt123:3:4");
+  await page.waitForTimeout(150);
+  await page.evaluate(() => {
+    const fixture = (window as any).__fixture;
+    fixture.emitMpv("duration", 2_700);
+    fixture.emitMpv("time-pos", 2_695);
+  });
+  const mountNextEpisodePrompt = (title = "Next episode (S3E5)", advanceToNext = false) => page.evaluate(({ nextTitle, advance }) => {
+    if (advance) {
+      const fixture = (window as any).__fixture;
+      fixture.state.selected.streamRequest.path.id = "tt123:3:5";
+      fixture.state.selected.title = "Next episode";
+      fixture.state.seriesInfo = { season: 3, episode: 5 };
+      fixture.state.title = "Next episode";
+      location.hash = "#/player/stream/stream-transport/meta-transport/series/tt123/tt123%3A3%3A5";
+    }
     document.querySelector(".next-episode-fixture")?.remove();
     document.body.insertAdjacentHTML("beforeend", `
       <section class="next-episode-fixture next-video-popup-container_fixture" style="position:fixed;left:220px;top:120px;width:620px;height:210px;background:#000">
         <div class="details-container_fixture">
           <h2>Next on <span>The Blacklist</span></h2>
-          <p class="next-video-title-fixture title_fixture">General Shiro (S6E7)</p>
+          <p class="next-video-title-fixture title_fixture">${nextTitle}</p>
         </div>
         <div tabindex="0">Dismiss</div>
         <div tabindex="0">Watch now</div>
       </section>`);
-  });
+  }, { nextTitle: title, advance: advanceToNext });
 
-  await mountNextEpisodePrompt();
+  // Stremio can advance both its mutable core selection and route before the
+  // old video surface disappears. The mounted end prompt still belongs to S3E4.
+  await mountNextEpisodePrompt("Next episode (S3E5)", true);
   const nextVideoTitle = page.locator(".next-video-title-fixture");
-  await expect(nextVideoTitle).toHaveText("Gene*** ***** (S6E7)");
+  await expect(nextVideoTitle).toContainText("(S3E5)");
+  await expect(nextVideoTitle).not.toHaveText("Next episode (S3E5)");
   await expect(nextVideoTitle).toHaveClass(/no-spoilers-next-video-title-protected/);
   const reviewDialog = page.getByRole("dialog", { name: "Add review" });
   await expect(reviewDialog).toBeVisible();
+  await expect(reviewDialog.locator(".subtitle")).toHaveText("Fixture Series · S3 E4 · Current episode");
   await reviewDialog.getByRole("button", { name: "Cancel" }).click();
   await nextVideoTitle.click();
   await expect(page.getByRole("heading", { name: "Reveal episode name?" })).toBeVisible();
   await page.getByRole("button", { name: "Reveal episode name" }).click();
-  await expect(nextVideoTitle).toHaveText("General Shiro (S6E7)");
+  await expect(nextVideoTitle).toHaveText("Next episode (S3E5)");
+  await page.getByText("Watch now", { exact: true }).click();
+
+  // During the real Watch Now transition React can remove the old card and
+  // immediately mount a new DOM instance before mpv reports the new episode's
+  // first position. That fresh element must not be mistaken for another end.
+  await page.evaluate(() => document.querySelector(".next-episode-fixture")?.remove());
+  await mountNextEpisodePrompt("Stale following episode (S3E6)");
+  await expect(reviewDialog).toHaveCount(0);
   await page.evaluate(() => {
+    const fixture = (window as any).__fixture;
+    fixture.emitMpv("duration", 2_650);
+    fixture.emitMpv("time-pos", 0);
     const mutation = document.createElement("span");
     document.body.append(mutation);
     mutation.remove();
   });
-  await page.waitForTimeout(150);
+  await page.waitForTimeout(300);
   await expect(reviewDialog).toHaveCount(0);
+  await page.evaluate(() => document.querySelector(".next-episode-fixture")?.remove());
+
+  // When S3E5 genuinely reaches its own end, it receives exactly one review.
+  await page.evaluate(() => {
+    const fixture = (window as any).__fixture;
+    fixture.emitMpv("duration", 2_650);
+    fixture.emitMpv("time-pos", 2_645);
+  });
+  await mountNextEpisodePrompt("Following episode (S3E6)");
+  await expect(reviewDialog).toBeVisible();
+  await expect(reviewDialog.locator(".subtitle")).toHaveText("Fixture Series · S3 E5 · Next episode");
+  await reviewDialog.getByRole("button", { name: "Cancel" }).click();
   await page.evaluate(() => document.querySelector(".next-episode-fixture")?.remove());
 
   await page.locator('[data-jstremio-testid="plugin-manager-navigation"]').click();
@@ -781,7 +898,15 @@ test("opens Reviews with Stremio's end-of-episode prompt and honors its default-
   await expect.poll(() => page.evaluate(() => (window as any).__fixture.getReviewAutoOpenAtEnd())).toBe(false);
   await page.keyboard.press("Escape");
 
-  await mountNextEpisodePrompt();
+  await page.evaluate(() => {
+    const fixture = (window as any).__fixture;
+    fixture.state.selected.streamRequest.path.id = "tt123:3:6";
+    fixture.state.selected.title = "Following episode";
+    fixture.state.seriesInfo = { season: 3, episode: 6 };
+    fixture.state.title = "Following episode";
+    location.hash = "#/player/stream/stream-transport/meta-transport/series/tt123/tt123%3A3%3A6";
+  });
+  await mountNextEpisodePrompt("Later episode (S3E7)");
   await page.waitForTimeout(300);
   await expect(reviewDialog).toHaveCount(0);
 });

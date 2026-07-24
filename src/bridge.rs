@@ -692,9 +692,21 @@ fn schedule_restart() -> Result<(), ErrorPayload> {
     use std::{process::Command, thread, time::Duration};
     let executable = std::env::current_exe()
         .map_err(|_| plugin_error("JStremio could not locate its executable."))?;
-    Command::new(executable)
+    let mut command = Command::new(executable);
+    command
         .arg("--restart-after-pid")
-        .arg(std::process::id().to_string())
+        .arg(std::process::id().to_string());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
+        const CREATE_BREAKAWAY_FROM_JOB: u32 = 0x0100_0000;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(
+            CREATE_NEW_PROCESS_GROUP | CREATE_BREAKAWAY_FROM_JOB | CREATE_NO_WINDOW,
+        );
+    }
+    command
         .spawn()
         .map_err(|_| plugin_error("JStremio could not start the restart helper."))?;
     thread::spawn(|| {

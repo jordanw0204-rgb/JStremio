@@ -194,6 +194,7 @@ function activate(runtime: JStremioRuntime) {
     button.dataset.jstremioControl = `quick-seek-${placement}-${direction}`;
     button.dataset.jstremioTestid = placement === "side" ? `quick-seek-${direction}` : `quick-seek-bar-${direction}`;
     button.dataset.jstremioClickOnly = "";
+    button.dataset.jstremioPlayerProtected = "";
     button.dataset.direction = direction;
     button.tabIndex = -1;
     button.innerHTML = iconMarkup(direction);

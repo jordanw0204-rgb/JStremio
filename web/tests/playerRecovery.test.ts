@@ -68,9 +68,60 @@ describe("player stall recovery", () => {
     adapter.destroy();
   });
 
+  it("resets an inherited end position when Watch Now hands playback to the next episode", () => {
+    let target = targetFor("fixture:1:1");
+    const adapter = createPlayerAdapter(async () => target);
+    adapter.setMediaKey(target.key);
+    emit("duration", 2_700);
+    emit("time-pos", 2_695);
+
+    adapter.beginNextVideoTransition();
+    target = targetFor("fixture:1:2");
+    adapter.setMediaKey(target.key);
+    emit("duration", 2_650);
+    emit("time-pos", 2_650);
+
+    expect(postMessage).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(postMessage.mock.calls[0]![0])).toMatchObject({
+      args: ["mpv-set-prop", ["time-pos", 0]],
+    });
+    adapter.destroy();
+  });
+
+  it("preserves a legitimate saved position in the next episode", () => {
+    let target = targetFor("fixture:1:1");
+    const adapter = createPlayerAdapter(async () => target);
+    adapter.setMediaKey(target.key);
+    emit("duration", 2_700);
+    emit("time-pos", 2_695);
+
+    adapter.beginNextVideoTransition();
+    target = targetFor("fixture:1:2");
+    adapter.setMediaKey(target.key);
+    emit("duration", 2_650);
+    emit("time-pos", 720);
+
+    expect(postMessage).not.toHaveBeenCalled();
+    adapter.destroy();
+  });
+
   function emit(name: string, data: unknown) {
     listener?.(new MessageEvent("message", {
       data: ["mpv-prop-change", { name, data }],
     }));
+  }
+
+  function targetFor(videoId: string) {
+    return {
+      key: `series:${videoId}`,
+      videoId,
+      metaId: "fixture",
+      mediaType: "series" as const,
+      name: "Fixture",
+      title: null,
+      season: 1,
+      episode: Number(videoId.at(-1)),
+      poster: null,
+    };
   }
 });

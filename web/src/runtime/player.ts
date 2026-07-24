@@ -21,6 +21,18 @@ const PLAYER_WATCHDOG_INTERVAL_MS = 1_000;
 const PLAYER_STALL_RECOVERY_MS = 15_000;
 const PLAYER_RECOVERY_COOLDOWN_MS = 30_000;
 const PLAYER_PROGRESS_EPSILON_MS = 250;
+const NEXT_VIDEO_TRANSITION_TTL_MS = 15_000;
+const NEXT_VIDEO_END_WINDOW_MS = 120_000;
+const INHERITED_POSITION_EPSILON_MS = 15_000;
+
+type NextVideoTransition = {
+  armedAt: number;
+  fromKey: string | null;
+  fromPositionMs: number | null;
+  fromDurationMs: number | null;
+  toKey: string | null;
+  lowPositionSince: number | null;
+};
 
 export function parseMpvPropertyEvent(input: unknown): Partial<PlaybackSnapshot> | null {
   const nativeEvent = unwrapNativeEvent(input);
@@ -50,6 +62,7 @@ export function createPlayerAdapter(getTarget: TargetProvider, bridgeRequest?: B
   let lastRecoveryAt = Number.NEGATIVE_INFINITY;
   let recoveredSinceProgress = false;
   let activeDirectPointerId: number | null = null;
+  let nextVideoTransition: NextVideoTransition | null = null;
   const listeners = new Set<Listener>();
   const propertyListeners = new Map<PlayerPropertyName, Set<PropertyListener>>();
   const propertyValues = new Map<PlayerPropertyName, unknown>();
@@ -103,6 +116,7 @@ export function createPlayerAdapter(getTarget: TargetProvider, bridgeRequest?: B
       ...update,
       updatedAt: Date.now(),
     };
+    correctInheritedNextVideoPosition();
     notify();
   };
   channel?.addEventListener("message", onMessage);
@@ -111,6 +125,15 @@ export function createPlayerAdapter(getTarget: TargetProvider, bridgeRequest?: B
     if (mediaKey === nextKey) return;
     const shouldReset = mediaKey !== null || nextKey === null;
     mediaKey = nextKey;
+    if (
+      nextVideoTransition &&
+      nextKey &&
+      nextVideoTransition.fromKey &&
+      nextKey !== nextVideoTransition.fromKey
+    ) {
+      nextVideoTransition.toKey = nextKey;
+      nextVideoTransition.lowPositionSince = null;
+    }
     if (shouldReset) {
       snapshot = null;
       notify();
@@ -132,6 +155,57 @@ export function createPlayerAdapter(getTarget: TargetProvider, bridgeRequest?: B
     if (!channel) throw new Error("The local MPV channel is unavailable.");
     channel.postMessage(JSON.stringify({ id: commandId++, args: ["mpv-command", args] }));
   };
+
+  const beginNextVideoTransition = () => {
+    nextVideoTransition = {
+      armedAt: Date.now(),
+      fromKey: mediaKey,
+      fromPositionMs: snapshot?.positionMs ?? null,
+      fromDurationMs: snapshot?.durationMs ?? null,
+      toKey: null,
+      lowPositionSince: null,
+    };
+  };
+
+  function correctInheritedNextVideoPosition() {
+    const transition = nextVideoTransition;
+    if (!transition) return;
+    const now = Date.now();
+    if (now - transition.armedAt > NEXT_VIDEO_TRANSITION_TTL_MS) {
+      nextVideoTransition = null;
+      return;
+    }
+    if (!transition.toKey || mediaKey !== transition.toKey || !snapshot) return;
+    const positionMs = snapshot.positionMs;
+    if (positionMs === null) return;
+
+    // Stremio advances its selected video before unloading the old player. If
+    // the old episode's end timestamp is observed in that gap, the new library
+    // item can inherit it and start at (or very near) its own ending.
+    const oldWasEnding = transition.fromPositionMs !== null && transition.fromDurationMs !== null &&
+      transition.fromPositionMs >= Math.max(0, transition.fromDurationMs - NEXT_VIDEO_END_WINDOW_MS);
+    if (!oldWasEnding) {
+      nextVideoTransition = null;
+      return;
+    }
+    const matchesOldPosition = transition.fromPositionMs !== null &&
+      Math.abs(positionMs - transition.fromPositionMs) <= INHERITED_POSITION_EPSILON_MS;
+    const nearNewEnding = snapshot.durationMs !== null &&
+      positionMs >= Math.max(0, snapshot.durationMs - Math.max(30_000, snapshot.durationMs * 0.03));
+    if (matchesOldPosition || nearNewEnding) {
+      postProperty("time-pos", 0);
+      nextVideoTransition = null;
+      return;
+    }
+
+    if (positionMs <= 10_000) {
+      transition.lowPositionSince ??= now;
+      if (now - transition.lowPositionSince >= 2_500) nextVideoTransition = null;
+    } else {
+      // A non-ending saved position belongs to the new video; preserve it.
+      nextVideoTransition = null;
+    }
+  }
 
   const watchdog = window.setInterval(() => {
     const now = Date.now();
@@ -187,6 +261,15 @@ export function createPlayerAdapter(getTarget: TargetProvider, bridgeRequest?: B
         if (!await guard(clamped, { ...snapshot })) return;
       }
     }
+    postProperty("time-pos", clamped / 1_000);
+  };
+
+  const restorePosition = async (positionMs: number) => {
+    const target = await getTarget();
+    if (!target || target.key !== mediaKey || !snapshot || !Number.isFinite(positionMs) || positionMs < 0) {
+      throw new Error("The replacement stream is not ready to resume.");
+    }
+    const clamped = snapshot.durationMs === null ? positionMs : Math.min(positionMs, snapshot.durationMs);
     postProperty("time-pos", clamped / 1_000);
   };
 
@@ -287,6 +370,7 @@ export function createPlayerAdapter(getTarget: TargetProvider, bridgeRequest?: B
       getSnapshot: () => cloneSnapshot(snapshot),
       subscribe,
       seekTo,
+      restorePosition,
       setPaused,
       observeProperty,
       refreshProperty,
@@ -295,6 +379,7 @@ export function createPlayerAdapter(getTarget: TargetProvider, bridgeRequest?: B
       captureFrame,
     },
     setMediaKey,
+    beginNextVideoTransition,
     destroy,
   };
 }

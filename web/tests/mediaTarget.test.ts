@@ -38,4 +38,30 @@ describe("media target derivation", () => {
       }),
     ).toBeNull();
   });
+
+  it("keeps the route episode when Stremio preselects the next episode before navigation", () => {
+    const state = {
+      selected: { streamRequest: { path: { id: "tt123:3:5" } }, title: "Next episode" },
+      seriesInfo: { season: 3, episode: 5 },
+      metaItem: {
+        content: {
+          id: "tt123",
+          type: "series",
+          name: "Series",
+          videos: [
+            { id: "tt123:3:4", title: "Current episode", season: 3, episode: 4 },
+            { id: "tt123:3:5", title: "Next episode", season: 3, episode: 5 },
+          ],
+        },
+      },
+    };
+    const route = "#/player/stream/stream-transport/meta-transport/series/tt123/tt123%3A3%3A4";
+    expect(deriveMediaTarget(state, route)).toMatchObject({
+      key: "series:tt123:3:4",
+      videoId: "tt123:3:4",
+      title: "Current episode",
+      season: 3,
+      episode: 4,
+    });
+  });
 });

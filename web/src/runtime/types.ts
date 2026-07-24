@@ -20,6 +20,18 @@ export type PlaybackSnapshot = {
   updatedAt: number;
 };
 
+export type StreamOption = {
+  route: string;
+  addonName: string | null;
+  addonTransportUrl: string | null;
+  name: string | null;
+  description: string | null;
+  infoHash: string | null;
+  fileIdx: string | null;
+  url: string | null;
+  order: number;
+};
+
 export type PlayerPropertyName = "volume" | "audio-device" | "audio-device-list";
 export type PlayerSettablePropertyName = "volume" | "audio-device";
 export type PlayerSeekGuard = (
@@ -59,11 +71,13 @@ export type JStremioRuntime = {
   stremio: Readonly<{
     getPlayerState(): Promise<unknown>;
     getCurrentMediaTarget(): Promise<MediaTarget | null>;
+    getStreamOptions(target: MediaTarget): Promise<StreamOption[]>;
   }>;
   player: Readonly<{
     getSnapshot(): PlaybackSnapshot | null;
     subscribe(listener: (snapshot: PlaybackSnapshot | null) => void): () => void;
     seekTo(positionMs: number, options?: { bypassGuards?: boolean }): Promise<void>;
+    restorePosition(positionMs: number): Promise<void>;
     setPaused(paused: boolean): Promise<void>;
     observeProperty(name: PlayerPropertyName, listener: (value: unknown) => void): () => void;
     refreshProperty(name: PlayerPropertyName): void;
@@ -96,6 +110,7 @@ declare global {
     JStremio?: JStremioRuntime;
     core?: {
       getState(name: string): unknown;
+      dispatch(action: unknown, model?: string): unknown;
     };
     chrome?: {
       webview?: {

@@ -1,0 +1,35 @@
+.stream-switcher-button {
+  position:relative!important;
+  flex:none!important;
+  color:var(--jstremio-text-color,var(--primary-foreground-color,#fff))!important;
+  cursor:pointer!important;
+}
+.stream-switcher-button svg { width:2.2rem;height:2.2rem;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round; }
+.stream-switcher-button:hover,.stream-switcher-button:focus-visible,.stream-switcher-button[data-switching] { color:var(--jstremio-accent-color,var(--primary-accent-color,#7b5bf5))!important; }
+.stream-switcher-button[data-switching] svg { animation:stream-switcher-spin 900ms linear infinite; }
+.stream-switcher-menu {
+  --switch-accent:var(--jstremio-accent-color,var(--primary-accent-color,#7b5bf5));
+  --switch-surface:var(--jstremio-surface-color,var(--modal-background-color,#171326));
+  --switch-text:var(--jstremio-text-color,var(--primary-foreground-color,#fff));
+  position:fixed;z-index:2147483600;width:min(430px,calc(100vw - 24px));max-height:min(620px,calc(100vh - 24px));
+  display:grid;grid-template-rows:auto minmax(0,1fr);overflow:hidden;border:1px solid color-mix(in srgb,var(--switch-text) 18%,transparent);
+  border-radius:16px;background:var(--switch-surface);color:var(--switch-text);box-shadow:0 24px 80px rgba(0,0,0,.62);
+}
+.stream-switcher-menu-header { display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 15px;border-bottom:1px solid color-mix(in srgb,var(--switch-text) 12%,transparent); }
+.stream-switcher-menu-header strong { font-size:15px; }
+.stream-switcher-menu-header span { color:color-mix(in srgb,var(--switch-text) 62%,transparent);font-size:12px; }
+.stream-switcher-list { min-height:86px;overflow:auto;padding:7px; }
+.stream-switcher-status { padding:24px 16px;color:color-mix(in srgb,var(--switch-text) 70%,transparent);text-align:center;line-height:1.4; }
+.stream-switcher-option { width:100%;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;padding:11px;border:1px solid transparent;border-radius:11px;background:transparent;color:var(--switch-text);text-align:left;cursor:pointer; }
+.stream-switcher-option:hover,.stream-switcher-option:focus-visible { border-color:color-mix(in srgb,var(--switch-accent) 58%,transparent);background:color-mix(in srgb,var(--switch-surface) 70%,var(--switch-accent) 18%);outline:none; }
+.stream-switcher-option[data-current] { background:color-mix(in srgb,var(--switch-surface) 76%,var(--switch-accent) 12%); }
+.stream-switcher-provider { overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:750;color:color-mix(in srgb,var(--switch-accent) 62%,var(--switch-text) 38%); }
+.stream-switcher-current { align-self:center;border-radius:999px;padding:3px 7px;background:var(--switch-accent);color:#fff;font-size:10px;font-weight:800; }
+.stream-switcher-title { grid-column:1/-1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;font-weight:700; }
+.stream-switcher-detail { grid-column:1/-1;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;color:color-mix(in srgb,var(--switch-text) 66%,transparent);font-size:11px;line-height:1.35;white-space:pre-line; }
+.stream-switcher-toast { position:fixed;z-index:2147483601;max-width:min(360px,calc(100vw - 24px));padding:10px 13px;border:1px solid color-mix(in srgb,var(--jstremio-accent-color,#7b5bf5) 50%,transparent);border-radius:10px;background:var(--jstremio-surface-color,var(--modal-background-color,#171326));color:var(--jstremio-text-color,#fff);box-shadow:0 12px 36px rgba(0,0,0,.5);font-size:13px; }
+html[data-jstremio-begone-mouse-hidden] .stream-switcher-menu,
+body:has([class*="overlayHidden"]) .stream-switcher-menu { opacity:1!important;pointer-events:auto!important; }
+@keyframes stream-switcher-spin { to { transform:rotate(360deg); } }
+@media (max-width:700px) { .stream-switcher-menu{width:calc(100vw - 16px);max-height:60vh}.stream-switcher-button{width:3.5rem!important;height:3.5rem!important} }
+@media (prefers-reduced-motion:reduce) { .stream-switcher-button[data-switching] svg{animation:none} }

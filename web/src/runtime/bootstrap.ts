@@ -3,8 +3,10 @@ import { createLifecycle } from "./lifecycle";
 import { createNativeBridge } from "./nativeBridge";
 import { createOverlayHost } from "./overlayHost";
 import { createPlayerAdapter } from "./player";
-import { getCurrentMediaTarget, getPlayerState } from "./stremioAdapter";
+import { NEXT_VIDEO_REQUESTED_EVENT } from "./playerEvents";
+import { getCurrentMediaTarget, getPlayerState, getStreamOptions } from "./stremioAdapter";
 import type { ExtensionManifest, JStremioRuntime } from "./types";
+import { accessibleName, findNextVideoPopup } from "./compatibility";
 
 const GUARD = Symbol.for("JStremio.runtime.v1");
 
@@ -58,7 +60,7 @@ function bootstrap() {
   runtime = Object.freeze({
     registerExtension,
     bridge: Object.freeze({ request: bridge.request }),
-    stremio: Object.freeze({ getPlayerState, getCurrentMediaTarget }),
+    stremio: Object.freeze({ getPlayerState, getCurrentMediaTarget, getStreamOptions }),
     player: Object.freeze(player.publicApi),
     plugins: Object.freeze({
       getStyles(id: string) {
@@ -77,6 +79,17 @@ function bootstrap() {
     enumerable: false,
     writable: false,
   });
+
+  const onNextVideoClick = (event: MouseEvent) => {
+    if (!(event.target instanceof Element)) return;
+    const prompt = findNextVideoPopup();
+    const control = event.target.closest<HTMLElement>('button,[role="button"],[tabindex]');
+    if (!prompt || !control || !prompt.contains(control)) return;
+    if (!/\b(?:watch\s+now|play\s+next|next\s+(?:episode|video))\b/i.test(accessibleName(control))) return;
+    player.beginNextVideoTransition();
+    window.dispatchEvent(new CustomEvent(NEXT_VIDEO_REQUESTED_EVENT));
+  };
+  document.addEventListener("click", onNextVideoClick, true);
 
   lifecycle.publicApi.onReconcile(() => {
     const generation = ++reconcileGeneration;
@@ -97,6 +110,7 @@ function bootstrap() {
       }
       branding.destroy();
       bridge.destroy();
+      document.removeEventListener("click", onNextVideoClick, true);
       player.destroy();
       lifecycle.destroy();
       overlays.destroy();

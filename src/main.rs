@@ -97,8 +97,13 @@ fn main() {
 
     let opt = Opt::parse();
 
+    let restarting = opt.restart_after_pid.is_some();
     if let Some(pid) = opt.restart_after_pid {
         wait_for_process_exit(pid);
+        // WebView2 and the local server can outlive the top-level window for a
+        // brief moment. Let their handles settle before reopening the same
+        // profile and IPC endpoints in the replacement process.
+        std::thread::sleep(std::time::Duration::from_millis(1_200));
     }
 
     std::env::set_var(
@@ -126,16 +131,20 @@ fn main() {
     // Append the username so it works per User
     commands_path.push_str(&username());
     let socket_path = Path::new(&commands_path);
-    if let Ok(mut stream) = PipeClient::connect(socket_path) {
-        let forwarded = stream
-            .write_all(command.as_bytes())
-            .and_then(|_| stream.flush())
-            .is_ok();
-        drop(stream);
-        if forwarded {
-            exit(0);
+    if should_forward_to_existing_instance(restarting) {
+        if let Ok(mut stream) = PipeClient::connect(socket_path) {
+            let forwarded = stream
+                .write_all(command.as_bytes())
+                .and_then(|_| stream.flush())
+                .is_ok();
+            drop(stream);
+            if forwarded {
+                exit(0);
+            }
+            eprintln!(
+                "Failed to forward command to existing Stremio instance; launching new instance"
+            );
         }
-        eprintln!("Failed to forward command to existing Stremio instance; launching new instance");
     }
     // END IPC
 
@@ -237,6 +246,10 @@ fn main() {
     nwg::dispatch_thread_events();
 }
 
+fn should_forward_to_existing_instance(restarting: bool) -> bool {
+    !restarting
+}
+
 #[cfg(windows)]
 fn wait_for_process_exit(pid: u32) {
     use winapi::um::{
@@ -273,7 +286,13 @@ fn has_same_origin(value: &str, expected: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::has_same_origin;
+    use super::{has_same_origin, should_forward_to_existing_instance};
+
+    #[test]
+    fn restart_helper_becomes_the_replacement_instance() {
+        assert!(!should_forward_to_existing_instance(true));
+        assert!(should_forward_to_existing_instance(false));
+    }
 
     #[test]
     fn recognizes_only_the_exact_configured_origin() {

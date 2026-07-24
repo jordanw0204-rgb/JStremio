@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "stream-switcher",
+  "name": "Stream Switcher",
+  "version": "1.0.0",
+  "entry": "index.js",
+  "styles": "styles.css",
+  "enabledByDefault": true,
+  "loadOrder": 135,
+  "description": "Switch to the closest matching stream without losing your playback position.",
+  "author": "JStremio"
+}
