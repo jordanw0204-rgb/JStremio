@@ -162,10 +162,13 @@ stringable!(InMsgFn);
 #[display(style = "kebab-case")]
 pub enum BoolProp {
     Pause,
+    Mute,
     PausedForCache,
     Seeking,
     EofReached,
     Keepaspect,
+    SubBold,
+    SubItalic,
 }
 stringable!(BoolProp);
 // Int
@@ -184,7 +187,6 @@ stringable!(IntProp);
 #[display(style = "kebab-case")]
 pub enum FpProp {
     TimePos,
-    Mute,
     Volume,
     Duration,
     SubDelay,
@@ -194,6 +196,10 @@ pub enum FpProp {
     SubPos,
     Speed,
     Panscan,
+    SubFontSize,
+    SubBorderSize,
+    SubShadowOffset,
+    SubSpacing,
 }
 stringable!(FpProp);
 // Str
@@ -212,8 +218,11 @@ pub enum StrProp {
     Path,
     SubAssOverride,
     SubBackColor,
+    SubBorderStyle,
     SubBorderColor,
     SubColor,
+    SubFont,
+    SubShadowColor,
     TrackList,
     Vf,
     VideoParams,

@@ -6,6 +6,10 @@ const METHODS = {
   plugins: "jstremio-plugins",
   "last-played": "jstremio-last-played",
   themes: "jstremio-themes",
+  "mini-player": "jstremio-mini-player",
+  "playback-history": "jstremio-playback-history",
+  "skip-segments": "jstremio-skip-segments",
+  "phone-remote": "jstremio-phone-remote",
 } as const;
 const MAX_REQUEST_BYTES = 60 * 1024;
 const DEFAULT_TIMEOUT_MS = 7_500;

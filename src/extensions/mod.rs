@@ -2,9 +2,10 @@ mod manifest;
 mod settings;
 
 pub use manifest::{ExtensionLoader, ManifestError, PluginDescriptor};
-pub use settings::{PluginSettingsStore, PreferredAudioDevice};
+pub use settings::{CustomCaptionsSettings, PluginSettingsStore, PreferredAudioDevice};
 
 use crate::bridge::{BridgeResponse, NativeBridge};
+use crate::phone_remote::PhoneRemoteService;
 use crate::themes::ThemeStore;
 use serde_json::Value;
 use std::{collections::HashSet, path::Path, sync::Arc};
@@ -50,6 +51,7 @@ impl OriginPolicy {
 pub struct ExtensionHost {
     loader: ExtensionLoader,
     bridge: NativeBridge,
+    phone_remote: Arc<PhoneRemoteService>,
     origins: OriginPolicy,
     injection_script: Arc<str>,
 }
@@ -78,14 +80,19 @@ impl ExtensionHost {
             .unwrap_or_default();
         let injection_script =
             Arc::<str>::from(format!("{early_theme}{}", loader.injection_script()));
-        let bridge = NativeBridge::new_with_plugins(
+        let phone_remote = Arc::new(PhoneRemoteService::new(
+            extensions_directory.join("phone-remote").join("remote"),
+        ));
+        let bridge = NativeBridge::new_with_plugins_and_remote(
             data_directory,
             user_plugins_directory,
             loader.plugins().to_vec(),
+            phone_remote.clone(),
         );
         Ok(Self {
             loader,
             bridge,
+            phone_remote,
             origins,
             injection_script,
         })
@@ -95,10 +102,18 @@ impl ExtensionHost {
         self.loader.loaded_ids()
     }
 
+    pub fn phone_remote(&self) -> &Arc<PhoneRemoteService> {
+        &self.phone_remote
+    }
+
     pub fn injection_script_for(&self, top_level_source: &str) -> Option<&str> {
         self.origins
             .allows_top_level(top_level_source)
             .then(|| self.injection_script.as_ref())
+    }
+
+    pub fn allows_message(&self, source: &str, top_level_source: &str) -> bool {
+        self.origins.allows(source, top_level_source)
     }
 
     pub fn handle_bridge_message(

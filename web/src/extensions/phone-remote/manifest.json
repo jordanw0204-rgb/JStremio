@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "phone-remote",
+  "name": "Phone Remote",
+  "version": "1.0.2",
+  "entry": "index.js",
+  "styles": "styles.css",
+  "enabledByDefault": true,
+  "loadOrder": 185,
+  "description": "Controls active playback from a paired phone on the same private network.",
+  "author": "JStremio",
+  "core": false
+}

@@ -24,6 +24,14 @@ test.beforeEach(async ({ page }) => {
         <div class="control-bar-button_fixture disabled" title="Pause" tabindex="-1"></div>
         <div class="control-bar-button_fixture" title="Next video" tabindex="-1"></div>
         <div class="control-bar-button_fixture" title="Mute" tabindex="-1"></div>
+        <div class="control-bar-buttons-menu-container_fixture">
+          <button class="control-bar-button_fixture" title="Stats"></button>
+          <button class="control-bar-button_fixture" title="Playback speed"></button>
+          <button class="control-bar-button_fixture" title="Cast"></button>
+          <button class="control-bar-button_fixture" title="Subtitles"></button>
+          <button class="control-bar-button_fixture" title="Audio tracks"></button>
+          <button class="control-bar-button_fixture" title="Fit video"></button>
+        </div>
       </div>
     </div></main>
   `);
@@ -41,9 +49,15 @@ test.beforeEach(async ({ page }) => {
       { id: "begone-mouse", name: "BegoneMouse", version: "1.0.0", description: "Configurable player UI idle delay", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
       { id: "quick-seek", name: "Quick Seek", version: "1.3.0", description: "Configurable player seek controls", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
       { id: "stream-switcher", name: "Stream Switcher", version: "1.0.0", description: "Matching stream switcher", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
+      { id: "custom-captions", name: "Custom Captions", version: "1.1.0", description: "Caption styling", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
       { id: "easy-sound-output", name: "Easy Sound Output", version: "1.0.0", description: "Audio output switcher", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
       { id: "qol-things", name: "QOL Things", version: "1.0.0", description: "Quality-of-life features", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
-      { id: "no-spoilers", name: "No Spoilers", version: "1.0.3", description: "Spoiler protection", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
+      { id: "no-spoilers", name: "No Spoilers", version: "1.0.5", description: "Spoiler protection", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
+      { id: "mini-player", name: "Mini Player", version: "1.0.0", description: "Always-on-top player window", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
+      { id: "intro-credits-skipper", name: "Intro & Credits Skipper", version: "1.0.0", description: "Local playback markers", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
+      { id: "playback-statistics", name: "Playback Statistics", version: "1.0.0", description: "Private playback analytics", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
+      { id: "local-watch-journal", name: "Local Watch Journal", version: "1.0.0", description: "Private watch journal", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
+      { id: "phone-remote", name: "Phone Remote", version: "1.0.0", description: "Local network remote", author: "JStremio", builtIn: true, enabled: true, core: false, error: null },
     ];
     const hotkeys: Record<string, string> = {};
     const shortcutKeys: string[] = [];
@@ -58,6 +72,29 @@ test.beforeEach(async ({ page }) => {
     const easySound = { preferredDevice: null as null | { name: string; description: string } };
     const qolThings = { rememberVolume: true, savedVolume: null as number | null };
     const noSpoilers = { blurSummary: true, blurArtwork: true, titleMaskPercent: 70, guardSeeks: true, maxSkipMinutes: 10 };
+    const playbackHistory: Array<Record<string, unknown>> = [];
+    const skipProfiles: Array<Record<string, unknown>> = [];
+    let playbackHistoryRevision = 0;
+    let miniPlayerEnabled = false;
+    const customCaptions = {
+      fontFamily: "Arial",
+      fontSize: 48,
+      position: 100,
+      textColor: "#FFFFFF",
+      textOpacity: 100,
+      outlineColor: "#000000",
+      outlineOpacity: 100,
+      outlineSize: 3,
+      backgroundColor: "#000000",
+      backgroundOpacity: 0,
+      shadowColor: "#000000",
+      shadowOpacity: 75,
+      shadowOffset: 2,
+      letterSpacing: 0,
+      bold: false,
+      italic: false,
+      assOverride: "force",
+    };
     const state = {
       selected: { streamRequest: { path: { id: "tt123" } }, stream: { name: "Fixture 1080p", description: "MediaFusion fixture", infoHash: "ABC123", fileIdx: 2, deepLinks: { player: "#/player/stream/exact-fixture" } } },
       addon: { transportUrl: "https://mediafusion.example/manifest.json", manifest: { name: "MediaFusion" } },
@@ -166,6 +203,11 @@ test.beforeEach(async ({ page }) => {
           Object.assign(noSpoilers, payload);
           return respond(method, request.id, { ...noSpoilers, restartRequired: false });
         }
+        if (operation === "getCustomCaptions") return respond(method, request.id, customCaptions);
+        if (operation === "setCustomCaptions") {
+          Object.assign(customCaptions, payload);
+          return respond(method, request.id, { ...customCaptions, restartRequired: false });
+        }
         if (operation === "setHotkey") {
           if (typeof payload.hotkey === "string") hotkeys[String(payload.id)] = payload.hotkey;
           else delete hotkeys[String(payload.id)];
@@ -208,6 +250,64 @@ test.beforeEach(async ({ page }) => {
           if (existing) Object.assign(existing,entry); else lastPlayed.push(entry);
           return respond(method,request.id,entry);
         }
+      }
+      if (method === "jstremio-mini-player") {
+        if (operation === "set") miniPlayerEnabled = payload.enabled === true;
+        return respond(method, request.id, {
+          enabled: miniPlayerEnabled,
+          alwaysOnTop: miniPlayerEnabled,
+          bounds: { x: 800, y: 400, width: 480, height: 270 },
+        });
+      }
+      if (method === "jstremio-skip-segments") {
+        if (operation === "resolve") return respond(method, request.id, null);
+        if (operation === "listForMedia") return respond(method, request.id, skipProfiles);
+        if (operation === "upsert") {
+          const profile = { id: `${payload.scope}:fixture`, ...payload, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+          skipProfiles.push(profile);
+          return respond(method, request.id, profile);
+        }
+        if (operation === "delete") {
+          const index = skipProfiles.findIndex((item) => item.id === payload.id);
+          if (index >= 0) skipProfiles.splice(index, 1);
+          return respond(method, request.id, { deleted: index >= 0 });
+        }
+        return respond(method, request.id, { deleted: false });
+      }
+      if (method === "jstremio-playback-history") {
+        if (operation === "upsert") {
+          const index = playbackHistory.findIndex((item) => item.id === payload.id);
+          if (index >= 0) playbackHistory[index] = { ...playbackHistory[index], ...payload };
+          else playbackHistory.push({ ...payload });
+          playbackHistoryRevision += 1;
+          return respond(method, request.id, payload);
+        }
+        if (operation === "list") return respond(method, request.id, {
+          items: playbackHistory,
+          total: playbackHistory.length,
+          nextOffset: null,
+          revision: playbackHistoryRevision,
+          revisionChanged: false,
+        });
+        if (operation === "clear") {
+          const removed = playbackHistory.length;
+          playbackHistory.splice(0);
+          playbackHistoryRevision += 1;
+          return respond(method, request.id, { removed });
+        }
+        return respond(method, request.id, { deleted: false });
+      }
+      if (method === "jstremio-phone-remote") {
+        if (operation === "interfaces") return respond(method, request.id, [{ name: "Fixture Wi-Fi", address: "192.168.1.10" }]);
+        if (operation === "status" || operation === "stop" || operation === "disconnectAll") return respond(method, request.id, {
+          running: false,
+          interfaceIp: null,
+          origin: null,
+          connectedClients: 0,
+          pairedSessions: 0,
+          startedAt: null,
+        });
+        return respond(method, request.id, { ok: true });
       }
       if (operation === "listAll") return respond(method, request.id, notes);
       if (operation === "listForMedia") return respond(method, request.id, notes.filter((item) => item.mediaKey === payload.mediaKey));
@@ -264,6 +364,7 @@ test.beforeEach(async ({ page }) => {
         hotkeys,
         shortcutKeys,
         lastPlayed,
+        skipProfiles,
         theme,
         themePresets,
         state,
@@ -274,6 +375,7 @@ test.beforeEach(async ({ page }) => {
         easySound,
         qolThings,
         noSpoilers,
+        customCaptions,
         emitMpv: (name: string, data: unknown) => emit({ args: ["mpv-prop-change", { name, data }] }),
         emitShell: (name: string, data: unknown) => emit(JSON.stringify({ id: 0, type: 1, args: [name, data] })),
       },
@@ -291,9 +393,106 @@ test.beforeEach(async ({ page }) => {
   await page.addScriptTag({ path: resolve(built, "begone-mouse", "index.js") });
   await page.addScriptTag({ path: resolve(built, "quick-seek", "index.js") });
   await page.addScriptTag({ path: resolve(built, "stream-switcher", "index.js") });
+  await page.addScriptTag({ path: resolve(built, "custom-captions", "index.js") });
   await page.addScriptTag({ path: resolve(built, "easy-sound-output", "index.js") });
   await page.addScriptTag({ path: resolve(built, "qol-things", "index.js") });
   await page.addScriptTag({ path: resolve(built, "no-spoilers", "index.js") });
+  await page.addScriptTag({ path: resolve(built, "mini-player", "index.js") });
+  await page.addScriptTag({ path: resolve(built, "intro-credits-skipper", "index.js") });
+  await page.addScriptTag({ path: resolve(built, "playback-statistics", "index.js") });
+  await page.addScriptTag({ path: resolve(built, "local-watch-journal", "index.js") });
+  await page.addScriptTag({ path: resolve(built, "phone-remote", "index.js") });
+});
+
+test("mounts the five new built-ins and opens their primary surfaces", async ({ page }) => {
+  await expect(page.locator('[data-jstremio-testid="playback-statistics-navigation"]')).toHaveCount(1);
+  await expect(page.locator('[data-jstremio-testid="local-watch-journal-navigation"]')).toHaveCount(1);
+  await expect(page.locator('[data-jstremio-testid="phone-remote-navigation"]')).toHaveCount(1);
+  await expect(page.locator('[data-jstremio-testid="mini-player-player-button"]')).toHaveCount(1);
+
+  await page.evaluate(() => {
+    const fixture = (window as any).__fixture;
+    fixture.state.selected.streamRequest.path.id = "tt123:1:2";
+    fixture.state.metaItem.content = {
+      id: "tt123",
+      type: "series",
+      name: "Fixture Series",
+      videos: [{ id: "tt123:1:2", season: 1, episode: 2, title: "Fixture Episode" }],
+    };
+    location.hash = "#/player/stream/transport/transport/series/tt123/tt123%3A1%3A2";
+  });
+  await expect.poll(() => page.evaluate(async () =>
+    (await window.JStremio?.stremio.getCurrentMediaTarget())?.mediaType ?? null,
+  )).toBe("series");
+  await page.evaluate(() => {
+    const fixture = (window as any).__fixture;
+    fixture.emitMpv("duration", 6_000);
+    fixture.emitMpv("time-pos", 1);
+    fixture.emitMpv("pause", false);
+  });
+  await expect(page.locator('[data-jstremio-testid="intro-credits-skipper-player-button"]')).toHaveCount(1);
+
+  await page.locator('[data-jstremio-testid="playback-statistics-navigation"]').click();
+  await expect(page.getByRole("heading", { name: "Playback Statistics" })).toBeVisible();
+  await page.evaluate(() => window.JStremio?.ui.closePage());
+
+  await page.locator('[data-jstremio-testid="local-watch-journal-navigation"]').click();
+  await expect(page.getByRole("heading", { name: "Watch Journal" })).toBeVisible();
+  await page.evaluate(() => window.JStremio?.ui.closePage());
+  await expect.poll(() => page.evaluate(() => document.documentElement.dataset.jstremioActivePage ?? null)).toBeNull();
+
+  await page.locator('[data-jstremio-testid="phone-remote-navigation"]').evaluate((element) => (element as HTMLButtonElement).click());
+  await expect(page.getByRole("heading", { name: "Phone Remote" })).toBeVisible();
+  await expect(page.getByLabel("Network interface")).toContainText("Fixture Wi-Fi");
+  await expect(page.locator(".remote-card").first()).toHaveCSS("border-radius", "16px");
+  await expect(page.getByLabel("Network interface")).toHaveCSS("appearance", "none");
+  await page.evaluate(() => window.JStremio?.ui.closePage());
+
+  await page.evaluate(() => {
+    document.documentElement.style.setProperty("--jstremio-surface-color", "#123456");
+    document.documentElement.style.setProperty("--jstremio-accent-color", "#ef4444");
+    const profiles = (window as any).__fixture.skipProfiles as Array<Record<string, unknown>>;
+    const timestamp = new Date().toISOString();
+    const base = {
+      videoId: "tt123:1:2",
+      metaId: "tt123",
+      mediaType: "series",
+      name: "Fixture Series",
+      title: "Fixture Episode",
+      season: 1,
+      episode: 2,
+      poster: null,
+      intro: { startMs: 0, endMs: 1_000, anchor: "absolute", durationMsAtCreation: null },
+      credits: null,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    profiles.push(
+      { ...base, id: "video:series:tt123:1:2", scope: "video" },
+      { ...base, id: "season:tt123:1", scope: "season" },
+      { ...base, id: "series:tt123", scope: "series" },
+    );
+  });
+  await page.locator('[data-jstremio-testid="intro-credits-skipper-player-button"]').click();
+  const editor = page.locator(".skip-editor");
+  await expect(editor).toBeVisible();
+  await expect(editor).toHaveCSS("background-color", "rgb(18, 52, 86)");
+  await expect(page.getByRole("button", { name: /close intro/i })).toHaveCount(0);
+  await expect(page.getByLabel("Apply these markers to").locator("option")).toHaveText(["This season", "This series"]);
+  await page.getByRole("button", { name: "Clear saved markers" }).click();
+  await page.getByRole("button", { name: "Confirm clear" }).click();
+  await expect(page.getByText("This season markers cleared.")).toBeVisible();
+  await page.getByLabel("Apply these markers to").selectOption("series");
+  await page.getByRole("button", { name: "Clear saved markers" }).click();
+  await page.getByRole("button", { name: "Confirm clear" }).click();
+  await expect(page.getByText("This series markers cleared.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Clear episode markers" })).toBeVisible();
+  await page.getByRole("button", { name: "Clear episode markers" }).click();
+  await page.getByRole("button", { name: "Confirm clear episode" }).click();
+  await expect(page.getByText("Episode markers cleared. Shared markers now apply.")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => (window as any).__fixture.skipProfiles.length)).toBe(0);
+  await page.keyboard.press("Escape");
+  await expect(editor).toHaveCount(0);
 });
 
 test("switches audio devices, remembers volume, conceals spoilers, and confirms large seeks", async ({ page }) => {
@@ -332,6 +531,7 @@ test("switches audio devices, remembers volume, conceals spoilers, and confirms 
     fixture.noSpoilers.maxSkipMinutes = 1;
     window.dispatchEvent(new CustomEvent("jstremio-no-spoilers-settings-changed", { detail: { ...fixture.noSpoilers } }));
     document.body.insertAdjacentHTML("afterbegin", '<img class="background-image_fixture" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="><h1 class="series-title_fixture">Fixture Movie</h1><div class="description-container_fixture"><div class="label-container_fixture">Summary</div><div class="summary-body_fixture">A major ending is revealed here.</div></div><div class="episode-title_fixture">S6E13 Robert Vesco</div><span class="player-title_fixture">The Blacklist - Robert Vesco (6x13)</span><div class="videos-list_fixture"><div class="video-container_fixture" tabindex="0" title="General Shiro"><img class="thumbnail_fixture" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="><div class="title-container_fixture">7. General Shiro</div></div></div>');
+    document.body.insertAdjacentHTML("beforeend", '<aside class="side-drawer_fixture"><div class="info_fixture"><div class="description-container_fixture drawer-summary_fixture">The truth about the next target is revealed here.</div></div><div class="series-content_fixture"><div class="videos_fixture"><div class="video-container_fixture drawer-video_fixture" title="Lord Baltimore"><div class="thumbnail-container_fixture"><img class="drawer-thumbnail_fixture" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="></div><div class="title-container_fixture drawer-title_fixture">1. Lord Baltimore</div></div><div class="video-container_fixture drawer-video_fixture" title="Monarch Douglas Bank"><div class="thumbnail-container_fixture"><img class="drawer-thumbnail_fixture" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="></div><div class="title-container_fixture drawer-title_fixture">2. Monarch Douglas Bank</div></div></div></div></aside>');
     fixture.emitMpv("time-pos", 10);
     fixture.emitMpv("duration", 1_000);
   });
@@ -340,9 +540,15 @@ test("switches audio devices, remembers volume, conceals spoilers, and confirms 
   await expect(page.locator(".thumbnail_fixture")).toHaveClass(/no-spoilers-blur/);
   await expect(page.locator(".series-title_fixture")).toHaveText("Fixture Movie");
   await expect(page.locator(".episode-title_fixture")).toHaveText("S6E13 Robe** *****");
-  await expect(page.locator(".title-container_fixture")).toHaveText("7. Gene*** *****");
-  await expect(page.locator(".video-container_fixture")).toHaveAttribute("title", "Gene*** *****");
+  await expect(page.locator(".videos-list_fixture .title-container_fixture")).toHaveText("7. Gene*** *****");
+  await expect(page.locator(".videos-list_fixture .video-container_fixture")).toHaveAttribute("title", "Gene*** *****");
   await expect(page.locator(".player-title_fixture")).toHaveText("The Blacklist - Robe** ***** (6x13)");
+  await expect(page.locator(".drawer-summary_fixture .no-spoilers-blur")).toContainText("The truth about the next target");
+  await expect(page.locator(".drawer-title_fixture")).toHaveText(["1. Lord *********", "2. Monarc* ******* ****"]);
+  await expect(page.locator(".drawer-thumbnail_fixture")).toHaveClass([/no-spoilers-blur/, /no-spoilers-blur/]);
+  await expect.poll(() => page.locator(".drawer-video_fixture").evaluateAll((rows) =>
+    rows.every((row) => row.getAttribute("title")?.includes("*")),
+  )).toBe(true);
 
   await page.locator(".summary-body_fixture").click();
   await expect(page.getByRole("heading", { name: "Reveal summary?" })).toBeVisible();
@@ -432,7 +638,7 @@ test("keeps all custom pages beside the active Settings-style sidebar", async ({
     ["timestamp-notes", "Timestamp Notes"],
     ["themes", "Themes"],
   ] as const) {
-    await page.locator(`[data-jstremio-testid="${id}-navigation"]`).click();
+    await page.locator(`[data-jstremio-testid="${id}-navigation"]`).evaluate((element) => (element as HTMLButtonElement).click());
     await expect(page.getByRole("heading", { name: heading, exact: true, level: 1 })).toBeVisible();
     await expect(page.locator(`[data-jstremio-testid="${id}-navigation"]`)).toHaveAttribute("aria-current", "page");
     await expect.poll(async () => {
@@ -443,7 +649,7 @@ test("keeps all custom pages beside the active Settings-style sidebar", async ({
   }
 
   for (const officialPage of ["Home", "Discover", "Library", "Calendar", "Addons", "Settings"]) {
-    await page.locator('[data-jstremio-testid="themes-navigation"]').click();
+    await page.locator('[data-jstremio-testid="themes-navigation"]').evaluate((element) => (element as HTMLButtonElement).click());
     await expect(page.locator('[data-jstremio-testid="page"]')).toBeVisible();
     await page.getByRole("button", { name: officialPage, exact: true }).click();
     await expect(page.locator('[data-jstremio-testid="page"]')).toHaveCount(0);
@@ -451,7 +657,7 @@ test("keeps all custom pages beside the active Settings-style sidebar", async ({
 
   await page.evaluate(() => { location.hash = "#/addons"; });
   await expect(page.locator('[data-jstremio-testid="page"]')).toHaveCount(0);
-  await expect(page.locator('[data-jstremio-testid$="-navigation"]')).toHaveCount(4);
+  await expect(page.locator('[data-jstremio-testid$="-navigation"]')).toHaveCount(7);
 });
 
 test("mounts each extension once and remounts after upstream replacement", async ({ page }) => {
@@ -461,7 +667,8 @@ test("mounts each extension once and remounts after upstream replacement", async
   await expect(page.locator('[data-jstremio-testid="reviews-player-button"]')).toHaveCount(1);
   await expect(page.locator('[data-jstremio-testid="timestamp-notes-player-button"]')).toHaveCount(1);
   const playerActions = page.locator('[data-jstremio-click-only]');
-  await expect(playerActions).toHaveCount(6);
+  // Episode-specific marker editing is intentionally unavailable for movies.
+  await expect(playerActions).toHaveCount(7);
   for (const action of await playerActions.all()) {
     await expect(action).toHaveAttribute("tabindex", "-1");
     await expect.poll(() => action.evaluate((element) => {
@@ -480,7 +687,7 @@ test("mounts each extension once and remounts after upstream replacement", async
   await pluginNavigation.click();
   await expect(page.locator('[data-jstremio-testid="page"]')).toHaveAttribute("data-jstremio-page", "plugin-manager");
   await expect(page.getByRole("button", { name: "Close Plugins" })).toHaveCount(0);
-  await expect(page.locator(".plugin-card")).toHaveCount(10);
+  await expect(page.locator(".plugin-card")).toHaveCount(16);
   await expect(page.locator(".plugin-card").first()).toHaveCSS("background-color", "rgb(36, 10, 13)");
   await expect(page.locator(".plugin-card").first()).toHaveCSS("color", "rgb(252, 235, 237)");
   await expect(page.getByLabel("Disable Plugins")).toBeDisabled();
@@ -683,7 +890,7 @@ test("configures both seek directions and protects active player control regions
   await expect(barRewind).toHaveClass(/control-bar-button_fixture/);
   await expect(barRewind.locator("..")).toHaveClass(/control-bar-buttons-container_fixture/);
   await expect(page.locator("#top-player-toolbar [data-jstremio-extension=\"quick-seek\"]")).toHaveCount(0);
-  await expect(page.locator(".control-bar-buttons-container_fixture").locator(":scope > *")).toHaveCount(6);
+  await expect(page.locator(".control-bar-buttons-container_fixture").locator(":scope > *")).toHaveCount(7);
   await expect(page.locator(".control-bar-buttons-container_fixture").locator(":scope > *").nth(0)).toHaveAttribute("data-jstremio-control", "quick-seek-bar-back");
   await expect(page.locator(".control-bar-buttons-container_fixture").locator(":scope > *").nth(2)).toHaveAttribute("data-jstremio-control", "quick-seek-bar-forward");
   await expect.poll(async () => {
@@ -911,9 +1118,95 @@ test("opens Reviews with Stremio's end-of-episode prompt and honors its default-
   await expect(reviewDialog).toHaveCount(0);
 });
 
+test("previews, saves, reapplies, and persists custom caption styling", async ({ page }) => {
+  await expect.poll(() => page.evaluate(() => {
+    const commands = (window as any).__fixture.commands as unknown[][];
+    return commands.some((command) => command[0] === "sub-font" && command[1] === "Arial")
+      && commands.some((command) => command[0] === "sub-color" && command[1] === "#FFFFFFFF");
+  })).toBe(true);
+
+  await page.locator('[data-jstremio-testid="plugin-manager-navigation"]').click();
+  await page.getByRole("button", { name: "Settings for Custom Captions" }).click();
+  const dialog = page.getByRole("dialog", { name: "Custom Captions settings" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByLabel("Caption preview")).toContainText("The quick brown fox");
+
+  await dialog.getByRole("button", { name: "High Contrast" }).click();
+  await expect(dialog.getByLabel("Font size")).toHaveValue("52");
+  await expect(dialog.getByLabel("Bold")).toBeChecked();
+  await expect(dialog.getByLabel("Text color hexadecimal value")).toHaveValue("#FFE94A");
+  await dialog.getByLabel("Font family").fill("Verdana");
+  await dialog.getByRole("button", { name: "Save", exact: true }).click();
+
+  await expect.poll(() => page.evaluate(() => (window as any).__fixture.customCaptions)).toMatchObject({
+    fontFamily: "Verdana",
+    fontSize: 52,
+    textColor: "#FFE94A",
+    backgroundOpacity: 68,
+    bold: true,
+  });
+  for (const [name, value] of [
+    ["sub-font", "Verdana"],
+    ["sub-color", "#FFFFE94A"],
+    ["sub-back-color", "#AD000000"],
+    ["sub-border-style", "background-box"],
+    ["sub-bold", true],
+  ] as const) {
+    await expect.poll(() => page.evaluate(([property, expected]) => {
+      const commands = (window as any).__fixture.commands as unknown[][];
+      return commands.some((command) => command[0] === property && command[1] === expected);
+    }, [name, value] as const)).toBe(true);
+  }
+
+  await expect(page.getByText(/Custom · Verdana · 52px/)).toBeVisible();
+  await page.getByRole("button", { name: "Settings for Custom Captions" }).click();
+  await expect(page.getByRole("dialog", { name: "Custom Captions settings" }).getByLabel("Font family")).toHaveValue("Verdana");
+});
+
+test("opens live caption settings from the subtitle button and defeats upstream style resets", async ({ page }) => {
+  const subtitles = page.getByTitle("Subtitles");
+  await expect(subtitles).toHaveAttribute("data-jstremio-custom-captions-anchor", "true");
+  await subtitles.evaluate((element) => element.dispatchEvent(new MouseEvent("contextmenu", {
+    bubbles: true,
+    cancelable: true,
+    button: 2,
+  })));
+  const editor = page.getByRole("dialog", { name: "Custom Captions" });
+  await expect(editor).toBeVisible();
+  await editor.getByRole("button", { name: "High Contrast" }).click();
+  await expect.poll(() => page.evaluate(() => {
+    const commands = (window as any).__fixture.commands as unknown[][];
+    return commands.some((command) => command[0] === "sub-color" && command[1] === "#FFFFE94A")
+      && commands.some((command) => command[0] === "sub-bold" && command[1] === true);
+  })).toBe(true);
+  expect(await page.evaluate(() => (window as any).__fixture.customCaptions.textColor)).toBe("#FFFFFF");
+  await editor.getByRole("button", { name: "Close caption settings" }).click();
+  await expect(editor).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => {
+    const commands = (window as any).__fixture.commands as unknown[][];
+    return commands.slice(-20).some((command) => command[0] === "sub-color" && command[1] === "#FFFFFFFF");
+  })).toBe(true);
+
+  await subtitles.evaluate((element) => element.dispatchEvent(new MouseEvent("contextmenu", {
+    bubbles: true,
+    cancelable: true,
+    button: 2,
+  })));
+  await editor.getByRole("button", { name: "High Contrast" }).click();
+  await editor.getByRole("button", { name: "Save", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).__fixture.customCaptions.textColor)).toBe("#FFE94A");
+
+  const commandCount = await page.evaluate(() => (window as any).__fixture.commands.length);
+  await page.evaluate(() => (window as any).__fixture.emitMpv("sub-color", "#FFFFFFFF"));
+  await expect.poll(() => page.evaluate((from) => {
+    const commands = (window as any).__fixture.commands as unknown[][];
+    return commands.slice(from).some((command) => command[0] === "sub-color" && command[1] === "#FFFFE94A");
+  }, commandCount)).toBe(true);
+});
+
 test("records persistent plugin hotkeys and opens the matching player dialogs", async ({ page }) => {
   await page.locator('[data-jstremio-testid="plugin-manager-navigation"]').click();
-  await expect(page.getByRole("button", { name: /^Settings for / })).toHaveCount(7);
+  await expect(page.getByRole("button", { name: /^Settings for / })).toHaveCount(8);
   await expect(page.locator(".plugin-card").filter({ hasText: "LastPlayed" }).getByRole("button", { name: /Settings/ })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Settings for Quick Seek" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Settings for Easy Sound Output" })).toBeVisible();
@@ -1266,7 +1559,7 @@ test("captures, pauses conditionally, clusters markers, and seeks without blocki
   await expect.poll(() => enlarged.evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThan(300);
   await page.getByRole("button", { name: "Close enlarged thumbnail" }).click();
 
-  await page.getByRole("button", { name: "Edit" }).click();
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
   await page.getByRole("dialog", { name: "Update timestamp note" }).getByRole("button", { name: "Delete" }).click();
   await expect.poll(() => page.evaluate(() => (window as any).__fixture.notes.length)).toBe(2);
   await expect(page.locator(".collection-card")).toHaveCount(1);

@@ -6,7 +6,7 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
     process::exit,
-    sync::Arc,
+    sync::{atomic::AtomicBool, Arc},
 };
 use whoami::username;
 
@@ -17,7 +17,10 @@ mod bridge;
 mod extensions;
 mod last_played;
 mod media;
+mod phone_remote;
+mod playback_history;
 mod reviews;
+mod skip_segments;
 mod storage;
 mod stremio_app;
 mod themes;
@@ -217,10 +220,12 @@ fn main() {
         }
     };
     let server = StremioServer::with_app_path(paths.server.clone());
+    let mini_player_active_signal = Arc::new(AtomicBool::new(false));
     stremio_app::stremio_wevbiew::configure(
         paths.webview2,
         remote_debugging_port,
         extension_host.clone(),
+        mini_player_active_signal.clone(),
     )
     .expect("JStremio WebView2 configuration must be set once");
 
@@ -238,6 +243,7 @@ fn main() {
         data_directory: paths.data,
         update_launch,
         update_shutdown_command: Some(update_shutdown_command),
+        mini_player_active_signal,
         server,
         ..Default::default()
     })

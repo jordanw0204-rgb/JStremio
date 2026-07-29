@@ -2,6 +2,39 @@
 
 JStremio follows Semantic Versioning. Stable releases are tagged `vMAJOR.MINOR.PATCH` and published through GitHub Releases.
 
+## 1.11.3 - 2026-07-29
+
+- Add Custom Captions with live MPV subtitle styling, five presets, validated font/size/position controls, independent text/outline/background/shadow colors and opacity, letter spacing, bold/italic toggles, and embedded ASS-style handling that persists locally.
+- Restore the complete themed Phone Remote layout by mounting its stylesheet inside the built-in page Shadow DOM, with app-matching buttons, fields, focus states, and network-interface picker.
+- Make the Intro & Credits editor inherit the active JStremio theme, remove its redundant close button and per-episode/movie creation scope, and add clearing for season, series, and legacy episode markers.
+- Resolve Intro & Credits controls from the active series even when route changes or extension startup race with MPV telemetry reset, and allow the editor to open safely while playback time is still becoming available.
+- Rebuild Mini Player as a captionless always-on-top window with a 16:9 client area, proportional edge/corner resizing, a native drag strip, compact placement recovery, and exact restoration of the normal window frame.
+- Fix the re-entrant minimum-size path that previously forced the normal 1000x600 window limit during Mini Player entry and defeated proportional sizing in the real WebView.
+- Extend No Spoilers to Stremio's player-side episode drawer and make automatic review cleanup close only the active review dialog instead of unrelated JStremio dialogs.
+- Make installer upgrades transactional for bundled plugins: retain the previous extension tree until replacement files are copied, reject unsafe pre-install deletion rules during packaging, and validate that the runtime and manifests exist so a locked native DLL cannot leave only the base Stremio UI.
+- Use the Windows archive tool for large portable packages when available, avoiding `Compress-Archive` size limitations while retaining a compatible fallback.
+
+## 1.11.2 - 2026-07-28
+
+- Fixed an unbounded Always-on-Top Mini Player bridge feedback loop that flooded the native UI thread with window-state messages and made playback controls and window dragging lag.
+- Made mini-player state reads side-effect free, coalesced duplicate browser refreshes, and made UI reconciliation skip unchanged DOM attributes.
+- Added native-event flood, DOM mutation, and repeatable Windows movement performance diagnostics for regression testing.
+
+## 1.11.1 - 2026-07-28
+
+- Eliminate player UI lag introduced by v1.11.0: coalesce bursty playback-history samples, reuse media identity for the active route, and preserve sample timing without an unbounded async lookup queue.
+- Stop Intro & Credits Skipper from resolving the complete Stremio player state on every position tick; it now resolves only when the media route or duration changes.
+- Keep Phone Remote off the native bridge while its server is stopped, publish active position at most once per second, and still publish pause/seeking changes immediately.
+- Add a 100-snapshot backpressure regression proving one media lookup, accurate watch accumulation, and one persistence write.
+
+## 1.11.0 - 2026-07-28
+
+- Add Intro & Credits Skipper with local episode-, season-, and series-scoped ranges, from-end credits support, and guarded resolution across player transitions.
+- Add Playback Statistics and Local Watch Journal on one private, revisioned playback-history store with plausible-watch filtering, crash checkpoints, local-calendar trends, notes, tags, favorites, and backup-purging privacy deletion.
+- Add Always-on-Top Mini Player with a bounded resizable native window mode that restores prior placement, fullscreen, and topmost state.
+- Add Phone Remote with explicit private-LAN startup, one-use pairing, authenticated bounded WebSocket control, immediate revocation, and a dependency-free mobile interface.
+- Add native, browser-unit, and installed-Edge integration coverage for all five built-ins, plus hardened pagination, lifecycle, rate-limit, route-race, and shared-writer behavior.
+
 ## 1.10.1 - 2026-07-24
 
 - Add the built-in Stream Switcher player control: left-click selects the closest matching alternate provider/quality stream, right-click opens a compact themed stream picker, and successful replacements resume at the prior playback position and pause state.

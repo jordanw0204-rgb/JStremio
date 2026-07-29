@@ -388,13 +388,37 @@
         "priority": "high",
         "subtasks": [],
         "updatedAt": "2026-07-18T09:35:01.953Z"
+      },
+      {
+        "id": "30",
+        "title": "Restore missing installed extension resources",
+        "description": "Diagnose why installed JStremio 1.11.3 opens as the plain upstream Stremio UI and restore the packaged extension runtime without altering the user's profile.",
+        "details": "Evidence: installed executable hash exactly matches the 1.11.3 portable artifact, but %LOCALAPPDATA%\\Programs\\JStremio\\resources is empty. packaged_extensions_directory() requires resources\\extensions; ExtensionHost failure falls back to safe mode. Preserve %LOCALAPPDATA%\\JStremio, deploy the matching artifact resources, restart, verify manifest/hash parity and startup loaded-extension diagnostics. Retain the existing installer guard that forbids deleting the extension tree before replacement.",
+        "testStrategy": "Verify installed runtime.js and all 17 manifests against the 1.11.3 build manifest; start the installed executable with captured output and require the loaded-extensions line; then relaunch normally and confirm profile/settings remain byte-identical.",
+        "status": "done",
+        "dependencies": [],
+        "priority": "high",
+        "subtasks": [],
+        "updatedAt": "2026-07-29T17:09:03.032Z"
+      },
+      {
+        "id": "31",
+        "title": "Publish JStremio v1.11.3 release",
+        "description": "Commit and push the complete v1.11.3 working tree, build and validate the corrected installer/portable artifacts, tag the release, and verify the public GitHub latest release assets and checksums.",
+        "details": "Include complete release notes for v1.11.0-v1.11.3 work, explicitly documenting Custom Captions and the installer extension-tree transaction fix. Run scripts/check.ps1 and scripts/build-release.ps1, verify artifacts and manifest counts, commit all intended changes, push feature/jstremio-extensions and annotated v1.11.3 tag, monitor the release workflow, then verify the public installer/portable/checksum assets and latest-release metadata.",
+        "testStrategy": "Full locked release gate; local artifact hashes and installer resource validation; GitHub Actions tag workflow success; anonymous/public release asset and checksum verification.",
+        "status": "in-progress",
+        "dependencies": [],
+        "priority": "high",
+        "subtasks": [],
+        "updatedAt": "2026-07-29T17:23:51.650Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-07-18T09:35:01.954Z",
-      "taskCount": 29,
-      "completedCount": 27,
+      "lastModified": "2026-07-29T17:23:51.651Z",
+      "taskCount": 31,
+      "completedCount": 28,
       "tags": [
         "master"
       ]

@@ -82,6 +82,30 @@ export function findPlayerControls(): HTMLElement | null {
   return document.querySelector<HTMLElement>('[role="toolbar"]');
 }
 
+export function findSubtitleButton(): HTMLElement | null {
+  if (!isPlayerRoute()) return null;
+  const menus = Array.from(
+    document.querySelectorAll<HTMLElement>('[class*="control-bar-buttons-menu-container"]'),
+  ).filter((candidate) => !candidate.closest(OWNED) && !isHiddenInTree(candidate));
+  for (const menu of menus) {
+    const controls = Array.from(menu.children).filter(
+      (element): element is HTMLElement =>
+        element instanceof HTMLElement
+        && element.matches(INTERACTIVE)
+        && !element.closest(OWNED)
+        && !isHiddenInTree(element),
+    );
+    // Stremio's right-side menu is stats, speed, cast, subtitles, audio, ... .
+    // The generated CSS-module names change between releases, but this order
+    // is part of the upstream ControlBar component and is stable.
+    if (controls.length >= 5) return controls[3] ?? null;
+  }
+
+  return interactiveElements(document).find((control) =>
+    /\b(?:subtitles?|captions?)\b/i.test(accessibleName(control)),
+  ) ?? null;
+}
+
 export function findSeekContainer(): HTMLElement | null {
   if (!isPlayerRoute()) return null;
   const semantic = Array.from(

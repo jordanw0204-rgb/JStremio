@@ -1,0 +1,39 @@
+.caption-editor { --caption-accent:var(--jstremio-accent-color,#7b5bf5);--caption-surface:var(--jstremio-surface-color,#0f0d20);--caption-text:var(--jstremio-text-color,#f4f2fa);width:min(940px,calc(100vw - 28px));max-height:min(900px,calc(100vh - 24px));overflow:auto;padding:22px;border:1px solid color-mix(in srgb,var(--caption-text) 16%,transparent);border-radius:16px;background:color-mix(in srgb,var(--caption-surface) 97%,transparent);color:var(--caption-text);box-shadow:0 24px 80px rgba(0,0,0,.58);backdrop-filter:blur(22px);font-family:Inter,"Segoe UI",sans-serif;}
+.caption-player-popover { position:fixed;z-index:2; }
+.caption-editor-header { display:flex;align-items:flex-start;justify-content:space-between;gap:16px; }
+.caption-editor-header h2 { margin:0 0 5px;font-size:24px; }
+.caption-editor-header p,.caption-help { margin:0;color:color-mix(in srgb,var(--caption-text) 68%,transparent);line-height:1.4; }
+.caption-header-actions { display:flex;align-items:center;gap:8px; }
+.caption-icon-button { flex:0 0 auto;width:34px;height:34px;border:1px solid color-mix(in srgb,var(--caption-text) 17%,transparent);border-radius:50%;background:color-mix(in srgb,var(--caption-surface) 75%,var(--caption-text) 6%);color:var(--caption-text);font-size:23px;line-height:1;cursor:pointer; }
+.caption-icon-button:hover,.caption-icon-button:focus-visible { border-color:var(--caption-accent);background:color-mix(in srgb,var(--caption-surface) 64%,var(--caption-accent) 24%);outline:none; }
+.caption-editor-section { min-width:0;padding:14px;border:1px solid color-mix(in srgb,var(--caption-text) 13%,transparent);border-radius:13px;background:color-mix(in srgb,var(--caption-surface) 88%,var(--caption-text) 2%); }
+.caption-editor-section>h3 { margin:0 0 12px;font-size:14px;letter-spacing:.02em; }
+.caption-theme-section { margin-top:16px; }
+.caption-presets { display:flex;flex-wrap:wrap;gap:8px; }
+.caption-preset { display:flex;align-items:center;gap:8px;border:1px solid color-mix(in srgb,var(--caption-text) 15%,transparent);border-radius:999px;background:color-mix(in srgb,var(--caption-surface) 80%,var(--caption-text) 4%);color:var(--caption-text);padding:7px 11px;cursor:pointer; }
+.caption-preset:hover,.caption-preset:focus-visible,.caption-preset[data-active] { border-color:var(--caption-accent);background:color-mix(in srgb,var(--caption-surface) 68%,var(--caption-accent) 20%);outline:none; }
+.caption-preset-dots { display:flex; }
+.caption-preset-dots i { width:11px;height:11px;margin-left:-3px;border:1px solid rgba(255,255,255,.22);border-radius:50%;box-shadow:0 0 0 1px rgba(0,0,0,.25); }
+.caption-preset-dots i:first-child { margin-left:0; }
+.caption-editor-grid { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px; }
+.caption-field,.caption-color,.caption-range { display:grid;gap:7px;margin-top:11px;font-size:12px;font-weight:700; }
+.caption-field:first-of-type,.caption-color:first-of-type,.caption-range:first-of-type { margin-top:0; }
+.caption-text-input { min-width:0;width:100%;border:1px solid color-mix(in srgb,var(--caption-text) 18%,transparent);border-radius:9px;background:color-mix(in srgb,var(--caption-surface) 72%,#000 18%);color:var(--caption-text);padding:9px 10px;outline:none; }
+.caption-text-input:focus { border-color:var(--caption-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--caption-accent) 18%,transparent); }
+.caption-range>div { display:grid;grid-template-columns:minmax(0,1fr) 64px;align-items:center;gap:10px; }
+.caption-range input { width:100%;accent-color:var(--caption-accent); }
+.caption-range output { border-radius:7px;background:color-mix(in srgb,var(--caption-surface) 64%,var(--caption-accent) 10%);padding:5px 7px;text-align:center;font-variant-numeric:tabular-nums; }
+.caption-color>div { display:grid;grid-template-columns:48px minmax(0,1fr);gap:8px; }
+.caption-color input[type="color"] { width:48px;height:38px;padding:3px;border:1px solid color-mix(in srgb,var(--caption-text) 20%,transparent);border-radius:9px;background:color-mix(in srgb,var(--caption-surface) 70%,#000 18%);cursor:pointer; }
+.caption-toggle-pair { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:12px; }
+.caption-toggle { display:flex;align-items:center;gap:9px;padding:10px;border:1px solid color-mix(in srgb,var(--caption-text) 14%,transparent);border-radius:10px;background:color-mix(in srgb,var(--caption-surface) 80%,var(--caption-accent) 8%);cursor:pointer; }
+.caption-toggle input { width:18px;height:18px;margin:0;accent-color:var(--caption-accent); }
+.caption-help { margin-top:10px;font-size:12px; }
+.caption-editor-status { min-height:1.5em;margin-top:13px;color:color-mix(in srgb,var(--caption-accent) 62%,var(--caption-text) 38%);font-size:13px; }
+.caption-editor-actions { position:sticky;bottom:-22px;z-index:3;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:9px;margin:12px -22px -22px;padding:14px 22px;border-top:1px solid color-mix(in srgb,var(--caption-text) 14%,transparent);background:color-mix(in srgb,var(--caption-surface) 94%,transparent);backdrop-filter:blur(16px); }
+.caption-player-popover .caption-editor-actions { position:static;margin-bottom:0; }
+.caption-button { border:1px solid color-mix(in srgb,var(--caption-text) 18%,transparent);border-radius:10px;background:color-mix(in srgb,var(--caption-surface) 82%,var(--caption-text) 6%);color:var(--caption-text);padding:9px 13px;cursor:pointer; }
+.caption-button:hover,.caption-button:focus-visible { border-color:var(--caption-accent);background:color-mix(in srgb,var(--caption-surface) 72%,var(--caption-accent) 18%);outline:none; }
+.caption-button:disabled { opacity:.48;cursor:not-allowed; }
+.caption-button.primary { border-color:color-mix(in srgb,var(--caption-accent) 75%,#fff 10%);background:var(--caption-accent);color:#fff; }
+@media (max-width:650px) { .caption-editor{padding:16px}.caption-editor-grid{grid-template-columns:1fr}.caption-editor-actions{bottom:-16px;margin:12px -16px -16px;padding:12px 16px;grid-template-columns:1fr}.caption-editor-actions span{display:none}.caption-button{width:100%}.caption-editor-header{gap:10px} }

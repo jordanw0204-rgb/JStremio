@@ -1,6 +1,10 @@
 use crate::{
     extensions::ExtensionHost,
-    stremio_app::{constants::SERVER_IPC_KEY, ipc},
+    stremio_app::{
+        constants::SERVER_IPC_KEY,
+        ipc,
+        mini_player::{constrain_mini_player_sizing, mini_player_hit_test},
+    },
 };
 use native_windows_gui::{self as nwg, PartialUi};
 use once_cell::sync::OnceCell as SyncOnceCell;
@@ -12,7 +16,10 @@ use std::collections::VecDeque;
 use std::mem;
 use std::path::PathBuf;
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, Mutex,
+};
 use std::thread;
 use url::Url;
 use urlencoding::decode;
@@ -20,7 +27,7 @@ use webview2::Controller;
 use winapi::shared::windef::HWND;
 use winapi::um::winuser::{
     GetClientRect, SIZE_MINIMIZED, VK_F7, WM_APPCOMMAND, WM_DISPLAYCHANGE, WM_DPICHANGED, WM_MOVE,
-    WM_MOVING, WM_SETFOCUS, WM_SIZE,
+    WM_MOVING, WM_NCHITTEST, WM_SETFOCUS, WM_SIZE, WM_SIZING,
 };
 
 const APPCOMMAND_MEDIA_NEXTTRACK: u32 = 11;
@@ -36,6 +43,7 @@ struct WebViewConfiguration {
     extension_host: Option<Arc<ExtensionHost>>,
     user_data_folder: PathBuf,
     remote_debugging_port: Option<u16>,
+    mini_player_active: Arc<AtomicBool>,
 }
 
 static WEBVIEW_CONFIGURATION: SyncOnceCell<WebViewConfiguration> = SyncOnceCell::new();
@@ -44,12 +52,14 @@ pub fn configure(
     user_data_folder: PathBuf,
     remote_debugging_port: Option<u16>,
     extension_host: Option<Arc<ExtensionHost>>,
+    mini_player_active: Arc<AtomicBool>,
 ) -> Result<(), &'static str> {
     WEBVIEW_CONFIGURATION
         .set(WebViewConfiguration {
             extension_host,
             user_data_folder,
             remote_debugging_port,
+            mini_player_active,
         })
         .map_err(|_| "WebView2 was already configured")
 }
@@ -117,6 +127,7 @@ impl PartialUi for WebView {
             .cloned()
             .expect("JStremio must configure WebView2 before building the UI");
         let extension_host = configuration.extension_host;
+        let mini_player_active = configuration.mini_player_active;
         let user_data_folder = configuration.user_data_folder;
         let mut webview_flags = "--autoplay-policy=no-user-gesture-required --disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection".to_string();
         if let Some(port) = configuration.remote_debugging_port {
@@ -296,7 +307,21 @@ impl PartialUi for WebView {
         let handler_id = 0x10000;
         let controller_clone = data.controller.clone();
         nwg::bind_raw_event_handler(&parent, handler_id, move |hwnd, msg, w, l| {
-            if msg == WM_SIZE {
+            if mini_player_active.load(Ordering::Acquire) && msg == WM_NCHITTEST {
+                // WM_NCHITTEST packs signed screen coordinates into LPARAM.
+                // Sign extension is required on monitors left/above the primary.
+                let cursor_x = (l as u16) as i16 as i32;
+                let cursor_y = ((l >> 16) as u16) as i16 as i32;
+                if let Some(hit) = mini_player_hit_test(hwnd, cursor_x, cursor_y) {
+                    return Some(hit);
+                }
+            } else if mini_player_active.load(Ordering::Acquire) && msg == WM_SIZING {
+                if l != 0 {
+                    let rect = unsafe { &mut *(l as *mut winapi::shared::windef::RECT) };
+                    constrain_mini_player_sizing(hwnd, w, rect);
+                    return Some(1);
+                }
+            } else if msg == WM_SIZE {
                 if let Some(controller) = controller_clone.get() {
                     let visible = w != SIZE_MINIMIZED;
                     controller.put_is_visible(visible).ok();

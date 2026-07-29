@@ -307,14 +307,8 @@ export function createPlayerAdapter(getTarget: TargetProvider, bridgeRequest?: B
 
   const refreshProperty = (name: PlayerPropertyName) => postObserveProperty(name);
 
-  const setProperty = async (name: PlayerSettablePropertyName, value: number | string) => {
-    if (name === "volume") {
-      if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 130) {
-        throw new Error("The volume is invalid.");
-      }
-    } else if (typeof value !== "string" || !value.trim() || value.length > 2_048) {
-      throw new Error("The audio output device is invalid.");
-    }
+  const setProperty = async (name: PlayerSettablePropertyName, value: number | string | boolean) => {
+    if (!isValidPlayerProperty(name, value)) throw new Error("The player property value is invalid.");
     postProperty(name, value);
   };
 
@@ -384,8 +378,52 @@ export function createPlayerAdapter(getTarget: TargetProvider, bridgeRequest?: B
   };
 }
 
+export function isValidPlayerProperty(name: PlayerSettablePropertyName, value: unknown): boolean {
+  if (name === "volume") return finiteRange(value, 0, 130);
+  if (name === "audio-device") return printableString(value, 1, 2_048);
+  if (name === "sub-font") return printableString(value, 1, 128);
+  if (name === "sub-font-size") return finiteRange(value, 8, 120);
+  if (name === "sub-pos") return finiteRange(value, 0, 150);
+  if (name === "sub-border-size") return finiteRange(value, 0, 10);
+  if (name === "sub-shadow-offset") return finiteRange(value, 0, 20);
+  if (name === "sub-spacing") return finiteRange(value, -10, 20);
+  if (name === "sub-bold" || name === "sub-italic") return typeof value === "boolean";
+  if (name === "sub-ass-override") return value === "no" || value === "scale" || value === "force";
+  if (name === "sub-border-style") return value === "outline-and-shadow" || value === "background-box";
+  return typeof value === "string" && /^#[0-9A-F]{8}$/i.test(value);
+}
+
+function finiteRange(value: unknown, min: number, max: number): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= min && value <= max;
+}
+
+function printableString(value: unknown, min: number, max: number): value is string {
+  return typeof value === "string" && value.trim().length >= min && value.length <= max && !/[\u0000-\u001F\u007F]/.test(value);
+}
+
 function isPlayerPropertyName(value: unknown): value is PlayerPropertyName {
-  return value === "volume" || value === "audio-device" || value === "audio-device-list";
+  return typeof value === "string" && (
+    value === "volume"
+    || value === "mute"
+    || value === "audio-device"
+    || value === "audio-device-list"
+    || value === "path"
+    || value === "sid"
+    || value === "sub-font"
+    || value === "sub-font-size"
+    || value === "sub-pos"
+    || value === "sub-color"
+    || value === "sub-border-color"
+    || value === "sub-border-size"
+    || value === "sub-back-color"
+    || value === "sub-border-style"
+    || value === "sub-shadow-color"
+    || value === "sub-shadow-offset"
+    || value === "sub-spacing"
+    || value === "sub-bold"
+    || value === "sub-italic"
+    || value === "sub-ass-override"
+  );
 }
 
 function isPlayerRoute(route: string): boolean {

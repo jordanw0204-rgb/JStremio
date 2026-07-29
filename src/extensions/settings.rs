@@ -22,12 +22,59 @@ const MAX_AUDIO_DEVICE_CHARS: usize = 2_048;
 const MAX_AUDIO_DEVICE_DESCRIPTION_CHARS: usize = 512;
 const MAX_SAVED_VOLUME: f64 = 130.0;
 const MAX_NO_SPOILERS_SKIP_MINUTES: f64 = 1_440.0;
+const MAX_CAPTION_FONT_CHARS: usize = 128;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PreferredAudioDevice {
     pub name: String,
     pub description: String,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CustomCaptionsSettings {
+    pub font_family: String,
+    pub font_size: f64,
+    pub position: f64,
+    pub text_color: String,
+    pub text_opacity: f64,
+    pub outline_color: String,
+    pub outline_opacity: f64,
+    pub outline_size: f64,
+    pub background_color: String,
+    pub background_opacity: f64,
+    pub shadow_color: String,
+    pub shadow_opacity: f64,
+    pub shadow_offset: f64,
+    pub letter_spacing: f64,
+    pub bold: bool,
+    pub italic: bool,
+    pub ass_override: String,
+}
+
+impl Default for CustomCaptionsSettings {
+    fn default() -> Self {
+        Self {
+            font_family: "Arial".into(),
+            font_size: 48.0,
+            position: 100.0,
+            text_color: "#FFFFFF".into(),
+            text_opacity: 100.0,
+            outline_color: "#000000".into(),
+            outline_opacity: 100.0,
+            outline_size: 3.0,
+            background_color: "#000000".into(),
+            background_opacity: 0.0,
+            shadow_color: "#000000".into(),
+            shadow_opacity: 75.0,
+            shadow_offset: 2.0,
+            letter_spacing: 0.0,
+            bold: false,
+            italic: false,
+            ass_override: "force".into(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -62,6 +109,8 @@ pub struct PluginSettingsDocument {
     pub no_spoilers_guard_seeks: bool,
     #[serde(default = "default_no_spoilers_max_skip_minutes")]
     pub no_spoilers_max_skip_minutes: f64,
+    #[serde(default)]
+    pub custom_captions: CustomCaptionsSettings,
 }
 
 impl StoredDocument for PluginSettingsDocument {
@@ -122,6 +171,7 @@ impl StoredDocument for PluginSettingsDocument {
             self.no_spoilers_title_mask_percent,
             self.no_spoilers_max_skip_minutes,
         )?;
+        validate_custom_captions_settings(&self.custom_captions)?;
         Ok(())
     }
 }
@@ -145,6 +195,7 @@ impl Default for PluginSettingsDocument {
             no_spoilers_title_mask_percent: DEFAULT_NO_SPOILERS_TITLE_MASK_PERCENT,
             no_spoilers_guard_seeks: DEFAULT_NO_SPOILERS_GUARD_SEEKS,
             no_spoilers_max_skip_minutes: DEFAULT_NO_SPOILERS_MAX_SKIP_MINUTES,
+            custom_captions: CustomCaptionsSettings::default(),
         }
     }
 }
@@ -318,6 +369,22 @@ impl PluginSettingsStore {
             Ok(document.revision)
         })
     }
+
+    pub fn custom_captions_settings(&self) -> Result<CustomCaptionsSettings, StorageError> {
+        self.store.read().map(|document| document.custom_captions)
+    }
+
+    pub fn set_custom_captions_settings(
+        &self,
+        settings: CustomCaptionsSettings,
+    ) -> Result<u64, StorageError> {
+        validate_custom_captions_settings(&settings)?;
+        self.store.mutate(|document| {
+            document.custom_captions = settings;
+            document.revision = document.revision.saturating_add(1);
+            Ok(document.revision)
+        })
+    }
 }
 
 fn default_begone_mouse_idle_ms() -> f64 {
@@ -426,6 +493,65 @@ fn validate_no_spoilers_settings(
     Ok(())
 }
 
+fn validate_custom_captions_settings(
+    settings: &CustomCaptionsSettings,
+) -> Result<(), StorageError> {
+    let font = settings.font_family.trim();
+    if font.is_empty()
+        || font.chars().count() > MAX_CAPTION_FONT_CHARS
+        || font.chars().any(char::is_control)
+    {
+        return Err(StorageError::invalid(
+            "fontFamily",
+            "must contain 1 through 128 printable characters",
+        ));
+    }
+    for (field, value) in [
+        ("textColor", &settings.text_color),
+        ("outlineColor", &settings.outline_color),
+        ("backgroundColor", &settings.background_color),
+        ("shadowColor", &settings.shadow_color),
+    ] {
+        if !valid_hex_color(value) {
+            return Err(StorageError::invalid(
+                field,
+                "must be a six-digit hexadecimal color",
+            ));
+        }
+    }
+    for (field, value, minimum, maximum) in [
+        ("fontSize", settings.font_size, 8.0, 120.0),
+        ("position", settings.position, 0.0, 150.0),
+        ("textOpacity", settings.text_opacity, 0.0, 100.0),
+        ("outlineOpacity", settings.outline_opacity, 0.0, 100.0),
+        ("outlineSize", settings.outline_size, 0.0, 10.0),
+        ("backgroundOpacity", settings.background_opacity, 0.0, 100.0),
+        ("shadowOpacity", settings.shadow_opacity, 0.0, 100.0),
+        ("shadowOffset", settings.shadow_offset, 0.0, 20.0),
+        ("letterSpacing", settings.letter_spacing, -10.0, 20.0),
+    ] {
+        if !value.is_finite() || !(minimum..=maximum).contains(&value) {
+            return Err(StorageError::invalid(
+                field,
+                "is outside the supported range",
+            ));
+        }
+    }
+    if !matches!(settings.ass_override.as_str(), "no" | "scale" | "force") {
+        return Err(StorageError::invalid(
+            "assOverride",
+            "must be no, scale, or force",
+        ));
+    }
+    Ok(())
+}
+
+fn valid_hex_color(value: &str) -> bool {
+    value.len() == 7
+        && value.starts_with('#')
+        && value.as_bytes()[1..].iter().all(u8::is_ascii_hexdigit)
+}
+
 fn valid_hotkey(value: &str) -> bool {
     if value.is_empty() || value.len() > 64 || !value.is_ascii() {
         return false;
@@ -498,7 +624,7 @@ fn valid_hotkey_code(code: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{PluginSettingsStore, PreferredAudioDevice};
+    use super::{CustomCaptionsSettings, PluginSettingsStore, PreferredAudioDevice};
     use std::fs;
     use tempfile::tempdir;
 
@@ -534,6 +660,10 @@ mod tests {
         assert_eq!(
             store.no_spoilers_settings().unwrap(),
             (true, true, 70, true, 10.0)
+        );
+        assert_eq!(
+            store.custom_captions_settings().unwrap(),
+            CustomCaptionsSettings::default()
         );
         store
             .set_hotkey("reviews", Some("Ctrl+Shift+KeyR".into()))
@@ -654,5 +784,33 @@ mod tests {
         assert!(store
             .set_no_spoilers_settings(true, true, 70, true, 0.0)
             .is_err());
+    }
+
+    #[test]
+    fn custom_caption_styles_default_validate_and_persist() {
+        let directory = tempdir().unwrap();
+        let store = PluginSettingsStore::new(directory.path());
+        let settings = CustomCaptionsSettings {
+            font_family: "Segoe UI".into(),
+            font_size: 56.0,
+            text_color: "#FFE94A".into(),
+            background_opacity: 68.0,
+            bold: true,
+            ..CustomCaptionsSettings::default()
+        };
+        store
+            .set_custom_captions_settings(settings.clone())
+            .unwrap();
+        assert_eq!(store.custom_captions_settings().unwrap(), settings);
+
+        let mut invalid = settings.clone();
+        invalid.text_color = "red".into();
+        assert!(store.set_custom_captions_settings(invalid).is_err());
+        invalid = settings.clone();
+        invalid.font_size = 121.0;
+        assert!(store.set_custom_captions_settings(invalid).is_err());
+        invalid = settings;
+        invalid.ass_override = "unsafe".into();
+        assert!(store.set_custom_captions_settings(invalid).is_err());
     }
 }

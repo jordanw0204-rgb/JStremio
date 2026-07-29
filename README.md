@@ -64,6 +64,12 @@ Release checksums are published beside every installer as `SHA256SUMS.txt`.
 | **Easy Sound Output** | Adds a themed output-device menu to right-click on the player volume button and can prefer one device for playback. |
 | **QOL Things** | Remembers and restores the player volume across closing, reopening, and restarting JStremio. |
 | **No Spoilers** | Conceals summaries, artwork, and title text and confirms accidental large forward skips. |
+| **Custom Captions** | Applies persistent live subtitle fonts, sizing, placement, colors, opacity, outlines, backgrounds, shadows, spacing, emphasis, presets, and embedded-style handling. |
+| **Intro & Credits Skipper** | Saves local per-video, season, or series markers and offers a one-click skip during playback. |
+| **Playback Statistics** | Tracks plausible active watch time and shows private totals, streaks, daily charts, and most-watched titles. |
+| **Local Watch Journal** | Keeps a searchable local watch history with notes, tags, favorites, and links back into Stremio. |
+| **Always-on-Top Mini Player** | Moves the native player into a remembered compact topmost window and restores the previous window/fullscreen state. |
+| **Phone Remote** | Serves an opt-in, paired playback remote to phones on the same trusted private network. |
 | **Plugins** | Lets you enable built-in features and trusted local plugins independently. |
 
 Built-in features can be managed from **Plugins** inside JStremio. Custom local
@@ -80,6 +86,16 @@ amounts from `0.05` through `3600` seconds and applies them immediately.
 Easy Sound Output stores only the selected MPV device name and description. QOL Things
 stores the last volume level when enabled. No Spoilers independently configures summary
 blur, artwork blur, title masking from 0–100%, and a forward-skip confirmation threshold.
+Custom Captions exposes validated subtitle styling with five presets and applies
+changes directly to the native MPV player without requiring a restart.
+
+Playback Statistics and Local Watch Journal share one native playback-history
+store and one reference-counted tracker, so enabling both does not record or
+write a session twice. Clearing history removes both the primary entries and
+their recovery backup. Intro/credits markers and mini-player placement are
+also local. Phone Remote stays off until you start it, binds only to a selected
+private IPv4 interface, and should be used only on a network you trust: its
+local HTTP/WebSocket connection is authenticated but not encrypted.
 
 Open **Themes** from the palette button in the sidebar to adjust both background
 gradient colors, the gradient angle, accent color, elevated surfaces, and
@@ -133,7 +149,7 @@ JStremio-specific data stays on your computer:
 
 | Data | Location |
 | --- | --- |
-| Reviews, notes, LastPlayed, themes, and plugin settings | `%LOCALAPPDATA%\JStremio\data` |
+| Reviews, notes, playback history/journal, skip markers, LastPlayed, mini-player placement, themes, and plugin settings | `%LOCALAPPDATA%\JStremio\data` |
 | Custom local plugins | `%LOCALAPPDATA%\JStremio\plugins` |
 | Stremio login/profile data | `%LOCALAPPDATA%\JStremio\webview2` |
 | Bundled server cache and settings | `%LOCALAPPDATA%\JStremio\server` |

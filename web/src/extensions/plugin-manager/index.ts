@@ -9,6 +9,16 @@ import {
 } from "../../runtime/hotkeys";
 import type { JStremioRuntime } from "../../runtime/types";
 import { addStyles, mountNavigationButton, removeOwned, requireRuntime } from "../shared";
+import {
+  CAPTION_PRESETS,
+  COMMON_CAPTION_FONTS,
+  DEFAULT_CUSTOM_CAPTIONS,
+  hexToRgba,
+  matchingCaptionPreset,
+  normalizeCustomCaptions,
+  validateCustomCaptions,
+  type CustomCaptionsSettings,
+} from "../custom-captions/model";
 
 type Plugin = {
   id: string;
@@ -57,6 +67,7 @@ const REVIEW_SETTINGS_CHANGED = "jstremio-review-settings-changed";
 const EASY_SOUND_SETTINGS_CHANGED = "jstremio-easy-sound-output-settings-changed";
 const QOL_SETTINGS_CHANGED = "jstremio-qol-things-settings-changed";
 const NO_SPOILERS_SETTINGS_CHANGED = "jstremio-no-spoilers-settings-changed";
+const CUSTOM_CAPTIONS_SETTINGS_CHANGED = "jstremio-custom-captions-settings-changed";
 
 const manifest = {
   schemaVersion: 1,
@@ -95,7 +106,7 @@ function activate(runtime: JStremioRuntime) {
         grid.hidden = true;
         status.textContent = "Loading plugins…";
         try {
-          const [pluginValue, hotkeyValue, reviewValue, begoneMouseValue, quickSeekValue, easySoundValue, qolValue, noSpoilersValue] = await Promise.all([
+          const [pluginValue, hotkeyValue, reviewValue, begoneMouseValue, quickSeekValue, easySoundValue, qolValue, noSpoilersValue, customCaptionsValue] = await Promise.all([
             runtime.bridge.request("plugins", "list"),
             runtime.bridge.request("plugins", "getHotkeys"),
             runtime.bridge.request("plugins", "getReviewSettings"),
@@ -104,6 +115,7 @@ function activate(runtime: JStremioRuntime) {
             runtime.bridge.request("plugins", "getEasySoundOutput"),
             runtime.bridge.request("plugins", "getQolThings"),
             runtime.bridge.request("plugins", "getNoSpoilers"),
+            runtime.bridge.request("plugins", "getCustomCaptions"),
           ]);
           const plugins = asPlugins(pluginValue);
           renderPlugins(
@@ -117,6 +129,7 @@ function activate(runtime: JStremioRuntime) {
             asEasySoundOutputSettings(easySoundValue),
             asQolThingsSettings(qolValue),
             asNoSpoilersSettings(noSpoilersValue),
+            normalizeCustomCaptions(customCaptionsValue),
             restart,
           );
           status.hidden = plugins.length > 0;
@@ -167,6 +180,7 @@ function renderPlugins(
   easySound: EasySoundOutputSettings,
   qol: QolThingsSettings,
   noSpoilers: NoSpoilersSettings,
+  customCaptions: CustomCaptionsSettings,
   restart: HTMLElement,
 ) {
   grid.replaceChildren();
@@ -228,6 +242,7 @@ function renderPlugins(
         else if (plugin.id === "quick-seek") summary.textContent = `Back ${formatSeekSeconds(quickSeek.backwardSeconds)} · Forward ${formatSeekSeconds(quickSeek.forwardSeconds)}`;
         else if (plugin.id === "easy-sound-output") summary.textContent = easySound.preferredDevice?.description ?? "Preferred device: System default";
         else if (plugin.id === "qol-things") summary.textContent = qol.rememberVolume ? `Remember volume: On${qol.savedVolume === null ? "" : ` · ${Number(qol.savedVolume.toFixed(1))}%`}` : "Remember volume: Off";
+        else if (plugin.id === "custom-captions") summary.textContent = `${matchingCaptionPreset(customCaptions)?.name ?? "Custom"} · ${customCaptions.fontFamily} · ${Number(customCaptions.fontSize.toFixed(1))}px`;
         else summary.textContent = `Mask ${noSpoilers.titleMaskPercent}% · Max skip ${Number(noSpoilers.maxSkipMinutes.toFixed(2))} min`;
       };
       renderSummary();
@@ -242,6 +257,8 @@ function renderPlugins(
           openEasySoundSettings(runtime, plugin, easySound, renderSummary);
         } else if (plugin.id === "qol-things") {
           openQolSettings(runtime, plugin, qol, renderSummary);
+        } else if (plugin.id === "custom-captions") {
+          openCustomCaptionsSettings(runtime, plugin, customCaptions, renderSummary);
         } else {
           openNoSpoilersSettings(runtime, plugin, noSpoilers, renderSummary);
         }
@@ -664,12 +681,181 @@ function openNoSpoilersSettings(
   });
 }
 
+function openCustomCaptionsSettings(
+  runtime: JStremioRuntime,
+  plugin: Plugin,
+  settings: CustomCaptionsSettings,
+  saved: () => void,
+) {
+  runtime.ui.openDialog((container, close) => {
+    addStyles(container, styles);
+    const dialog = document.createElement("section");
+    dialog.className = "plugin-settings-dialog custom-captions-dialog";
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+    dialog.setAttribute("aria-labelledby", "custom-captions-title");
+    const presetButtons = CAPTION_PRESETS.map((preset) => `
+      <button type="button" class="caption-preset" data-caption-preset="${preset.id}">
+        <span class="caption-preset-dots" aria-hidden="true">${preset.colors.map((color) => `<i style="background:${color}"></i>`).join("")}</span>
+        <span>${preset.name}</span>
+      </button>`).join("");
+    const fontOptions = COMMON_CAPTION_FONTS.map((font) => `<option value="${font}"></option>`).join("");
+    dialog.innerHTML = `
+      <header class="caption-settings-header"><div><h2 id="custom-captions-title">${plugin.name} settings</h2><p class="settings-description">Style text captions in the native player. Changes apply immediately after Save.</p></div><span class="caption-live-badge">Live preview</span></header>
+      <section class="caption-preview" aria-label="Caption preview"><div class="caption-preview-glow"></div><div class="caption-preview-text">The quick brown fox jumps over the lazy dog.</div></section>
+      <section class="caption-section"><h3>Caption themes</h3><div class="caption-presets">${presetButtons}</div></section>
+      <div class="caption-settings-grid">
+        <section class="caption-section"><h3>Typography</h3>
+          <label class="caption-field"><span>Font family</span><input class="caption-text-input" data-caption="fontFamily" list="caption-fonts" autocomplete="off" maxlength="128"><datalist id="caption-fonts">${fontOptions}</datalist></label>
+          ${captionRange("Font size", "fontSize", 8, 120, 1, "px")}
+          ${captionRange("Screen position", "position", 0, 150, 1, "")}
+          ${captionRange("Letter spacing", "letterSpacing", -10, 20, 0.5, "px")}
+          <div class="caption-toggle-pair"><label class="settings-toggle compact"><input type="checkbox" data-caption="bold"><span><strong>Bold</strong></span></label><label class="settings-toggle compact"><input type="checkbox" data-caption="italic"><span><strong>Italic</strong></span></label></div>
+        </section>
+        <section class="caption-section"><h3>Text and outline</h3>
+          ${captionColor("Text", "textColor")}${captionRange("Text opacity", "textOpacity", 0, 100, 1, "%")}
+          ${captionColor("Outline", "outlineColor")}${captionRange("Outline opacity", "outlineOpacity", 0, 100, 1, "%")}
+          ${captionRange("Outline width", "outlineSize", 0, 10, 0.5, "px")}
+        </section>
+        <section class="caption-section"><h3>Background and shadow</h3>
+          ${captionColor("Background", "backgroundColor")}${captionRange("Background opacity", "backgroundOpacity", 0, 100, 1, "%")}
+          ${captionColor("Shadow", "shadowColor")}${captionRange("Shadow opacity", "shadowOpacity", 0, 100, 1, "%")}
+          ${captionRange("Shadow offset / box padding", "shadowOffset", 0, 20, 0.5, "px")}
+        </section>
+        <section class="caption-section"><h3>Subtitle compatibility</h3>
+          <label class="caption-field"><span>Embedded ASS styles</span><select class="caption-text-input" data-caption="assOverride"><option value="force">Force my custom style</option><option value="scale">Keep authored style, apply scale</option><option value="no">Respect authored style completely</option></select></label>
+          <p class="hotkey-help">Force makes your design consistent. Respect preserves karaoke, signs, and carefully authored positioning. Image-based DVD/PGS subtitles cannot be restyled.</p>
+        </section>
+      </div>
+      <div class="settings-status" role="status" aria-live="polite"></div>
+      <div class="settings-actions caption-actions"><button type="button" class="button" data-action="default">Reset to Classic</button><span></span><button type="button" class="button" data-action="cancel">Cancel</button><button type="button" class="button primary" data-action="save">Save</button></div>`;
+    container.append(dialog);
+
+    const status = dialog.querySelector<HTMLElement>(".settings-status")!;
+    const saveButton = dialog.querySelector<HTMLButtonElement>('[data-action="save"]')!;
+    const preview = dialog.querySelector<HTMLElement>(".caption-preview-text")!;
+    const input = <T extends HTMLInputElement | HTMLSelectElement>(key: keyof CustomCaptionsSettings) =>
+      dialog.querySelector<T>(`[data-caption="${key}"]`)!;
+    const colorText = (key: "textColor" | "outlineColor" | "backgroundColor" | "shadowColor") =>
+      dialog.querySelector<HTMLInputElement>(`[data-caption-color="${key}"]`)!;
+
+    const read = (): CustomCaptionsSettings => ({
+      fontFamily: input<HTMLInputElement>("fontFamily").value,
+      fontSize: Number(input<HTMLInputElement>("fontSize").value),
+      position: Number(input<HTMLInputElement>("position").value),
+      textColor: colorText("textColor").value.toUpperCase(),
+      textOpacity: Number(input<HTMLInputElement>("textOpacity").value),
+      outlineColor: colorText("outlineColor").value.toUpperCase(),
+      outlineOpacity: Number(input<HTMLInputElement>("outlineOpacity").value),
+      outlineSize: Number(input<HTMLInputElement>("outlineSize").value),
+      backgroundColor: colorText("backgroundColor").value.toUpperCase(),
+      backgroundOpacity: Number(input<HTMLInputElement>("backgroundOpacity").value),
+      shadowColor: colorText("shadowColor").value.toUpperCase(),
+      shadowOpacity: Number(input<HTMLInputElement>("shadowOpacity").value),
+      shadowOffset: Number(input<HTMLInputElement>("shadowOffset").value),
+      letterSpacing: Number(input<HTMLInputElement>("letterSpacing").value),
+      bold: input<HTMLInputElement>("bold").checked,
+      italic: input<HTMLInputElement>("italic").checked,
+      assOverride: input<HTMLSelectElement>("assOverride").value as CustomCaptionsSettings["assOverride"],
+    });
+    const write = (candidate: CustomCaptionsSettings) => {
+      input<HTMLInputElement>("fontFamily").value = candidate.fontFamily;
+      for (const key of ["fontSize", "position", "textOpacity", "outlineOpacity", "outlineSize", "backgroundOpacity", "shadowOpacity", "shadowOffset", "letterSpacing"] as const) {
+        input<HTMLInputElement>(key).value = String(candidate[key]);
+      }
+      for (const key of ["textColor", "outlineColor", "backgroundColor", "shadowColor"] as const) {
+        colorText(key).value = candidate[key];
+        input<HTMLInputElement>(key).value = candidate[key];
+      }
+      input<HTMLInputElement>("bold").checked = candidate.bold;
+      input<HTMLInputElement>("italic").checked = candidate.italic;
+      input<HTMLSelectElement>("assOverride").value = candidate.assOverride;
+      render();
+    };
+    const render = () => {
+      const raw = read();
+      const error = validateCustomCaptions(raw);
+      const candidate = normalizeCustomCaptions(raw);
+      saveButton.disabled = Boolean(error);
+      status.textContent = error ?? "Text subtitle styling is valid and ready to save.";
+      preview.style.fontFamily = `"${candidate.fontFamily.replaceAll('"', "")}", sans-serif`;
+      preview.style.fontSize = `${Math.max(15, candidate.fontSize * 0.44)}px`;
+      preview.style.fontWeight = candidate.bold ? "800" : "500";
+      preview.style.fontStyle = candidate.italic ? "italic" : "normal";
+      preview.style.letterSpacing = `${candidate.letterSpacing * 0.44}px`;
+      preview.style.color = hexToRgba(candidate.textColor, candidate.textOpacity);
+      preview.style.webkitTextStroke = `${candidate.outlineSize * 0.44}px ${hexToRgba(candidate.outlineColor, candidate.outlineOpacity)}`;
+      preview.style.background = hexToRgba(candidate.backgroundColor, candidate.backgroundOpacity);
+      preview.style.textShadow = candidate.shadowOffset > 0 && candidate.shadowOpacity > 0
+        ? `${candidate.shadowOffset * 0.44}px ${candidate.shadowOffset * 0.44}px ${Math.max(1, candidate.shadowOffset * 0.7)}px ${hexToRgba(candidate.shadowColor, candidate.shadowOpacity)}`
+        : "none";
+      preview.style.top = `${Math.min(84, Math.max(8, candidate.position / 150 * 80))}%`;
+      dialog.querySelectorAll<HTMLButtonElement>("[data-caption-preset]").forEach((button) => {
+        button.toggleAttribute("data-active", button.dataset.captionPreset === matchingCaptionPreset(candidate)?.id);
+      });
+      dialog.querySelectorAll<HTMLOutputElement>("[data-caption-output]").forEach((output) => {
+        const key = output.dataset.captionOutput as keyof CustomCaptionsSettings;
+        const suffix = output.dataset.suffix ?? "";
+        output.value = `${candidate[key]}${suffix}`;
+      });
+    };
+
+    dialog.querySelectorAll<HTMLInputElement | HTMLSelectElement>("[data-caption]").forEach((control) => {
+      control.addEventListener("input", render);
+      control.addEventListener("change", render);
+    });
+    for (const key of ["textColor", "outlineColor", "backgroundColor", "shadowColor"] as const) {
+      const picker = input<HTMLInputElement>(key);
+      const text = colorText(key);
+      picker.addEventListener("input", () => { text.value = picker.value.toUpperCase(); render(); });
+      text.addEventListener("input", () => {
+        if (/^#[0-9A-F]{6}$/i.test(text.value)) picker.value = text.value;
+        render();
+      });
+    }
+    dialog.querySelectorAll<HTMLButtonElement>("[data-caption-preset]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const selected = CAPTION_PRESETS.find((preset) => preset.id === button.dataset.captionPreset);
+        if (selected) write({ ...selected.settings });
+      });
+    });
+    dialog.querySelector('[data-action="default"]')?.addEventListener("click", () => write({ ...DEFAULT_CUSTOM_CAPTIONS }));
+    dialog.querySelector('[data-action="cancel"]')?.addEventListener("click", close);
+    saveButton.addEventListener("click", () => {
+      const candidate = read();
+      const error = validateCustomCaptions(candidate);
+      if (error) { status.textContent = error; return; }
+      saveButton.disabled = true;
+      status.textContent = "Saving…";
+      void runtime.bridge.request("plugins", "setCustomCaptions", candidate).then(() => {
+        Object.assign(settings, candidate);
+        window.dispatchEvent(new CustomEvent(CUSTOM_CAPTIONS_SETTINGS_CHANGED, { detail: { ...candidate } }));
+        saved();
+        close();
+      }).catch((error) => {
+        saveButton.disabled = false;
+        status.textContent = error instanceof Error ? error.message : "Caption settings could not be saved.";
+      });
+    });
+    write({ ...settings });
+  });
+}
+
+function captionRange(label: string, key: keyof CustomCaptionsSettings, min: number, max: number, step: number, suffix: string) {
+  return `<label class="caption-range"><span>${label}</span><div><input type="range" data-caption="${key}" min="${min}" max="${max}" step="${step}"><output data-caption-output="${key}" data-suffix="${suffix}"></output></div></label>`;
+}
+
+function captionColor(label: string, key: "textColor" | "outlineColor" | "backgroundColor" | "shadowColor") {
+  return `<label class="caption-color"><span>${label} color</span><div><input type="color" data-caption="${key}" aria-label="${label} color picker"><input class="caption-text-input" data-caption-color="${key}" maxlength="7" spellcheck="false" aria-label="${label} color hexadecimal value"></div></label>`;
+}
+
 function hasPluginSettings(id: string): boolean {
   return isHotkeyPluginId(id)
     || id === "begone-mouse"
     || id === "quick-seek"
     || id === "easy-sound-output"
     || id === "qol-things"
+    || id === "custom-captions"
     || id === "no-spoilers";
 }
 

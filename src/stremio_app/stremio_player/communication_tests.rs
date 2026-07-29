@@ -1,6 +1,6 @@
 use crate::stremio_app::stremio_player::communication::{
-    BoolProp, CmdVal, InMsg, InMsgArgs, InMsgFn, MpvCmd, PlayerEnded, PlayerProprChange, PropKey,
-    PropVal, StrProp,
+    BoolProp, CmdVal, FpProp, InMsg, InMsgArgs, InMsgFn, MpvCmd, PlayerEnded, PlayerProprChange,
+    PropKey, PropVal, StrProp,
 };
 use libmpv2::{events::PropertyData, mpv_end_file_reason};
 
@@ -152,6 +152,14 @@ fn ob_propr_tokens() {
             Token::TupleStructEnd,
         ],
     );
+    let mute: InMsg = serde_json::from_str(r#"["mpv-observe-prop","mute"]"#).unwrap();
+    assert_eq!(
+        mute,
+        InMsg(
+            InMsgFn::MpvObserveProp,
+            InMsgArgs::ObProp(PropKey::Bool(BoolProp::Mute)),
+        )
+    );
 }
 
 #[test]
@@ -223,6 +231,67 @@ fn audio_device_property_tokens() {
             Token::Tuple { len: 2 },
             Token::Str("audio-device"),
             Token::Str("wasapi/{device-id}"),
+            Token::TupleEnd,
+            Token::TupleStructEnd,
+        ],
+    );
+}
+
+#[test]
+fn caption_style_property_tokens() {
+    assert_tokens(
+        &InMsg(
+            InMsgFn::MpvSetProp,
+            InMsgArgs::StProp(
+                PropKey::Str(StrProp::SubFont),
+                PropVal::Str("Segoe UI".to_string()),
+            ),
+        ),
+        &[
+            Token::TupleStruct {
+                name: "InMsg",
+                len: 2,
+            },
+            Token::Str("mpv-set-prop"),
+            Token::Tuple { len: 2 },
+            Token::Str("sub-font"),
+            Token::Str("Segoe UI"),
+            Token::TupleEnd,
+            Token::TupleStructEnd,
+        ],
+    );
+    assert_tokens(
+        &InMsg(
+            InMsgFn::MpvSetProp,
+            InMsgArgs::StProp(PropKey::Fp(FpProp::SubFontSize), PropVal::Num(52.0)),
+        ),
+        &[
+            Token::TupleStruct {
+                name: "InMsg",
+                len: 2,
+            },
+            Token::Str("mpv-set-prop"),
+            Token::Tuple { len: 2 },
+            Token::Str("sub-font-size"),
+            Token::F64(52.0),
+            Token::TupleEnd,
+            Token::TupleStructEnd,
+        ],
+    );
+    assert_tokens(
+        &InMsg(
+            InMsgFn::MpvSetProp,
+            InMsgArgs::StProp(PropKey::Bool(BoolProp::SubBold), PropVal::Bool(true)),
+        ),
+        &[
+            Token::TupleStruct {
+                name: "InMsg",
+                len: 2,
+            },
+            Token::Str("mpv-set-prop"),
+            Token::Tuple { len: 2 },
+            Token::Str("sub-bold"),
+            Token::Bool(true),
             Token::TupleEnd,
             Token::TupleStructEnd,
         ],

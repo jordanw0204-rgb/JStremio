@@ -32,8 +32,31 @@ export type StreamOption = {
   order: number;
 };
 
-export type PlayerPropertyName = "volume" | "audio-device" | "audio-device-list";
-export type PlayerSettablePropertyName = "volume" | "audio-device";
+export type PlayerPropertyName =
+  | "volume"
+  | "mute"
+  | "audio-device"
+  | "audio-device-list"
+  | "path"
+  | "sid"
+  | Exclude<PlayerSettablePropertyName, "volume" | "audio-device">;
+export type PlayerSettablePropertyName =
+  | "volume"
+  | "audio-device"
+  | "sub-font"
+  | "sub-font-size"
+  | "sub-pos"
+  | "sub-color"
+  | "sub-border-color"
+  | "sub-border-size"
+  | "sub-back-color"
+  | "sub-border-style"
+  | "sub-shadow-color"
+  | "sub-shadow-offset"
+  | "sub-spacing"
+  | "sub-bold"
+  | "sub-italic"
+  | "sub-ass-override";
 export type PlayerSeekGuard = (
   positionMs: number,
   snapshot: PlaybackSnapshot,
@@ -62,7 +85,16 @@ export type JStremioRuntime = {
   ): void;
   bridge: Readonly<{
     request(
-      namespace: "reviews" | "timestamp-notes" | "plugins" | "last-played" | "themes",
+      namespace:
+        | "reviews"
+        | "timestamp-notes"
+        | "plugins"
+        | "last-played"
+        | "themes"
+        | "mini-player"
+        | "playback-history"
+        | "skip-segments"
+        | "phone-remote",
       operation: string,
       payload?: unknown,
       options?: { timeoutMs?: number },
@@ -81,7 +113,7 @@ export type JStremioRuntime = {
     setPaused(paused: boolean): Promise<void>;
     observeProperty(name: PlayerPropertyName, listener: (value: unknown) => void): () => void;
     refreshProperty(name: PlayerPropertyName): void;
-    setProperty(name: PlayerSettablePropertyName, value: number | string): Promise<void>;
+    setProperty(name: PlayerSettablePropertyName, value: number | string | boolean): Promise<void>;
     addSeekGuard(guard: PlayerSeekGuard): () => void;
     captureFrame(): Promise<string>;
   }>;

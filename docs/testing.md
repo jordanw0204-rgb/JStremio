@@ -10,6 +10,47 @@
 
 `check.ps1` runs Rust formatting/clippy/tests, TypeScript typecheck/unit tests, deterministic bundles, Playwright fixtures in installed Edge, and an optimized x64 compile.
 
+## Automated evidence from 2026-07-29 (v1.11.3 themed plugin, Mini Player, and installer update)
+
+- On 2026-07-29, a real interrupted upgrade reproduced a release-critical installer bug: the old `[InstallDelete]` rule removed `resources\extensions` before Inno Setup failed to replace an in-use `libmpv-2.dll` with access denied. The installed app then correctly fell back to the plain Stremio UI because no extension runtime remained. The installer now retains the prior tree until replacement, packaging rejects that unsafe deletion rule, and the affected installation was repaired from its hash-matching v1.11.3 portable artifact. All 55 resource files and 17 manifests matched byte-for-byte, startup reported all 16 enabled extensions, the saved theme and JStremio navigation returned, and protected user-data timestamps and sizes remained unchanged.
+
+- The locked release gate passed Rust formatting and Clippy with warnings denied, 90 native tests, strict TypeScript, 89 browser unit tests, 19 Playwright end-to-end scenarios, all updater unit/integration tests, and optimized x64 app/updater builds.
+- The gate exposed and then verified a real Intro & Credits activation race: extension startup or a route transition could observe the series after MPV telemetry had been reset, leaving the editor button unresolved until another player event. The extension now resolves the active series independently of telemetry and opens the editor safely while time/duration are still unavailable; the focused regression and the complete 19-scenario Playwright suite pass.
+- The real WebView2 player smoke measured a 706x397 Mini Player client area (1.7783, within 0.001 of 16:9) inside 720x411 native bounds. The remaining 14x14 difference is the resize frame; the caption/title bar is absent. The smoke also confirmed Mini Player stayed active, remained compact, and restored the original window afterward.
+- Browser integration coverage verifies the Phone Remote stylesheet inside its Shadow DOM, app-themed custom controls, theme-variable inheritance in Intro & Credits, the absent close and episode/movie scope controls, and successful clearing of legacy episode, season, and series marker profiles.
+- Inno Setup built `JStremioSetup-v1.11.3_x64-unsigned.exe` at 71,783,189 bytes with SHA-256 `6119C999BE0B72BCD4A8DC6A3344BDBA82103FB7F407AD16AFBED29B1014FA34`. The portable ZIP is 93,573,834 bytes with SHA-256 `47D139CD5ED09EB78B80528EAAED5F3708F625B574F0A3DE74CAC1598020CAAF`; it contains the runtime and all 17 extension manifests.
+- The silent installed upgrade returned exit code 0, registered product/file version 1.11.3, and matched the verified release executable plus all three changed plugin bundles byte-for-byte. The pre/post data fingerprint remained `A60DFF279643465AD9C8DD4A830FEE0C6948C08D687C2AB46B219143635A9DC6` across 43 files and 6,580,775 bytes; the empty custom-plugin tree remained `E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855`. The installed app relaunched with a responding visible window.
+
+## Automated evidence from 2026-07-28 (v1.11.2 window-latency hotfix)
+
+- A controlled extension bisect isolated the regression to Always-on-Top Mini Player: v1.11.1 used 77.44% of one CPU core during 360 scripted interactive window moves, while the same binary with only `mini-player` disabled used 3.45% in the shorter isolation run and the v1.10.1 baseline used 0.93%.
+- A live WebView2/CDP trace found the concrete feedback loop. In three idle seconds, a mini-player state read generated 9,547 visibility events, 9,546 state events, and 19,110 mini-player responses. Native `get` handling broadcast state/visibility, and each broadcast triggered another browser `get`.
+- Mini-player reads are now side-effect free; only `set` actions notify window changes. Browser refreshes are single-flight, and unchanged mini-player DOM state is not rewritten. The fixed live trace recorded zero native messages during an idle sample and zero during 360 scripted moves.
+- The installed v1.11.2 build completed the same 360-move production benchmark at 2.73% of one core, 3.383 ms average synchronous move time, 5.925 ms p95, 11.483 ms maximum, and zero moves above 16.667 ms. The packaged portable measured 0.72% of one core and zero moves above 16.667 ms.
+- Formatting, Clippy, all 88 native tests, all 89 browser unit tests across 28 files, all 19 installed-Edge Playwright scenarios, optimized x64 app/updater builds, and all updater tests passed.
+- Inno Setup built `JStremioSetup-v1.11.2_x64-unsigned.exe` with SHA-256 `DDA1C9F41C4FFFBC810F21AD54D2DFE873DCFE74DF93FBCFFAD0516B9E2C9701`. The installed app, mini-player bundle, and manifest matched the packaged outputs byte-for-byte. The pre/post local data fingerprint remained `030C89105A585F1DFC7147FEA271C1D43FA05E8100A858E0BBEE02E893F9B1F5` across 41 files and 6,579,167 bytes; the custom-plugin fingerprint also remained unchanged.
+
+## Automated evidence from 2026-07-28 (v1.11.1 playback-latency hotfix)
+
+- The v1.11.0 regression came from playback-tick work without backpressure: the shared history tracker queued a complete asynchronous Stremio player-state lookup for every snapshot, Intro & Credits Skipper repeated the same lookup on every position tick, and Phone Remote continued native state traffic while stopped.
+- The tracker now keeps one in-flight sample plus only the newest pending snapshot, reuses media identity for the active route, and samples by event time. A 100-snapshot blocked-resolution regression performs one media lookup, retains the final pause/position, records the correct 6,000 ms watch time, and performs one persistence write.
+- Intro & Credits Skipper resolves only after media-route or duration changes. Phone Remote sends no heartbeat/state traffic while stopped, throttles active position publication to once per second, and still publishes pause/seeking transitions immediately.
+- Strict TypeScript, all 88 browser unit tests across 28 files, deterministic bundles, and all 19 installed-Edge Playwright scenarios passed.
+- A real WebView2/native-MPV smoke clicked Stremio's actual Play/Pause control six times. State acknowledgements measured `69, 75, 77, 80, 92, 104 ms`; 45 position changes were observed over 3.5 seconds with a maximum 93 ms update gap.
+- Inno Setup built `JStremioSetup-v1.11.1_x64-unsigned.exe` at 71,773,357 bytes with SHA-256 `C32AFF2F72D18A7E73A960C9DB5EC4272D66F804F391894FFE5C8C1A654CFCFA`. The installed v1.11.1 app and affected plugin bundles matched the tested outputs byte-for-byte, relaunched responsively, and preserved the pre-install data/custom-plugin baseline exactly.
+
+## Automated evidence from 2026-07-28 (v1.11.0, five built-in plugins)
+
+The Intro & Credits Skipper, Playback Statistics, Always-on-Top Mini Player, Local Watch Journal, and Phone Remote integration passed the locked Windows release gate:
+
+- Formatting, Clippy with warnings denied, strict TypeScript, deterministic web and phone bundles, optimized x64 app/updater builds, and updater checks all passed.
+- All 87 native tests, 87 browser unit tests across 28 files, and 19 installed-Edge Playwright scenarios passed.
+- Focused coverage verifies range precedence and from-end credits, shared single-writer playback tracking, plausible-watch filtering, crash checkpoints, revision-stable pagination, local-day/DST statistics, journal privacy deletion, mini-player restore behavior, one-use phone pairing, authentication revocation, command limits, and simultaneous mounting of all five plugins.
+- The verified portable ZIP is 93,566,148 bytes with SHA-256 `A8C2886DB0C9607C384FF2BEAFAF6CBC5DC10B9846973BC80EA544F9318A5533`; all 87 files listed by its build manifest matched their recorded sizes and hashes, and every archive entry streamed successfully.
+- Inno Setup built `JStremioSetup-v1.11.0_x64-unsigned.exe` at 71,787,429 bytes with SHA-256 `9EFF2653EA67F66F4DE76074603C9E05FDA155578F59286BAFEB7E4FEE7CD984`. A silent per-user upgrade replaced installed v1.10.1 with v1.11.0, relaunched a responding window, and left the registered version and both shortcuts intact. The installed app/updater binaries and all five new plugin bundles matched the verified release outputs byte-for-byte.
+- The upgrade retained all 39 existing data files at the same aggregate byte count and retained the empty custom-plugin tree. After relaunch, LastPlayed performed one normal atomic revision write: its valid primary and recovery backup both retained the same 58 IDs, revision advanced by one, and one existing entry was refreshed. The installer log contained no personal data/plugin target paths.
+- Automated checks do not replace physical-phone LAN/firewall pairing, human-confirmed audio, or multi-monitor/window-placement acceptance checks on the release machine. Phone Remote uses unencrypted HTTP/WebSocket traffic and must be tested only on a trusted private network.
+
 ## Automated evidence from 2026-07-24 (v1.10.1)
 
 The v1.10.1 player-transition, stream-switching, and Review ownership release passed on Windows:

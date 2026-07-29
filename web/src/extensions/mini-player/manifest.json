@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "mini-player",
+  "name": "Always-on-Top Mini Player",
+  "version": "1.0.2",
+  "entry": "index.js",
+  "styles": "styles.css",
+  "enabledByDefault": true,
+  "loadOrder": 170,
+  "description": "Shrinks the player into a resizable always-on-top window and safely restores the normal window afterward.",
+  "author": "JStremio",
+  "core": false
+}

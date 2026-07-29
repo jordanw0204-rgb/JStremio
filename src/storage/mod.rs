@@ -102,6 +102,32 @@ impl<D: StoredDocument> JsonStore<D> {
         Ok(result)
     }
 
+    /// Applies a privacy-sensitive mutation without retaining the previous
+    /// document in the recovery backup. The primary file is committed first,
+    /// then any existing backup is removed while the store lock is held.
+    pub fn mutate_and_purge_backup<R>(
+        &self,
+        mutation: impl FnOnce(&mut D) -> Result<R, StorageError>,
+    ) -> Result<R, StorageError> {
+        let _guard = self.gate.lock().map_err(|_| StorageError::Busy)?;
+        let (mut document, _) = self.read_unlocked()?;
+        let result = mutation(&mut document)?;
+        document.validate()?;
+        self.write_unlocked(&document, None)?;
+        let backup = backup_path(&self.path);
+        match fs::remove_file(backup) {
+            Ok(()) => {}
+            Err(source) if source.kind() == io::ErrorKind::NotFound => {}
+            Err(source) => {
+                return Err(StorageError::Io {
+                    operation: "removing the private data backup",
+                    source,
+                });
+            }
+        }
+        Ok(result)
+    }
+
     fn read_unlocked(&self) -> Result<(D, Option<Vec<u8>>), StorageError> {
         if !self.path.exists() {
             let document = D::default();
@@ -351,6 +377,36 @@ mod tests {
         let backup = fs::read_to_string(path.with_extension("json.bak")).unwrap();
         assert!(backup.contains("\"revision\": 1"));
         assert_eq!(store.read().unwrap().values, vec![1, 2]);
+    }
+
+    #[test]
+    fn privacy_mutation_removes_the_recovery_backup() {
+        let directory = tempdir().unwrap();
+        let path = directory.path().join("data.json");
+        let backup = path.with_extension("json.bak");
+        let store = JsonStore::<TestDocument>::new(path);
+        for value in [1, 2] {
+            store
+                .mutate(|document| {
+                    initialized(document);
+                    document.values.push(value);
+                    document.revision += 1;
+                    Ok(())
+                })
+                .unwrap();
+        }
+        assert!(backup.exists());
+
+        store
+            .mutate_and_purge_backup(|document| {
+                document.values.clear();
+                document.revision += 1;
+                Ok(())
+            })
+            .unwrap();
+
+        assert!(store.read().unwrap().values.is_empty());
+        assert!(!backup.exists());
     }
 
     #[test]

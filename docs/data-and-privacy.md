@@ -10,11 +10,31 @@ LastPlayed uses `last-played.json`. It stores the selected video's metadata, pla
 
 Themes use `themes.json`. The document stores five validated opaque `#RRGGBB` colors and a whole-number gradient angle from 0 through 360. It contains no account, playback, add-on, or media information. Theme settings are injected only into the local Stremio WebView and are never sent to an add-on or remote theme service.
 
+Playback Statistics and Local Watch Journal share `playback-history.json`.
+Sessions contain validated media identity, start/last-seen/end timestamps,
+observed positions and duration, plausible active watch time, completion state,
+and optional journal text, tags, and favorite status. Zero-watch player opens
+are not persisted. Collection uses one shared writer even when both plugins are
+enabled, checkpoints at most once per minute during continuous playback, and
+also persists on pause or finalization. Paginated readers use a document
+revision and restart if the history changes between pages.
+
+Intro & Credits Skipper uses `skip-segments.json`. Credits shared across a
+season or series retain their distance from the end, so different episode
+durations do not rewrite the saved offset. Always-on-Top Mini Player uses
+`mini-player.json` for validated screen bounds only; it contains no media data.
+
 ## File safety
 
 Each store owns a mutex. A mutation reads and validates the primary file, writes a UUID-named temporary file in the same directory, flushes it, creates a known-good `.bak` from the previous validated primary, and uses Windows `ReplaceFileW` with write-through semantics. The first write uses a same-volume rename. Abandoned temp files are ignored.
 
 Malformed, oversized, duplicate-ID, or unsupported-schema primary files are not overwritten. Use **Open data folder**, close JStremio, and recover from the `.bak` or an external backup. JStremio does not silently replace a bad primary with its backup.
+
+History deletion is intentionally different from ordinary recovery writes.
+Deleting an entry or choosing **Clear history** commits the privacy-sensitive
+mutation without retaining the prior history in `playback-history.json.bak`;
+clear also invalidates queued browser writes so the pre-clear active session
+cannot be resurrected.
 
 ## Privacy boundary
 
@@ -24,8 +44,16 @@ The WebView2 profile contains ordinary Stremio login/session data and should be 
 
 The bundled streaming server stores its cache and settings under `%LOCALAPPDATA%\JStremio\server`, separate from official Stremio's server state. Neither that directory nor the WebView2 profile is included in portable packages.
 
+Phone Remote is opt-in and keeps pairing/session secrets in memory only. It
+binds to one user-selected RFC1918 IPv4 interface, accepts an exact Host and
+Origin, uses one-use pairing codes, and revokes connected sockets when stopped
+or disconnected. Playback metadata and commands travel over plain local
+HTTP/WebSocket, not TLS, so another party capable of observing an untrusted
+network could read or replay a session. Use it only on a trusted home/private
+network; JStremio never creates a Windows Firewall rule automatically.
+
 ## Local plugin trust boundary
 
-The privacy guarantees above apply to JStremio's built-in code. An enabled user plugin is trusted JavaScript executing in the same WebView as Stremio and the JStremio runtime. It can inspect page state, call browser networking, and invoke exposed fixed bridges, including reading locally stored review or note data. Review user-plugin source before enabling it. Safe mode prevents all plugin injection, and no remote marketplace or automatic downloader is included.
+The privacy guarantees above apply to JStremio's built-in code. An enabled user plugin is trusted JavaScript executing in the same WebView as Stremio and the JStremio runtime. It can inspect page state, call browser networking, and invoke exposed fixed bridges, including reading locally stored reviews, notes, playback history, or journal annotations. “Local” describes built-in storage behavior; it is not isolation from another enabled plugin. Review user-plugin source before enabling it. Safe mode prevents all plugin injection, and no remote marketplace or automatic downloader is included.
 
 Plugin enablement overrides, optional hotkeys, player timing preferences, the preferred MPV audio-device name/description, the last volume level, and No Spoilers choices are stored in `%LOCALAPPDATA%\JStremio\data\plugins.json`. They contain no audio, browsing history, device telemetry, or typed text. Hotkeys are canonical key identifiers only and do not retain a keyboard history.

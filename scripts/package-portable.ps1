@@ -69,7 +69,20 @@ $Manifest | ConvertTo-Json -Depth 5 | Set-Content -Encoding utf8 -LiteralPath (J
 if ($Zip) {
     $Archive = "$Destination.zip"
     if (Test-Path -LiteralPath $Archive) { Remove-Item -Force -LiteralPath $Archive }
-    Compress-Archive -Path $Destination -DestinationPath $Archive -CompressionLevel Optimal
+    $Tar = Get-Command 'tar.exe' -ErrorAction SilentlyContinue
+    if ($Tar) {
+        Push-Location $OutputRootPath
+        try {
+            & $Tar.Source -a -c -f $Archive $PackageName
+            if ($LASTEXITCODE -ne 0) { throw "Portable ZIP creation failed with exit code $LASTEXITCODE" }
+        }
+        finally {
+            Pop-Location
+        }
+    }
+    else {
+        Compress-Archive -Path $Destination -DestinationPath $Archive -CompressionLevel Optimal
+    }
 }
 
 Write-Output $Destination

@@ -1,0 +1,44 @@
+.mini-player-restore {
+  position:fixed;
+  top:10px;
+  right:10px;
+  z-index:2147483100;
+  display:flex;
+  align-items:center;
+  gap:7px;
+  min-height:36px;
+  padding:7px 11px;
+  border:1px solid color-mix(in srgb,var(--jstremio-accent-color,var(--primary-accent-color,#7b5bf5)) 74%,transparent);
+  border-radius:10px;
+  background:color-mix(in srgb,var(--jstremio-surface-color,var(--modal-background-color,#130e2d)) 88%,transparent);
+  color:var(--jstremio-text-color,var(--primary-foreground-color,#fff));
+  box-shadow:0 5px 18px rgba(0,0,0,.4);
+  font:600 12px/1.1 Inter,"Segoe UI",sans-serif;
+  cursor:pointer;
+  backdrop-filter:blur(10px);
+  pointer-events:auto;
+  transition:background-color 140ms ease,border-color 140ms ease,transform 140ms ease;
+}
+.mini-player-restore:hover,
+.mini-player-restore:focus-visible {
+  border-color:var(--jstremio-accent-color,var(--primary-accent-color,#7b5bf5));
+  background:var(--jstremio-surface-color,var(--modal-background-color,#130e2d));
+  transform:translateY(-1px);
+}
+.mini-player-restore:disabled { opacity:.55;cursor:wait; }
+html[data-jstremio-mini-player] [data-jstremio-control="player-dock"] {
+  gap:4px!important;
+  min-height:50px!important;
+  padding:5px 10px!important;
+}
+html[data-jstremio-mini-player] [data-jstremio-control="player-dock"] > [data-jstremio-control="player"] {
+  width:38px!important;
+  min-width:38px!important;
+  height:38px!important;
+  min-height:38px!important;
+}
+@media (max-width:520px) {
+  .mini-player-restore span { display:none; }
+  .mini-player-restore { width:36px;justify-content:center;padding:7px; }
+}
+@media (prefers-reduced-motion:reduce) { .mini-player-restore{transition:none} }

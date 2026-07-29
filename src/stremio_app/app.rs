@@ -3,25 +3,37 @@ use native_windows_gui as nwg;
 use serde_json;
 use std::{
     cell::RefCell,
+    collections::VecDeque,
     io::Read,
     os::windows::process::CommandExt,
     path::{Path, PathBuf},
     process::Command,
     str,
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
     thread,
 };
-use winapi::um::{winbase::CREATE_BREAKAWAY_FROM_JOB, winuser::WS_EX_TOPMOST};
+use winapi::um::{
+    winbase::CREATE_BREAKAWAY_FROM_JOB,
+    winuser::{ShowWindow, SW_MAXIMIZE, WS_EX_TOPMOST},
+};
 
 use crate::{
     bridge::{NativeBridge, THEMES_METHOD},
-    extensions::ExtensionHost,
+    extensions::{ExtensionHost, MAX_CUSTOM_MESSAGE_BYTES},
     stremio_app::{
         constants::{
             web_endpoint_with_streaming_server, APP_NAME, WEB_ENDPOINT, WINDOW_MIN_HEIGHT,
             WINDOW_MIN_WIDTH,
         },
         ipc::{RPCRequest, RPCResponse},
+        mini_player::{
+            mini_player_min_outer_size, parse_request as parse_mini_player_request,
+            response_event as mini_player_response, MiniPlayerAction, MiniPlayerBridgeError,
+            MiniPlayerPlacementStore, MiniPlayerRequest, MiniPlayerSession, MINI_PLAYER_METHOD,
+        },
         splash::SplashImage,
         stremio_player::Player,
         stremio_wevbiew::WebView,
@@ -37,6 +49,8 @@ use crate::{
 use super::discord::DiscordRpc;
 use super::stremio_server::StremioServer;
 
+const MAX_PENDING_MINI_PLAYER_REQUESTS: usize = 16;
+
 #[derive(Default, NwgUi)]
 pub struct MainWindow {
     pub command: String,
@@ -50,6 +64,9 @@ pub struct MainWindow {
     pub update_launch: Option<UpdateLaunch>,
     pub update_shutdown_command: Option<String>,
     pub requested_fullscreen: Arc<Mutex<Option<bool>>>,
+    pub pending_mini_player_requests: Arc<Mutex<VecDeque<MiniPlayerRequest>>>,
+    pub mini_player_session: RefCell<MiniPlayerSession>,
+    pub mini_player_active_signal: Arc<AtomicBool>,
     pub pending_title_bar_theme: Arc<Mutex<Option<ThemeSettings>>>,
     pub saved_window_style: RefCell<WindowStyle>,
     #[nwg_resource]
@@ -99,6 +116,9 @@ pub struct MainWindow {
     #[nwg_control]
     #[nwg_events(OnNotice: [Self::on_title_bar_theme_notice] )]
     pub title_bar_theme_notice: nwg::Notice,
+    #[nwg_control]
+    #[nwg_events(OnNotice: [Self::on_mini_player_notice] )]
+    pub mini_player_notice: nwg::Notice,
 }
 
 impl MainWindow {
@@ -173,7 +193,7 @@ impl MainWindow {
             if let Ok(mut saved_style) = self.saved_window_style.try_borrow_mut() {
                 saved_style.set_title_bar_color(hwnd, &theme.surface, &theme.text);
                 if let Some(window_settings) = WindowSettings::load() {
-                    saved_style
+                    let _ = saved_style
                         .restore_window_placement(hwnd, window_settings.to_window_placement());
                 } else {
                     saved_style.center_window(hwnd, WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT);
@@ -193,6 +213,11 @@ impl MainWindow {
             .expect("Cannont obtain communication channel for the Player");
         let player_tx = player_tx.clone();
         let player_rx = player_rx.clone();
+        if let Some(extension_host) = &self.extension_host {
+            extension_host
+                .phone_remote()
+                .attach_player(player_tx.clone());
+        }
 
         let web_channel = self.webview.channel.borrow();
         let (web_tx, web_rx) = web_channel
@@ -254,8 +279,10 @@ impl MainWindow {
         let hide_splash_sender = self.hide_splash_notice.sender();
         let focus_sender = self.focus_notice.sender();
         let title_bar_theme_sender = self.title_bar_theme_notice.sender();
+        let mini_player_sender = self.mini_player_notice.sender();
         let discord_rpc = DiscordRpc::new(web_tx.clone());
         let requested_fullscreen = self.requested_fullscreen.clone();
+        let pending_mini_player_requests = self.pending_mini_player_requests.clone();
         let pending_title_bar_theme = self.pending_title_bar_theme.clone();
         let extension_host = self.extension_host.clone();
         let data_directory = self.data_directory.clone();
@@ -267,6 +294,64 @@ impl MainWindow {
                     continue;
                 };
                 if let Some(method) = msg.get_method() {
+                    if method == MINI_PLAYER_METHOD {
+                        let allowed = extension_host.as_ref().is_some_and(|host| {
+                            host.allows_message(&web_message.source, &web_message.top_level_source)
+                        });
+                        if !allowed {
+                            continue;
+                        }
+                        let parsed = if web_message.message.len() > MAX_CUSTOM_MESSAGE_BYTES {
+                            Err(MiniPlayerBridgeError::new(
+                                "message_too_large",
+                                "The request exceeds the native message limit.",
+                            ))
+                        } else {
+                            parse_mini_player_request(msg.id, msg.get_params())
+                        };
+                        match parsed {
+                            Ok(request) => {
+                                if let Ok(mut pending) = pending_mini_player_requests.lock() {
+                                    if pending.len() < MAX_PENDING_MINI_PLAYER_REQUESTS {
+                                        pending.push_back(request);
+                                        mini_player_sender.notice();
+                                    } else {
+                                        web_tx_web
+                                            .send(RPCResponse::response_message(Some(
+                                                mini_player_response(
+                                                    msg.id,
+                                                    Err(MiniPlayerBridgeError::new(
+                                                        "native_busy",
+                                                        "Too many mini-player requests are pending.",
+                                                    )),
+                                                ),
+                                            )))
+                                            .ok();
+                                    }
+                                } else {
+                                    web_tx_web
+                                        .send(RPCResponse::response_message(Some(
+                                            mini_player_response(
+                                                msg.id,
+                                                Err(MiniPlayerBridgeError::new(
+                                                    "native_busy",
+                                                    "The mini-player request queue is unavailable.",
+                                                )),
+                                            ),
+                                        )))
+                                        .ok();
+                                }
+                            }
+                            Err(error) => {
+                                web_tx_web
+                                    .send(RPCResponse::response_message(Some(
+                                        mini_player_response(msg.id, Err(error)),
+                                    )))
+                                    .ok();
+                            }
+                        }
+                        continue;
+                    }
                     if NativeBridge::supports(method) {
                         let updates_title_bar = method == THEMES_METHOD
                             && msg
@@ -468,7 +553,18 @@ impl MainWindow {
     }
     fn on_min_max(&self, data: &nwg::EventData) {
         let data = data.on_min_max();
-        data.set_min_size(WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT);
+        // WM_GETMINMAXINFO is emitted synchronously from SetWindowPos while
+        // MiniPlayerSession is mutably borrowed. The shared signal avoids a
+        // failed RefCell borrow falling back to the normal 1000x600 minimum.
+        let mini_player = self.mini_player_active_signal.load(Ordering::Acquire);
+        if mini_player {
+            if let Some(hwnd) = self.window.handle.hwnd() {
+                let (width, height) = mini_player_min_outer_size(hwnd);
+                data.set_min_size(width, height);
+            }
+        } else {
+            data.set_min_size(WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT);
+        }
     }
     fn on_paint(&self) {
         if !self.splash_screen.visible() {
@@ -480,9 +576,34 @@ impl MainWindow {
     }
     fn on_resize_end(&self) {
         self.refresh_webview_bounds();
-        self.save_window_settings();
+        if self.mini_player_active() {
+            self.save_mini_player_settings();
+        } else {
+            self.save_window_settings();
+        }
     }
     fn on_window_state_changed(&self) {
+        if self.mini_player_active() {
+            if let Some(hwnd) = self.window.handle.hwnd() {
+                let store = MiniPlayerPlacementStore::new(&self.data_directory);
+                let mut should_maximize = false;
+                if let (Ok(mut session), Ok(mut style)) = (
+                    self.mini_player_session.try_borrow_mut(),
+                    self.saved_window_style.try_borrow_mut(),
+                ) {
+                    if let Err(error) = session.exit(hwnd, &mut style, &store) {
+                        eprintln!("Cannot leave mini player before maximizing: {error:?}");
+                    } else {
+                        self.mini_player_active_signal
+                            .store(false, Ordering::Release);
+                        should_maximize = true;
+                    }
+                }
+                if should_maximize {
+                    unsafe { ShowWindow(hwnd, SW_MAXIMIZE) };
+                }
+            }
+        }
         self.refresh_webview_bounds();
         self.save_window_settings();
         self.transmit_window_state_change();
@@ -493,6 +614,7 @@ impl MainWindow {
             .try_borrow()
             .map(|style| style.full_screen)
             .unwrap_or(false)
+            || self.mini_player_active()
         {
             return;
         }
@@ -511,8 +633,23 @@ impl MainWindow {
                     .unwrap()
                     .take()
                     .unwrap_or(!saved_style.full_screen);
+                if target {
+                    if let Ok(mut session) = self.mini_player_session.try_borrow_mut() {
+                        if session.is_active() {
+                            let store = MiniPlayerPlacementStore::new(&self.data_directory);
+                            if let Err(error) = session.exit(hwnd, &mut saved_style, &store) {
+                                eprintln!("Cannot leave mini player before fullscreen: {error:?}");
+                            } else {
+                                self.mini_player_active_signal
+                                    .store(false, Ordering::Release);
+                            }
+                        }
+                    }
+                }
                 saved_style.set_full_screen(hwnd, target);
-                self.tray.tray_topmost.set_enabled(!saved_style.full_screen);
+                self.tray
+                    .tray_topmost
+                    .set_enabled(!saved_style.full_screen && !self.mini_player_active());
                 self.tray
                     .tray_topmost
                     .set_checked((saved_style.ex_style as u32 & WS_EX_TOPMOST) == WS_EX_TOPMOST);
@@ -535,6 +672,9 @@ impl MainWindow {
         self.refresh_webview_bounds();
     }
     fn on_toggle_topmost(&self) {
+        if self.mini_player_active() {
+            return;
+        }
         if let Some(hwnd) = self.window.handle.hwnd() {
             if let Ok(mut saved_style) = self.saved_window_style.try_borrow_mut() {
                 saved_style.toggle_topmost(hwnd);
@@ -580,8 +720,112 @@ impl MainWindow {
         self.transmit_window_visibility_change();
     }
     fn on_exit(&self) {
+        self.save_mini_player_settings();
         self.save_window_settings();
         nwg::stop_thread_dispatch();
+    }
+
+    fn mini_player_active(&self) -> bool {
+        self.mini_player_session
+            .try_borrow()
+            .map(|session| session.is_active())
+            .unwrap_or(false)
+    }
+
+    fn save_mini_player_settings(&self) {
+        let Some(hwnd) = self.window.handle.hwnd() else {
+            return;
+        };
+        let store = MiniPlayerPlacementStore::new(&self.data_directory);
+        if let Ok(session) = self.mini_player_session.try_borrow() {
+            session.save_current(hwnd, &store);
+        }
+    }
+
+    fn on_mini_player_notice(&self) {
+        let requests = self
+            .pending_mini_player_requests
+            .lock()
+            .map(|mut pending| pending.drain(..).collect::<Vec<_>>())
+            .unwrap_or_default();
+        for request in requests {
+            let result = self.apply_mini_player_action(request.action);
+            self.send_mini_player_response(request.request_id, result);
+        }
+    }
+
+    fn apply_mini_player_action(
+        &self,
+        action: MiniPlayerAction,
+    ) -> Result<crate::stremio_app::mini_player::MiniPlayerState, MiniPlayerBridgeError> {
+        let changes_window = action.changes_window();
+        let hwnd = self.window.handle.hwnd().ok_or_else(|| {
+            MiniPlayerBridgeError::new("native_error", "The application window is unavailable.")
+        })?;
+        if matches!(action, MiniPlayerAction::Set(true)) && !self.mini_player_active() {
+            self.save_window_settings();
+        }
+        let store = MiniPlayerPlacementStore::new(&self.data_directory);
+        if let MiniPlayerAction::Set(enabled) = action {
+            // The raw Win32 handler must know before SetWindowPos synchronously
+            // emits sizing/hit-test messages.
+            self.mini_player_active_signal
+                .store(enabled, Ordering::Release);
+        }
+        let result = {
+            let mut session = self.mini_player_session.try_borrow_mut().map_err(|_| {
+                MiniPlayerBridgeError::new("native_busy", "The mini-player state is busy.")
+            })?;
+            let mut style = self.saved_window_style.try_borrow_mut().map_err(|_| {
+                MiniPlayerBridgeError::new("native_busy", "The window style is busy.")
+            })?;
+            match action {
+                MiniPlayerAction::Get => session.state(hwnd),
+                MiniPlayerAction::Set(true) => session.enter(hwnd, &mut style, &store),
+                MiniPlayerAction::Set(false) => session.exit(hwnd, &mut style, &store),
+            }
+        };
+
+        if matches!(action, MiniPlayerAction::Set(_)) {
+            let enabled = result
+                .as_ref()
+                .map(|state| state.enabled)
+                .unwrap_or_else(|_| self.mini_player_active());
+            self.mini_player_active_signal
+                .store(enabled, Ordering::Release);
+        }
+
+        if changes_window {
+            self.refresh_webview_bounds();
+            if let Ok(style) = self.saved_window_style.try_borrow() {
+                let mini_player = self.mini_player_active();
+                self.tray
+                    .tray_topmost
+                    .set_enabled(!mini_player && !style.full_screen);
+                self.tray.tray_topmost.set_checked(
+                    mini_player || (style.ex_style as u32 & WS_EX_TOPMOST) == WS_EX_TOPMOST,
+                );
+            }
+            self.transmit_window_state_change();
+            self.transmit_window_visibility_change();
+        }
+        result
+    }
+
+    fn send_mini_player_response(
+        &self,
+        request_id: u64,
+        result: Result<crate::stremio_app::mini_player::MiniPlayerState, MiniPlayerBridgeError>,
+    ) {
+        if let Ok(web_channel) = self.webview.channel.try_borrow() {
+            if let Some((web_tx, _)) = web_channel.as_ref() {
+                web_tx
+                    .send(RPCResponse::response_message(Some(mini_player_response(
+                        request_id, result,
+                    ))))
+                    .ok();
+            }
+        }
     }
 }
 

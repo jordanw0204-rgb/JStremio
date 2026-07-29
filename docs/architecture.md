@@ -20,14 +20,19 @@ JStremio WebView2 shell ---- bundled Stremio server
                |---- Quick Seek ------- guarded player seek API
                |---- Easy Sound Output  narrow MPV audio-device API
                |---- QOL Things ------- narrow MPV volume API
-               `---- No Spoilers ------ DOM concealment / seek guard
+               |---- No Spoilers ------ DOM concealment / seek guard
+               |---- Intro/Credits ---- skip-segments.json
+               |---- Statistics ------- shared playback-history.json
+               |---- Watch Journal ---- shared playback-history.json
+               |---- Mini Player ------ narrow HWND placement/topmost API
+               `---- Phone Remote ----- authenticated private-LAN controller
 ```
 
 ## Native boundary
 
 `src/extensions` validates schema-v1 manifests, rejects absolute/traversing/remote paths, applies file/count caps, sorts by load order and ID, and composes the runtime before plugin bundles. Production combines built-ins from `resources/extensions` beside the executable with explicitly enabled user plugins under `%LOCALAPPDATA%\JStremio\plugins`. User plugins begin disabled, invalid folders are isolated, duplicate IDs cannot override built-ins, and settings changes apply after restart. `--extensions-dir` and loopback CDP work only in debug builds. `--disable-extensions` constructs no plugin host.
 
-Web messages retain Stremio's existing `{id,args}` envelope. Custom messages are handled only when the sender and current top-level document have the same approved HTTP(S) origin. Fixed namespaces expose Reviews, Timestamp Notes, LastPlayed, Themes, and narrow plugin-manager operations. No generic path, command, key/value, or MPV bridge exists.
+Web messages retain Stremio's existing `{id,args}` envelope. Custom messages are handled only when the sender and current top-level document have the same approved HTTP(S) origin. Fixed namespaces expose Reviews, Timestamp Notes, LastPlayed, Themes, playback history, skip segments, mini-player, Phone Remote, and narrow plugin-manager operations. No generic path, command, key/value, or MPV bridge exists.
 
 The native updater trigger was removed. The app name, pipe, window settings directory, bundled-server cache/settings path, WebView2 profile, executable, installer AppId, and local data directory are JStremio-specific.
 
@@ -39,7 +44,7 @@ The validated saved theme is serialized into the origin-gated document-start inj
 
 The compatibility adapter owns upstream assumptions. It prefers roles/accessible names, known Library/Calendar hrefs, neighboring controls, and slider structure. Feature code does not contain CSS-module hashes.
 
-MPV property events are observed alongside Stremio's listener. `time-pos` and `duration` seconds become integer milliseconds; pause and seeking remain booleans. Media changes reset the snapshot. The player API validates and exposes only seek/pause plus the `volume`, `audio-device`, and `audio-device-list` properties needed by built-ins; arbitrary MPV properties and commands remain unavailable. Seeks are clamped to duration, require browser user activation, and pass through registered guards unless an explicit confirmation action uses the bypass.
+MPV property events are observed alongside Stremio's listener. `time-pos` and `duration` seconds become integer milliseconds; pause, seeking, and mute remain booleans. Media changes reset the snapshot. The player API validates and exposes only seek/pause/mute plus the `volume`, `audio-device`, and `audio-device-list` properties needed by built-ins; arbitrary MPV properties and commands remain unavailable. Seeks are clamped to duration, require browser user activation, and pass through registered guards unless an explicit confirmation action uses the bypass.
 
 ## Extension behavior
 
@@ -50,5 +55,13 @@ LastPlayed observes the selected player stream, persists its exact official play
 BegoneMouse observes pointer position and activity and reuses Stremio's own overlay-hidden state, with a narrow fallback selector for player controls while the upstream class name is being learned. Its validated decimal-millisecond delay is stored with plugin settings; Quick Seek hover and the responsive bottom player band are protected from idle hiding. Quick Seek renders body-level themed controls, mirrors compact controls around the official Play control, and reads two independently validated local seek durations. It uses the runtime's user-activation-guarded player seek operation and cannot issue arbitrary MPV properties or commands.
 
 Easy Sound Output observes MPV's structured device list and current device, attaches only a `contextmenu` listener to the discovered official volume control, and sets only a selected advertised device name. QOL Things observes and restores the validated MPV volume value. No Spoilers reversibly marks production detail/player DOM nodes, owns timeline pointer gestures while its guard is enabled, and routes the confirmed destination through the same user-activation-guarded player seek API.
+
+Playback Statistics and Local Watch Journal lease one shared browser tracker with one serialized native persistence sink. A session becomes eligible only after five seconds of plausible active playback; checkpoints are written while playback continues and on pause/finalization. History mutations use revisioned pagination, and privacy deletion invalidates queued writes before removing both the primary record and its recovery backup. Statistics divides sessions across local calendar boundaries so daily totals and streaks remain accurate through daylight-saving transitions.
+
+Intro & Credits Skipper resolves the current media against episode-, season-, and series-scoped local rules. Resolution is generation-guarded across route changes and retries transient failures with backoff. From-end credits ranges retain their original offset across different episode cuts unless the user explicitly edits that range.
+
+Always-on-Top Mini Player is a fixed native window operation dispatched on the UI thread. It captures the real screen-space window rectangle and previous topmost/fullscreen state, applies a bounded resizable mini placement, and restores the captured state on exit or shutdown.
+
+Phone Remote owns a bounded background server that binds only after an explicit start. It selects a private RFC 1918 interface, requires an exact Host and Origin, uses a short-lived one-use pairing code, authenticates bounded WebSocket commands, revokes active sessions immediately when stopped, and applies client, message, rate, and command limits. Playback state is published from the same validated native observations used by local plugins. The LAN transport is intentionally cleartext HTTP/WebSocket and is not safe for public or untrusted networks.
 
 Markers are current-media-only, pointer-transparent outside explicit buttons, positioned against the current duration, hidden when out of range, and clustered within approximately ten physical pixels. Absolute timestamps are never ratio-scaled for alternate cuts.

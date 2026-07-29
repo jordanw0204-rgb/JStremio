@@ -26,7 +26,7 @@ const manifest = {
   schemaVersion: 1,
   id: "no-spoilers",
   name: "No Spoilers",
-  version: "1.0.4",
+  version: "1.0.5",
   entry: "index.js",
   styles: "styles.css",
   enabledByDefault: true,
@@ -151,7 +151,8 @@ function activate(runtime: JStremioRuntime) {
     for (const container of document.querySelectorAll<HTMLElement>('[class*="description-container"]')) {
       const children = Array.from(container.children).filter((child): child is HTMLElement => child instanceof HTMLElement);
       const label = children.find((child) => /^\s*summary\s*$/i.test(child.textContent ?? ""));
-      if (!label) continue;
+      const playerSideDrawerSummary = isPlayerRoute() && Boolean(container.closest('[class*="side-drawer"]'));
+      if (!label && !playerSideDrawerSummary) continue;
       const bodies = children.filter((child) => child !== label && Boolean(child.textContent?.trim()));
       bodies.forEach(protect);
       const textNodes = Array.from(container.childNodes)
@@ -169,14 +170,21 @@ function activate(runtime: JStremioRuntime) {
     }
   };
 
-  const episodeListTitles = () => document.querySelectorAll<HTMLElement>(
-    '[class*="videos-list"] [class*="title-container"], [class*="videos-container"] [class*="title-container"]',
+  const episodeListRoots = () => Array.from(document.querySelectorAll<HTMLElement>(
+    '[class*="videos-list"], [class*="videos-container"], [class*="side-drawer"], [class*="videos-menu-container"]',
+  ));
+
+  const episodeRows = () => episodeListRoots().flatMap((root) =>
+    Array.from(root.querySelectorAll<HTMLElement>('[class*="video-container"]')),
   );
 
+  const episodeListTitles = () => episodeRows().flatMap((row) => {
+    const title = row.querySelector<HTMLElement>('[class*="title-container"]');
+    return title ? [title] : [];
+  });
+
   const blurEpisodeThumbnails = () => {
-    document.querySelectorAll<HTMLElement>(
-      '[class*="videos-list"] [class*="video-container"], [class*="videos-container"] [class*="video-container"]',
-    ).forEach((row) => {
+    episodeRows().forEach((row) => {
       const title = row.querySelector<HTMLElement>('[class*="title-container"]');
       if (!title || !maskEpisodeLabel(title.textContent?.trim() ?? "", settings.titleMaskPercent)) return;
       row.querySelectorAll<HTMLElement>('[class*="thumbnail-container"] img, img[class*="thumbnail"]').forEach(blur);
@@ -184,9 +192,7 @@ function activate(runtime: JStremioRuntime) {
   };
 
   const maskEpisodeTooltips = () => {
-    document.querySelectorAll<HTMLElement>(
-      '[class*="videos-list"] [class*="video-container"][title], [class*="videos-container"] [class*="video-container"][title]',
-    ).forEach((row) => {
+    episodeRows().filter((row) => row.hasAttribute("title")).forEach((row) => {
       const title = row.getAttribute("title")?.trim();
       const label = row.querySelector<HTMLElement>('[class*="title-container"]')?.textContent?.trim() ?? "";
       if (!title || !maskEpisodeLabel(label, settings.titleMaskPercent)) return;

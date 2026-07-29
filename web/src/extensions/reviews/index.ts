@@ -37,6 +37,7 @@ const manifest = {
 } as const;
 
 const REVIEW_SETTINGS_CHANGED = "jstremio-review-settings-changed";
+const CLOSE_REVIEW_DIALOG = "jstremio-close-review-dialog";
 
 requireRuntime().registerExtension(manifest, (runtime) => activate(runtime));
 
@@ -102,7 +103,7 @@ function activate(runtime: JStremioRuntime) {
   const onNextVideoRequested = () => {
     nextVideoRequested = true;
     suppressAutoOpenUntilPlaybackStarts = true;
-    runtime.ui.closeDialog();
+    window.dispatchEvent(new Event(CLOSE_REVIEW_DIALOG));
   };
   window.addEventListener(NEXT_VIDEO_REQUESTED_EVENT, onNextVideoRequested);
   const unsubscribePlayer = runtime.player.subscribe(() => maybeOpenEndReview());
@@ -224,7 +225,7 @@ function activate(runtime: JStremioRuntime) {
       playerRoute = route;
       resolvedPlayerTarget = null;
       nextVideoRequested = false;
-      runtime.ui.closeDialog();
+      window.dispatchEvent(new Event(CLOSE_REVIEW_DIALOG));
     }
     const button = mountPlayerButton("reviews", "Review this title", STAR_ICON, () => {
       void openPlayerReview();
@@ -304,6 +305,8 @@ function openReviewDialog(
   changed: () => void,
 ) {
   runtime.ui.openDialog((container, close) => {
+    const closeThisReview = () => close();
+    window.addEventListener(CLOSE_REVIEW_DIALOG, closeThisReview);
     addStyles(container, styles);
     const form = document.createElement("form");
     form.className = "dialog";
@@ -401,6 +404,7 @@ function openReviewDialog(
     } else {
       renderEditor(source);
     }
+    return () => window.removeEventListener(CLOSE_REVIEW_DIALOG, closeThisReview);
   });
 }
 

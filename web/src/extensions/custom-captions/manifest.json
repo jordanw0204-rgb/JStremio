@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "custom-captions",
+  "name": "Custom Captions",
+  "version": "1.1.0",
+  "entry": "index.js",
+  "styles": "styles.css",
+  "enabledByDefault": true,
+  "loadOrder": 145,
+  "description": "Customize text captions with fonts, presets, colors, outlines, backgrounds, shadows, opacity, and positioning.",
+  "author": "JStremio"
+}

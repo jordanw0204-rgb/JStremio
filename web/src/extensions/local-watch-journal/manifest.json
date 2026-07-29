@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "local-watch-journal",
+  "name": "Local Watch Journal",
+  "version": "1.0.1",
+  "description": "An automatic private watch diary with notes, tags, and favorites.",
+  "author": "JStremio",
+  "entry": "index.js",
+  "styles": "styles.css",
+  "enabledByDefault": true,
+  "loadOrder": 130
+}

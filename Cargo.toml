@@ -1,6 +1,6 @@
 [package]
 name = "jstremio"
-version = "1.10.1"
+version = "1.11.3"
 edition = "2018"
 
 [[bin]]
@@ -55,6 +55,10 @@ uuid = { version = "1.19", features = ["v4"]}
 chrono = { version = "0.4.35", features = ["clock", "serde"] }
 thiserror = "2"
 base64 = "0.22"
+axum = { version = "0.8.9", default-features = false, features = ["http1", "json", "tokio", "ws"] }
+tokio = { version = "1.53.1", features = ["rt", "net", "sync", "time"] }
+local-ip-address = "0.6.13"
+qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }
 
 [build-dependencies]
 winres = "0.1"
@@ -63,3 +67,4 @@ zip-extract = "0.4"
 [dev-dependencies]
 serde_test = "1.0.*"
 tempfile = "3"
+tower = { version = "0.5", features = ["util"] }

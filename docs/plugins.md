@@ -34,6 +34,16 @@ QOL Things enables **Remember player volume** by default. The last observed volu
 
 No Spoilers can independently blur plot summaries and artwork, replace a configurable percentage of title characters with `*`, and confirm forward timeline jumps larger than the configured number of minutes. A blocked jump never changes playback until **Skip** is chosen in the themed confirmation dialog.
 
+Custom Captions applies subtitle styling directly to the native MPV player and stores the validated settings in `plugins.json`. Its editor includes five presets plus font, size, screen position, text/outline/background/shadow colors and opacity, outline width, shadow offset, letter spacing, bold, italic, and embedded ASS-style handling. Changes apply live and persist across restarts.
+
+Intro & Credits Skipper stores private local skip ranges and can reuse them for one episode, a season, or an entire series. Its player prompt appears only while the current range is active. Credits may be anchored to the end of the current cut, and every saved range can be reviewed or deleted from the plugin's editor.
+
+Playback Statistics records plausible active playback and presents private watch-time trends, streaks, completions, and favorite titles. Local Watch Journal uses the same single playback tracker and history document to build an automatic watch diary with notes, tags, favorites, search, and deletion. Enabling both plugins does not write duplicate sessions.
+
+Always-on-Top Mini Player shrinks the native JStremio window into a resizable topmost player. Leaving mini-player mode restores the previous window placement, topmost state, and fullscreen state.
+
+Phone Remote starts only when requested from its plugin surface. It displays a one-use pairing code and serves a dependency-free phone controller to another device on the same private LAN. Remote commands are authenticated and tightly limited to playback controls. The connection is unencrypted HTTP/WebSocket traffic, so use it only on a network you trust and stop the server when finished.
+
 Themes is a protected built-in surface rather than a downloadable theme plugin. Its fixed native operations persist only the validated palette described in [Themes](themes.md). Use the Themes sidebar button to customize the app; do not install custom JavaScript merely to change basic colors.
 
 ## Plugin structure
@@ -78,7 +88,7 @@ Useful stable APIs include:
 - `runtime.plugins.getStyles(pluginId)` for the validated packaged stylesheet.
 - `runtime.diagnostics.report(pluginId, error)` for content-free errors.
 
-The generic runtime does not expose filesystem access, network requests, arbitrary native commands, or arbitrary MPV properties. The Reviews and Timestamp Notes native namespaces remain fixed internal product APIs rather than a general plugin privilege surface.
+The generic runtime does not expose filesystem access, arbitrary native commands, or arbitrary MPV properties. Reviews, Timestamp Notes, playback history, skip segments, mini-player window control, and Phone Remote use fixed internal product APIs rather than a general plugin privilege surface. Local plugins remain trusted page JavaScript and retain the browser network access described above.
 
 ## Recovery
 

@@ -1,7 +1,15 @@
 use crate::{
-    extensions::{PluginDescriptor, PluginSettingsStore, PreferredAudioDevice},
+    extensions::{
+        CustomCaptionsSettings, PluginDescriptor, PluginSettingsStore, PreferredAudioDevice,
+    },
     last_played::{LastPlayedInput, LastPlayedStore},
+    media::MediaMetadata,
+    phone_remote::{
+        PhoneRemoteError, PhoneRemoteService, RemotePlaybackState, StartPhoneRemoteRequest,
+    },
+    playback_history::{JournalUpdate, PlaybackHistoryStore, PlaybackSessionInput},
     reviews::{ReviewInput, ReviewStore},
+    skip_segments::{SkipProfileInput, SkipSegmentStore},
     storage::StorageError,
     themes::{ThemeSettings, ThemeStore},
     timestamp_notes::{CreateNoteInput, TimestampNoteStore, UpdateNoteInput},
@@ -12,7 +20,7 @@ use serde_json::{json, Value};
 use std::{
     fs,
     path::{Path, PathBuf},
-    sync::Mutex,
+    sync::{Arc, Mutex},
 };
 
 pub const REVIEWS_METHOD: &str = "jstremio-reviews";
@@ -20,6 +28,9 @@ pub const TIMESTAMP_NOTES_METHOD: &str = "jstremio-timestamp-notes";
 pub const PLUGINS_METHOD: &str = "jstremio-plugins";
 pub const LAST_PLAYED_METHOD: &str = "jstremio-last-played";
 pub const THEMES_METHOD: &str = "jstremio-themes";
+pub const PLAYBACK_HISTORY_METHOD: &str = "jstremio-playback-history";
+pub const SKIP_SEGMENTS_METHOD: &str = "jstremio-skip-segments";
+pub const PHONE_REMOTE_METHOD: &str = "jstremio-phone-remote";
 
 pub struct NativeBridge {
     reviews: ReviewStore,
@@ -29,6 +40,9 @@ pub struct NativeBridge {
     plugins: Mutex<Vec<PluginDescriptor>>,
     plugin_settings: PluginSettingsStore,
     last_played: LastPlayedStore,
+    playback_history: PlaybackHistoryStore,
+    skip_segments: SkipSegmentStore,
+    phone_remote: Arc<PhoneRemoteService>,
     themes: ThemeStore,
 }
 
@@ -114,6 +128,32 @@ struct SetNoSpoilersPayload {
     max_skip_minutes: f64,
 }
 
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct PlaybackHistoryListPayload {
+    #[serde(default)]
+    offset: usize,
+    #[serde(default = "default_history_limit")]
+    limit: usize,
+    since: Option<String>,
+    until: Option<String>,
+    #[serde(default)]
+    annotated_only: bool,
+    revision: Option<u64>,
+}
+
+fn default_history_limit() -> usize {
+    500
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ResolveSkipPayload {
+    #[serde(flatten)]
+    media: MediaMetadata,
+    duration_ms: Option<u64>,
+}
+
 const MAX_THUMBNAIL_BYTES: u64 = 2 * 1024 * 1024;
 
 #[derive(Debug, Serialize)]
@@ -142,10 +182,23 @@ impl NativeBridge {
         Self::new_with_plugins(data_directory, &data_directory.join("plugins"), Vec::new())
     }
 
+    #[cfg(test)]
     pub fn new_with_plugins(
         data_directory: &Path,
         plugin_directory: &Path,
         plugins: Vec<PluginDescriptor>,
+    ) -> Self {
+        let phone_remote = Arc::new(PhoneRemoteService::new(
+            data_directory.join("phone-remote-assets"),
+        ));
+        Self::new_with_plugins_and_remote(data_directory, plugin_directory, plugins, phone_remote)
+    }
+
+    pub fn new_with_plugins_and_remote(
+        data_directory: &Path,
+        plugin_directory: &Path,
+        plugins: Vec<PluginDescriptor>,
+        phone_remote: Arc<PhoneRemoteService>,
     ) -> Self {
         Self {
             reviews: ReviewStore::new(data_directory),
@@ -155,6 +208,9 @@ impl NativeBridge {
             plugins: Mutex::new(plugins),
             plugin_settings: PluginSettingsStore::new(data_directory),
             last_played: LastPlayedStore::new(data_directory),
+            playback_history: PlaybackHistoryStore::new(data_directory),
+            skip_segments: SkipSegmentStore::new(data_directory),
+            phone_remote,
             themes: ThemeStore::new(data_directory),
         }
     }
@@ -166,6 +222,9 @@ impl NativeBridge {
                 | TIMESTAMP_NOTES_METHOD
                 | PLUGINS_METHOD
                 | LAST_PLAYED_METHOD
+                | PLAYBACK_HISTORY_METHOD
+                | SKIP_SEGMENTS_METHOD
+                | PHONE_REMOTE_METHOD
                 | THEMES_METHOD
         )
     }
@@ -192,6 +251,11 @@ impl NativeBridge {
             Ok(request) if method == TIMESTAMP_NOTES_METHOD => self.handle_notes(request),
             Ok(request) if method == PLUGINS_METHOD => self.handle_plugins(request),
             Ok(request) if method == LAST_PLAYED_METHOD => self.handle_last_played(request),
+            Ok(request) if method == PLAYBACK_HISTORY_METHOD => {
+                self.handle_playback_history(request)
+            }
+            Ok(request) if method == SKIP_SEGMENTS_METHOD => self.handle_skip_segments(request),
+            Ok(request) if method == PHONE_REMOTE_METHOD => self.handle_phone_remote(request),
             Ok(request) if method == THEMES_METHOD => self.handle_themes(request),
             Ok(_) => Err(validation_error("unsupported bridge namespace")),
             Err(error) => Err(error),
@@ -524,6 +588,18 @@ impl NativeBridge {
                     "restartRequired": false
                 }))
             }
+            "getCustomCaptions" => self
+                .plugin_settings
+                .custom_captions_settings()
+                .map(|settings| json!(settings))
+                .map_err(storage_error),
+            "setCustomCaptions" => {
+                let settings: CustomCaptionsSettings = parse_value(request.payload)?;
+                self.plugin_settings
+                    .set_custom_captions_settings(settings.clone())
+                    .map_err(storage_error)?;
+                Ok(json!(settings))
+            }
             "openPluginsFolder" => {
                 fs::create_dir_all(&self.plugin_directory)
                     .map_err(|_| plugin_error("The plugins folder could not be created."))?;
@@ -565,6 +641,172 @@ impl NativeBridge {
                     .map_err(storage_error)
             }
             "openDataFolder" => self.open_data_folder(),
+            _ => Err(operation_error()),
+        }
+    }
+
+    fn handle_playback_history(&self, request: BridgeRequest) -> Result<Value, ErrorPayload> {
+        match request.operation.as_str() {
+            "health" => self
+                .playback_history
+                .health()
+                .map(|revision| json!({ "status": "ok", "revision": revision }))
+                .map_err(storage_error),
+            "upsert" => {
+                let input: PlaybackSessionInput = parse_value(request.payload)?;
+                self.playback_history
+                    .upsert(input)
+                    .map(|session| json!(session))
+                    .map_err(storage_error)
+            }
+            "list" => {
+                let payload: PlaybackHistoryListPayload = parse_value(request.payload)?;
+                if payload.limit == 0 || payload.limit > 500 || payload.offset > 10_000 {
+                    return Err(validation_error(
+                        "the history page is outside the supported range",
+                    ));
+                }
+                let since = parse_optional_timestamp(payload.since.as_deref(), "since")?;
+                let until = parse_optional_timestamp(payload.until.as_deref(), "until")?;
+                if matches!((since, until), (Some(since), Some(until)) if since > until) {
+                    return Err(validation_error("since must not be later than until"));
+                }
+                self.playback_history.snapshot().map_err(storage_error).map(
+                    |(revision, mut sessions)| {
+                        if payload
+                            .revision
+                            .is_some_and(|expected| expected != revision)
+                        {
+                            return json!({
+                                "items": [],
+                                "total": sessions.len(),
+                                "nextOffset": null,
+                                "revision": revision,
+                                "revisionChanged": true
+                            });
+                        }
+                        sessions.retain(|session| {
+                            let started = chrono::DateTime::parse_from_rfc3339(&session.started_at)
+                                .map(|value| value.timestamp_millis())
+                                .unwrap_or(i64::MIN);
+                            since.is_none_or(|lower| started >= lower)
+                                && until.is_none_or(|upper| started <= upper)
+                                && (!payload.annotated_only || session.journal.is_some())
+                        });
+                        sessions.sort_by(|left, right| right.started_at.cmp(&left.started_at));
+                        let total = sessions.len();
+                        let items = sessions
+                            .into_iter()
+                            .skip(payload.offset)
+                            .take(payload.limit)
+                            .collect::<Vec<_>>();
+                        let consumed = payload.offset.saturating_add(items.len());
+                        let next_offset = (consumed < total).then_some(consumed);
+                        json!({
+                            "items": items,
+                            "total": total,
+                            "nextOffset": next_offset,
+                            "revision": revision,
+                            "revisionChanged": false
+                        })
+                    },
+                )
+            }
+            "updateJournal" => {
+                let update: JournalUpdate = parse_value(request.payload)?;
+                self.playback_history
+                    .update_journal(update)
+                    .map_err(storage_error)?
+                    .map(|session| json!(session))
+                    .ok_or_else(|| not_found_error("The playback session was not found."))
+            }
+            "delete" => {
+                let payload: IdPayload = parse_value(request.payload)?;
+                validate_lookup_id(&payload.id)?;
+                self.playback_history
+                    .delete(&payload.id)
+                    .map(|deleted| json!({ "deleted": deleted }))
+                    .map_err(storage_error)
+            }
+            "clear" => self
+                .playback_history
+                .clear()
+                .map(|removed| json!({ "removed": removed }))
+                .map_err(storage_error),
+            "openDataFolder" => self.open_data_folder(),
+            _ => Err(operation_error()),
+        }
+    }
+
+    fn handle_skip_segments(&self, request: BridgeRequest) -> Result<Value, ErrorPayload> {
+        match request.operation.as_str() {
+            "resolve" => {
+                let payload: ResolveSkipPayload = parse_value(request.payload)?;
+                self.skip_segments
+                    .resolve(&payload.media, payload.duration_ms)
+                    .map(|profile| json!(profile))
+                    .map_err(storage_error)
+            }
+            "listForMedia" => {
+                let media: MediaMetadata = parse_value(request.payload)?;
+                self.skip_segments
+                    .list_for_media(&media)
+                    .map(|profiles| json!(profiles))
+                    .map_err(storage_error)
+            }
+            "upsert" => {
+                let input: SkipProfileInput = parse_value(request.payload)?;
+                self.skip_segments
+                    .upsert(input)
+                    .map(|profile| json!(profile))
+                    .map_err(storage_error)
+            }
+            "delete" => {
+                let payload: IdPayload = parse_value(request.payload)?;
+                validate_lookup_id(&payload.id)?;
+                self.skip_segments
+                    .delete(&payload.id)
+                    .map(|deleted| json!({ "deleted": deleted }))
+                    .map_err(storage_error)
+            }
+            "openDataFolder" => self.open_data_folder(),
+            _ => Err(operation_error()),
+        }
+    }
+
+    fn handle_phone_remote(&self, request: BridgeRequest) -> Result<Value, ErrorPayload> {
+        match request.operation.as_str() {
+            "interfaces" => self
+                .phone_remote
+                .available_interfaces()
+                .map(|interfaces| json!(interfaces))
+                .map_err(phone_remote_error),
+            "start" => {
+                let input: StartPhoneRemoteRequest = parse_value(request.payload)?;
+                self.phone_remote
+                    .start(input)
+                    .map(|result| json!(result))
+                    .map_err(phone_remote_error)
+            }
+            "status" => Ok(json!(self.phone_remote.status())),
+            "newPairing" => self
+                .phone_remote
+                .new_pairing_code()
+                .map(|pairing| json!(pairing))
+                .map_err(phone_remote_error),
+            "updateState" => {
+                let state: RemotePlaybackState = parse_value(request.payload)?;
+                self.phone_remote
+                    .update_state(state)
+                    .map_err(phone_remote_error)?;
+                Ok(json!({ "updated": true }))
+            }
+            "heartbeat" => {
+                self.phone_remote.heartbeat();
+                Ok(json!({ "alive": true }))
+            }
+            "disconnectAll" => Ok(json!(self.phone_remote.disconnect_all())),
+            "stop" => Ok(json!(self.phone_remote.stop())),
             _ => Err(operation_error()),
         }
     }
@@ -737,6 +979,14 @@ fn plugin_error(message: &str) -> ErrorPayload {
     }
 }
 
+fn phone_remote_error(error: PhoneRemoteError) -> ErrorPayload {
+    ErrorPayload {
+        code: error.code().into(),
+        message: error.to_string(),
+        recoverable: true,
+    }
+}
+
 fn parse_value<T: DeserializeOwned>(value: Value) -> Result<T, ErrorPayload> {
     serde_json::from_value(value).map_err(|_| validation_error("the request payload is invalid"))
 }
@@ -746,6 +996,16 @@ fn validate_lookup_id(value: &str) -> Result<(), ErrorPayload> {
         return Err(validation_error("the requested ID is invalid"));
     }
     Ok(())
+}
+
+fn parse_optional_timestamp(value: Option<&str>, field: &str) -> Result<Option<i64>, ErrorPayload> {
+    value
+        .map(|value| {
+            chrono::DateTime::parse_from_rfc3339(value)
+                .map(|timestamp| timestamp.timestamp_millis())
+                .map_err(|_| validation_error(&format!("{field} must be an RFC 3339 timestamp")))
+        })
+        .transpose()
 }
 
 fn storage_error(error: StorageError) -> ErrorPayload {
@@ -778,6 +1038,14 @@ fn validation_error(message: &str) -> ErrorPayload {
     }
 }
 
+fn not_found_error(message: &str) -> ErrorPayload {
+    ErrorPayload {
+        code: "not_found".into(),
+        message: message.into(),
+        recoverable: true,
+    }
+}
+
 fn operation_error() -> ErrorPayload {
     ErrorPayload {
         code: "unknown_operation".into(),
@@ -798,7 +1066,8 @@ fn response(method: &str, request_id: u64, result: Result<Value, ErrorPayload>) 
 #[cfg(test)]
 mod tests {
     use super::{
-        NativeBridge, LAST_PLAYED_METHOD, PLUGINS_METHOD, REVIEWS_METHOD, THEMES_METHOD,
+        NativeBridge, LAST_PLAYED_METHOD, PHONE_REMOTE_METHOD, PLAYBACK_HISTORY_METHOD,
+        PLUGINS_METHOD, REVIEWS_METHOD, SKIP_SEGMENTS_METHOD, THEMES_METHOD,
         TIMESTAMP_NOTES_METHOD,
     };
     use crate::extensions::{PluginDescriptor, PluginSettingsStore};
@@ -827,8 +1096,100 @@ mod tests {
         assert!(NativeBridge::supports(TIMESTAMP_NOTES_METHOD));
         assert!(NativeBridge::supports(PLUGINS_METHOD));
         assert!(NativeBridge::supports(LAST_PLAYED_METHOD));
+        assert!(NativeBridge::supports(PLAYBACK_HISTORY_METHOD));
+        assert!(NativeBridge::supports(SKIP_SEGMENTS_METHOD));
+        assert!(NativeBridge::supports(PHONE_REMOTE_METHOD));
         assert!(NativeBridge::supports(THEMES_METHOD));
         assert!(!NativeBridge::supports("jstremio-filesystem"));
+    }
+
+    #[test]
+    fn history_and_skip_bridges_expose_only_validated_domain_operations() {
+        let directory = tempdir().unwrap();
+        let bridge = NativeBridge::new(directory.path());
+        let media = json!({
+            "videoId": "tt123:1:2",
+            "metaId": "tt123",
+            "mediaType": "series",
+            "name": "Example Show",
+            "title": "Episode Two",
+            "season": 1,
+            "episode": 2,
+            "poster": null
+        });
+        let mut session = media.clone();
+        let session = session.as_object_mut().unwrap();
+        session.extend(
+            json!({
+                "id": "session-one",
+                "startedAt": "2026-07-27T20:00:00.000Z",
+                "lastSeenAt": "2026-07-27T20:01:00.000Z",
+                "endedAt": null,
+                "watchedMs": 60_000,
+                "startPositionMs": 0,
+                "endPositionMs": 60_000,
+                "maxPositionMs": 60_000,
+                "durationMs": 1_800_000,
+                "completed": false
+            })
+            .as_object()
+            .unwrap()
+            .clone(),
+        );
+        let saved = bridge
+            .handle(
+                PLAYBACK_HISTORY_METHOD,
+                80,
+                Some(&json!({ "operation": "upsert", "payload": session })),
+            )
+            .into_event();
+        assert_eq!(saved[1]["ok"], true);
+        let listed = bridge
+            .handle(
+                PLAYBACK_HISTORY_METHOD,
+                81,
+                Some(&json!({ "operation": "list", "payload": { "limit": 10 } })),
+            )
+            .into_event();
+        assert_eq!(listed[1]["result"]["total"], 1);
+
+        let mut profile = media.clone();
+        profile.as_object_mut().unwrap().extend(
+            json!({
+                "scope": "series",
+                "intro": {
+                    "startMs": 5_000,
+                    "endMs": 75_000,
+                    "anchor": "absolute",
+                    "durationMsAtCreation": null
+                },
+                "credits": null
+            })
+            .as_object()
+            .unwrap()
+            .clone(),
+        );
+        let saved_profile = bridge
+            .handle(
+                SKIP_SEGMENTS_METHOD,
+                82,
+                Some(&json!({ "operation": "upsert", "payload": profile })),
+            )
+            .into_event();
+        assert_eq!(saved_profile[1]["ok"], true);
+        let mut resolve = media;
+        resolve
+            .as_object_mut()
+            .unwrap()
+            .insert("durationMs".into(), json!(1_800_000));
+        let resolved = bridge
+            .handle(
+                SKIP_SEGMENTS_METHOD,
+                83,
+                Some(&json!({ "operation": "resolve", "payload": resolve })),
+            )
+            .into_event();
+        assert_eq!(resolved[1]["result"]["intro"]["endMs"], 75_000);
     }
 
     #[test]
@@ -1231,6 +1592,37 @@ mod tests {
         assert_eq!(spoilers[1]["result"]["titleMaskPercent"], 80);
         assert_eq!(spoilers[1]["result"]["maxSkipMinutes"], 3.5);
 
+        let captions = bridge
+            .handle(
+                PLUGINS_METHOD,
+                64,
+                Some(&json!({
+                    "operation": "setCustomCaptions",
+                    "payload": {
+                        "fontFamily": "Segoe UI",
+                        "fontSize": 52,
+                        "position": 96,
+                        "textColor": "#FFE94A",
+                        "textOpacity": 95,
+                        "outlineColor": "#000000",
+                        "outlineOpacity": 100,
+                        "outlineSize": 4,
+                        "backgroundColor": "#000000",
+                        "backgroundOpacity": 65,
+                        "shadowColor": "#000000",
+                        "shadowOpacity": 0,
+                        "shadowOffset": 0,
+                        "letterSpacing": 0.5,
+                        "bold": true,
+                        "italic": false,
+                        "assOverride": "force"
+                    }
+                })),
+            )
+            .into_event();
+        assert_eq!(captions[1]["result"]["fontFamily"], "Segoe UI");
+        assert_eq!(captions[1]["result"]["backgroundOpacity"], 65.0);
+
         let store = PluginSettingsStore::new(directory.path());
         assert_eq!(
             store.preferred_audio_device().unwrap().unwrap().description,
@@ -1240,6 +1632,10 @@ mod tests {
         assert_eq!(
             store.no_spoilers_settings().unwrap(),
             (false, true, 80, true, 3.5)
+        );
+        assert_eq!(
+            store.custom_captions_settings().unwrap().text_color,
+            "#FFE94A"
         );
     }
 

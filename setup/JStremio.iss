@@ -78,8 +78,11 @@ Source: "{#SourcePath}..\upstream.lock.json"; DestDir: "{app}"; Flags: ignorever
 Source: "{#SourcePath}installed-channel.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourcePath}default-addons.json"; DestDir: "{app}\setup"; Flags: ignoreversion
 
-[InstallDelete]
-Type: filesandordirs; Name: "{app}\resources\extensions"
+; Keep the installed extension tree until its replacement files have been
+; copied successfully. Inno Setup processes [InstallDelete] before [Files],
+; so deleting this directory here can leave the base Stremio UI behind when
+; an upgrade later aborts on a locked native DLL. Remove obsolete extensions
+; only through explicit, versioned migration entries.
 
 [Icons]
 Name: "{autoprograms}\JStremio"; Filename: "{app}\{#MyAppExeName}"

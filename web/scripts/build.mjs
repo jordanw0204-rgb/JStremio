@@ -28,7 +28,7 @@ await build({
   outfile: resolve(outputRoot, "runtime.js"),
 });
 
-for (const id of ["plugin-manager", "themes", "reviews", "timestamp-notes", "last-played", "begone-mouse", "quick-seek", "stream-switcher", "easy-sound-output", "qol-things", "no-spoilers"]) {
+for (const id of ["plugin-manager", "themes", "reviews", "timestamp-notes", "last-played", "begone-mouse", "quick-seek", "stream-switcher", "custom-captions", "easy-sound-output", "qol-things", "no-spoilers", "mini-player", "intro-credits-skipper", "playback-statistics", "local-watch-journal", "phone-remote"]) {
   const source = resolve(webRoot, "src", "extensions", id);
   const output = resolve(outputRoot, id);
   await mkdir(output, { recursive: true });
@@ -41,3 +41,14 @@ for (const id of ["plugin-manager", "themes", "reviews", "timestamp-notes", "las
   await cp(resolve(source, "manifest.json"), resolve(output, "manifest.json"));
   await cp(resolve(source, "styles.css"), resolve(output, "styles.css"));
 }
+
+const phoneRemoteSource = resolve(webRoot, "src", "extensions", "phone-remote", "remote");
+const phoneRemoteOutput = resolve(outputRoot, "phone-remote", "remote");
+await mkdir(phoneRemoteOutput, { recursive: true });
+await build({
+  ...common,
+  entryPoints: [resolve(phoneRemoteSource, "index.ts")],
+  outfile: resolve(phoneRemoteOutput, "app.js"),
+});
+await cp(resolve(phoneRemoteSource, "index.html"), resolve(phoneRemoteOutput, "index.html"));
+await cp(resolve(phoneRemoteSource, "styles.css"), resolve(phoneRemoteOutput, "styles.css"));

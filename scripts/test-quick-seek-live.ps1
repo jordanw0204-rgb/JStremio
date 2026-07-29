@@ -17,9 +17,10 @@ if ($MediaFile) {
     $resolvedMedia = (Resolve-Path -LiteralPath $MediaFile).Path
     $mediaLog = [System.IO.Path]::GetTempFileName()
     $node = (Get-Command node -ErrorAction Stop).Source
+    $quotedMedia = '"' + $resolvedMedia.Replace('"', '\"') + '"'
     $mediaProcess = Start-Process -FilePath $node -ArgumentList @(
         (Join-Path $repoRoot "web\scripts\range-media-server.mjs"),
-        $resolvedMedia,
+        $quotedMedia,
         "$MediaPort"
     ) -RedirectStandardOutput $mediaLog -WindowStyle Hidden -PassThru
     for ($attempt = 0; $attempt -lt 40; $attempt++) {

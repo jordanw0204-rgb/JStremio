@@ -1,0 +1,201 @@
+.jstremio-phone-remote-page {
+  width:min(1040px,calc(100vw - 44px));
+  margin:0 auto;
+  padding:34px 0 56px;
+  color:var(--jstremio-text-color,var(--primary-foreground-color,#f7f5ff));
+  font-family:Inter,"Segoe UI",sans-serif;
+}
+.jstremio-phone-remote-page * { box-sizing:border-box; }
+.jstremio-phone-remote-page header {
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:24px;
+  margin-bottom:22px;
+}
+.jstremio-phone-remote-page h1 {
+  margin:2px 0 7px;
+  font-size:clamp(28px,4vw,42px);
+  line-height:1.05;
+}
+.jstremio-phone-remote-page header p:not(.eyebrow) {
+  max-width:650px;
+  margin:0;
+  color:color-mix(in srgb,currentColor 68%,transparent);
+  line-height:1.55;
+}
+.jstremio-phone-remote-page .eyebrow {
+  margin:0;
+  color:var(--jstremio-accent-color,var(--primary-accent-color,#8d6cff));
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+}
+.status-pill {
+  flex:0 0 auto;
+  padding:7px 11px;
+  border:1px solid color-mix(in srgb,currentColor 22%,transparent);
+  border-radius:999px;
+  background:color-mix(in srgb,var(--jstremio-surface-color,#17122e) 88%,transparent);
+  font-size:12px;
+  font-weight:750;
+}
+.status-pill[data-running] {
+  border-color:#4fd28c;
+  background:color-mix(in srgb,#1b9d5a 18%,var(--jstremio-surface-color,#17122e));
+  color:#8ef0b9;
+}
+.security-note {
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:10px 18px;
+  margin-bottom:18px;
+  padding:13px 15px;
+  border:1px solid color-mix(in srgb,#ffbf47 43%,transparent);
+  border-radius:12px;
+  background:color-mix(in srgb,#ffbf47 9%,var(--jstremio-surface-color,#17122e));
+  font-size:13px;
+}
+.security-note span { color:color-mix(in srgb,currentColor 74%,transparent); }
+.remote-grid {
+  display:grid;
+  grid-template-columns:minmax(0,1.15fr) minmax(290px,.85fr);
+  gap:16px;
+}
+.remote-card {
+  padding:20px;
+  border:1px solid color-mix(in srgb,currentColor 13%,transparent);
+  border-radius:16px;
+  background:color-mix(in srgb,var(--jstremio-surface-color,var(--modal-background-color,#17122e)) 94%,transparent);
+  box-shadow:0 15px 42px color-mix(in srgb,#000 32%,transparent);
+}
+.remote-card h2 { margin:0 0 17px;font-size:18px; }
+.remote-setup label:not(.trust) {
+  display:grid;
+  gap:8px;
+  color:color-mix(in srgb,currentColor 72%,transparent);
+  font-size:12px;
+  font-weight:700;
+}
+.remote-setup select {
+  width:100%;
+  min-height:44px;
+  padding:0 42px 0 13px;
+  border:1px solid color-mix(in srgb,currentColor 19%,transparent);
+  border-radius:10px;
+  appearance:none;
+  background-color:color-mix(in srgb,var(--jstremio-background-start,#0d0920) 82%,#000);
+  background-image:
+    linear-gradient(45deg,transparent 50%,currentColor 50%),
+    linear-gradient(135deg,currentColor 50%,transparent 50%);
+  background-position:calc(100% - 18px) 19px,calc(100% - 13px) 19px;
+  background-repeat:no-repeat;
+  background-size:5px 5px,5px 5px;
+  color:inherit;
+  font:600 13px/1 Inter,"Segoe UI",sans-serif;
+  cursor:pointer;
+}
+.remote-setup select:focus-visible {
+  border-color:var(--jstremio-accent-color,var(--primary-accent-color,#8d6cff));
+  outline:2px solid color-mix(in srgb,var(--jstremio-accent-color,#8d6cff) 38%,transparent);
+  outline-offset:2px;
+}
+.remote-setup option {
+  background:var(--jstremio-surface-color,var(--modal-background-color,#17122e));
+  color:var(--jstremio-text-color,var(--primary-foreground-color,#f7f5ff));
+}
+.trust {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin:15px 0;
+  font-size:13px;
+  cursor:pointer;
+}
+.trust input {
+  width:18px;
+  height:18px;
+  margin:0;
+  accent-color:var(--jstremio-accent-color,#8d6cff);
+  cursor:pointer;
+}
+.actions { display:flex;gap:9px;flex-wrap:wrap; }
+.jstremio-phone-remote-page button {
+  min-height:40px;
+  padding:0 15px;
+  border:1px solid color-mix(in srgb,currentColor 19%,transparent);
+  border-radius:10px;
+  background:color-mix(in srgb,currentColor 7%,transparent);
+  color:inherit;
+  font:700 12px/1 Inter,"Segoe UI",sans-serif;
+  cursor:pointer;
+  transition:filter 120ms ease,background-color 120ms ease,border-color 120ms ease;
+}
+.jstremio-phone-remote-page button.primary {
+  border-color:var(--jstremio-accent-color,#8d6cff);
+  background:var(--jstremio-accent-color,#7251ea);
+  color:#fff;
+}
+.jstremio-phone-remote-page button:disabled { opacity:.43;cursor:not-allowed; }
+.jstremio-phone-remote-page button:not(:disabled):hover,
+.jstremio-phone-remote-page button:not(:disabled):focus-visible {
+  filter:brightness(1.14);
+  outline:2px solid color-mix(in srgb,var(--jstremio-accent-color,#8d6cff) 42%,transparent);
+  outline-offset:2px;
+}
+.message { min-height:18px;margin:12px 0 0;color:#8ee7b5;font-size:12px;line-height:1.45; }
+.message[data-error] { color:#ff9a9a; }
+.remote-pairing { grid-row:span 2;text-align:center; }
+.pair-placeholder {
+  display:grid;
+  place-items:center;
+  min-height:265px;
+  padding:28px;
+  border:1px dashed color-mix(in srgb,currentColor 20%,transparent);
+  border-radius:12px;
+  color:color-mix(in srgb,currentColor 55%,transparent);
+  font-size:13px;
+  line-height:1.55;
+}
+.pair-content img {
+  display:block;
+  width:min(280px,100%);
+  aspect-ratio:1;
+  margin:0 auto 13px;
+  padding:10px;
+  border-radius:12px;
+  background:#fff;
+}
+.pair-url { margin:0;font-size:13px;font-weight:700;overflow-wrap:anywhere; }
+.expires { margin:6px 0 14px;color:color-mix(in srgb,currentColor 62%,transparent);font-size:11px; }
+.pair-content .actions { justify-content:center; }
+.remote-sessions dl { display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:0 0 15px; }
+.remote-sessions dl div { padding:13px;border-radius:11px;background:color-mix(in srgb,currentColor 5%,transparent); }
+.remote-sessions dt { color:color-mix(in srgb,currentColor 58%,transparent);font-size:11px; }
+.remote-sessions dd { margin:7px 0 0;font-size:24px;font-weight:800; }
+.jstremio-phone-remote-page details {
+  margin-top:16px;
+  padding:14px 16px;
+  border:1px solid color-mix(in srgb,currentColor 11%,transparent);
+  border-radius:12px;
+  color:color-mix(in srgb,currentColor 68%,transparent);
+  font-size:12px;
+  line-height:1.55;
+}
+.jstremio-phone-remote-page summary {
+  color:var(--jstremio-text-color,#fff);
+  font-weight:700;
+  cursor:pointer;
+}
+.jstremio-phone-remote-page details p { margin:10px 0 0; }
+@media(max-width:760px) {
+  .jstremio-phone-remote-page { width:min(100% - 24px,1040px);padding-top:22px; }
+  .jstremio-phone-remote-page header { align-items:center; }
+  .remote-grid { grid-template-columns:1fr; }
+  .remote-pairing { grid-row:auto; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .jstremio-phone-remote-page * { scroll-behavior:auto!important;transition:none!important; }
+}

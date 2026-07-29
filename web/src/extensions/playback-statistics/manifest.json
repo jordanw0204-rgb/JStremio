@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "playback-statistics",
+  "name": "Playback Statistics",
+  "version": "1.0.1",
+  "description": "Private, local watch-time trends, streaks, completions, and favorite titles.",
+  "author": "JStremio",
+  "entry": "index.js",
+  "styles": "styles.css",
+  "enabledByDefault": true,
+  "loadOrder": 125
+}

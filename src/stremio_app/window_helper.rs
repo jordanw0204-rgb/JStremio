@@ -84,7 +84,7 @@ impl WindowStyle {
         self.pos = ((monitor_w - self.size.0) / 2, (monitor_h - self.size.1) / 2);
         self.show_window_at(hwnd, HWND_NOTOPMOST);
     }
-    pub fn restore_window_placement(&mut self, hwnd: HWND, placement: WINDOWPLACEMENT) {
+    pub fn restore_window_placement(&mut self, hwnd: HWND, placement: WINDOWPLACEMENT) -> bool {
         self.pos = (
             placement.rcNormalPosition.left,
             placement.rcNormalPosition.top,
@@ -93,9 +93,7 @@ impl WindowStyle {
             placement.rcNormalPosition.right - placement.rcNormalPosition.left,
             placement.rcNormalPosition.bottom - placement.rcNormalPosition.top,
         );
-        unsafe {
-            SetWindowPlacement(hwnd, &placement);
-        }
+        unsafe { SetWindowPlacement(hwnd, &placement) != 0 }
     }
     pub fn set_title_bar_color(&self, hwnd: HWND, caption_hex: &str, text_hex: &str) {
         let caption_color = colorref_from_hex(caption_hex).unwrap_or(STREMIO_CAPTION_COLOR);
@@ -176,14 +174,17 @@ impl WindowStyle {
         }
     }
     pub fn toggle_topmost(&mut self, hwnd: HWND) {
-        let topmost = if unsafe { GetWindowLongA(hwnd, GWL_EXSTYLE) } as u32 & WS_EX_TOPMOST
-            == WS_EX_TOPMOST
-        {
-            HWND_NOTOPMOST
-        } else {
+        let enabled =
+            unsafe { GetWindowLongA(hwnd, GWL_EXSTYLE) } as u32 & WS_EX_TOPMOST != WS_EX_TOPMOST;
+        let _ = self.set_topmost(hwnd, enabled);
+    }
+    pub fn set_topmost(&mut self, hwnd: HWND, enabled: bool) -> bool {
+        let topmost = if enabled {
             HWND_TOPMOST
+        } else {
+            HWND_NOTOPMOST
         };
-        unsafe {
+        let positioned = unsafe {
             SetWindowPos(
                 hwnd,
                 topmost,
@@ -192,9 +193,10 @@ impl WindowStyle {
                 0,
                 0,
                 SWP_NOMOVE | SWP_NOSIZE | SWP_FRAMECHANGED,
-            );
-        }
+            )
+        };
         self.ex_style = unsafe { GetWindowLongA(hwnd, GWL_EXSTYLE) };
+        positioned != 0
     }
     pub fn set_active(&mut self, hwnd: HWND) {
         unsafe {

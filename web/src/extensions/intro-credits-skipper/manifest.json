@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "intro-credits-skipper",
+  "name": "Intro & Credits Skipper",
+  "version": "1.0.3",
+  "description": "Save local intro and credits ranges, reuse them by season or series, and skip with one click.",
+  "author": "JStremio",
+  "entry": "index.js",
+  "styles": "styles.css",
+  "enabledByDefault": true,
+  "loadOrder": 140
+}
