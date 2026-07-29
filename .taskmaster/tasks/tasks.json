@@ -407,18 +407,18 @@
         "description": "Commit and push the complete v1.11.3 working tree, build and validate the corrected installer/portable artifacts, tag the release, and verify the public GitHub latest release assets and checksums.",
         "details": "Include complete release notes for v1.11.0-v1.11.3 work, explicitly documenting Custom Captions and the installer extension-tree transaction fix. Run scripts/check.ps1 and scripts/build-release.ps1, verify artifacts and manifest counts, commit all intended changes, push feature/jstremio-extensions and annotated v1.11.3 tag, monitor the release workflow, then verify the public installer/portable/checksum assets and latest-release metadata.",
         "testStrategy": "Full locked release gate; local artifact hashes and installer resource validation; GitHub Actions tag workflow success; anonymous/public release asset and checksum verification.",
-        "status": "in-progress",
+        "status": "done",
         "dependencies": [],
         "priority": "high",
         "subtasks": [],
-        "updatedAt": "2026-07-29T17:23:51.650Z"
+        "updatedAt": "2026-07-29T17:54:56.187Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2026-07-29T17:23:51.651Z",
+      "lastModified": "2026-07-29T17:54:56.187Z",
       "taskCount": 31,
-      "completedCount": 28,
+      "completedCount": 29,
       "tags": [
         "master"
       ]

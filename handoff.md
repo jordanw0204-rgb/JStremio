@@ -26,7 +26,7 @@ Use CodeGraph before structural code exploration. A persistent project overview 
 - Branch: `feature/jstremio-extensions`
 - Upstream: `origin/feature/jstremio-extensions`
 - Public repository: `https://github.com/jordanw0204-rgb/JStremio`
-- Release target: `v1.11.3` (the latest public tag before this promotion is `v1.10.1`; use `git log -1` for the current branch commit)
+- Latest release tag: `v1.11.3` (release commit `5f1baab`; use `git log -1` for the current branch commit)
 - Current application version: `1.11.3`
 - Pinned shell upstream: `Stremio/stremio-shell-ng` release `v5.0.23`
 - Pinned upstream commit: `5b1f341dbd9e1959f824436c70aa7410c159f684`
@@ -36,6 +36,7 @@ Use CodeGraph before structural code exploration. A persistent project overview 
 Recent commits:
 
 ```text
+5f1baab release: publish JStremio v1.11.3
 4a6c3d1 release: prepare v1.10.1
 5fa3c79 release: publish spoiler and review compatibility v1.10.0
 b178a13 feat: add player quality-of-life plugins
@@ -163,13 +164,13 @@ Private review/note text must never be added to logs, telemetry, URL parameters,
 Task Master tag: `master`
 
 - Total: 31
-- Done: 28
+- Done: 29
 - Review: 2
-- In progress: 1
+- In progress: 0
 - Pending/blocked: 0
-- Reported completion: 90%
+- Reported completion: 94%
 
-Tasks 1-10 and 13-30 are done. Tasks 11 and 12 remain in review. Task 31 tracks the v1.11.3 publication and remains in progress until the public latest-release assets are verified.
+Tasks 1-10 and 13-31 are done. Tasks 11 and 12 remain in review.
 
 Task 25 is complete. The repository is public, the v1.3.0 release exposes the installer, portable ZIP, and checksums anonymously, and the installer is labeled as the recommended download. The anonymous latest-release endpoint returns the expected installer size and GitHub SHA-256 digest. GitHub secret scanning and push protection are enabled with zero open alerts after a tracked-tree/history credential audit.
 
@@ -182,6 +183,8 @@ Task 28 is complete. v1.5.1 keeps the themed WebView transparent over native MPV
 Task 29 is complete. v1.5.2 keeps WebView2/native MPV bounds synchronized through the real Win32 size/move/fullscreen lifecycle, hides page navigation explicitly during playback, and adds a bounded 15-second stall watchdog that reselects the active video track without changing the logical stream or playback position. The full local gate, error-free 20-cycle real MPV/fullscreen stress, OS-level decoded-frame capture, 12-file protected-profile comparison, branch/tag CI, clean-runner release, public asset/checksum verification, direct installer HTTP check, and zero-open-secret-alert check all passed.
 
 Task 30 is complete. A real interrupted v1.11.3 upgrade proved the installer deleted `resources\extensions` before a locked DLL replacement could finish, causing the next launch to fall back to the plain Stremio UI. The matching portable resources restored all 55 files and 17 manifests without changing profile data; the installer now retains the old extension tree until transactional replacement and rejects the unsafe deletion rule during packaging.
+
+Task 31 is complete. Release commit `5f1baab` is pushed and tagged `v1.11.3`; branch CI, tag CI, and release publication all passed. GitHub's anonymous latest-release endpoint returns the installer, portable ZIP, and checksum asset, and the checksum entries match GitHub's published SHA-256 digests.
 
 ### Task 11 - Add checks, fixtures, and real-shell regression workflow
 
@@ -248,7 +251,7 @@ SHA256: 47D139CD5ED09EB78B80528EAAED5F3708F625B574F0A3DE74CAC1598020CAAF
 
 These hashes apply only to the current artifacts. Recompute them after any package rebuild.
 
-GitHub Actions rebuilds public release assets on a clean runner, so their build-timestamp hashes can differ from these local artifacts. Use the published release's `SHA256SUMS.txt` for public downloads.
+GitHub Actions rebuilt the public assets on a clean runner. The published installer is 71,778,596 bytes with SHA-256 `599C18750C786B36811AD6E443B3116C193DDC981EEA7417BD0EBDD94544BD76`; the portable ZIP is 93,569,997 bytes with SHA-256 `B534F22CC2B66986630D67463CDCE4B19DCF866AADEB995E2C8D1DB778AE347D`. The public `SHA256SUMS.txt` matches both GitHub asset digests.
 
 ## Architecture constraints that must not regress
 
